@@ -45,8 +45,6 @@ async function makeClickableLink(uid: string): Promise<string> {
   }
 
   const fileUri = files[0];
-  
-  // vscode.open expects an array containing a stringified Uri string
   const args = encodeURIComponent(JSON.stringify([fileUri.toString()]));
   const commandUri = `command:vscode.open?${args}`;
 
@@ -115,7 +113,7 @@ async function findReverseLinks(targetUid: string): Promise<string[]> {
 export function activate(context: vscode.ExtensionContext) {
   vscode.window.showInformationMessage('Doorstop VS Code Extension is active!');
 
-  const uidRegex = /\b[a-zA-Z0-9_-]+-\d+\b/g;
+  const uidRegex = /\b[A-Z0-9_-]+-\d+\b/g;
 
   const hoverProvider = vscode.languages.registerHoverProvider({ scheme: 'file' }, {
     async provideHover(document: vscode.TextDocument, position: vscode.Position) {
@@ -123,7 +121,7 @@ export function activate(context: vscode.ExtensionContext) {
       const currentFileName = path.basename(document.fileName);
       const currentFileUid = currentFileName.replace(/\.(yml|md)$/, '');
 
-      // 1. Hover over "derived:" line -> Shows clickable downstream (reverse) links
+      // 1. Hover over "derived:" line -> Downstream (reverse) links for current file
       const isDerivedHover = /^\s*derived\s*:/i.test(lineText);
 
       if (isDerivedHover) {
@@ -131,7 +129,7 @@ export function activate(context: vscode.ExtensionContext) {
         const reverseLinkUids = await findReverseLinks(currentFileUid);
 
         const markdown = new vscode.MarkdownString();
-        markdown.isTrusted = true; // Required to allow command URIs
+        markdown.isTrusted = true;
 
         markdown.appendMarkdown(`### 🔗 **Downstream (Reverse) Links for ${currentFileUid}**\n\n---\n\n`);
 
@@ -147,13 +145,17 @@ export function activate(context: vscode.ExtensionContext) {
         return new vscode.Hover(markdown, range);
       }
 
-      // 2. Hover over UID -> Shows item details with clickable upstream links
+      // 2. Extract Hovered UID
       const range = document.getWordRangeAtPosition(position, uidRegex);
       if (!range) {
         return undefined;
       }
 
       const hoveredUid = document.getText(range);
+
+      // Check if the current line is inside a `links:` block or list (e.g. "- SYS-0001: null")
+      const isInsideLinksBlock = /^\s*(-|\s)\s*[A-Z0-9_-]+-\d+/i.test(lineText) || /^\s*links\s*:/i.test(lineText);
+
       const files = await vscode.workspace.findFiles(`**/${hoveredUid}.{yml,md}`, '**/node_modules/**', 1);
       if (files.length === 0) {
         return undefined;
@@ -169,28 +171,33 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         const markdown = new vscode.MarkdownString();
-        markdown.isTrusted = true; // Enables click navigation
+        markdown.isTrusted = true;
 
-        let headerText = `### 📋 **${hoveredUid}**`;
+        // Open Link Header
+        const targetFileLink = await makeClickableLink(hoveredUid);
+        markdown.appendMarkdown(`### 📋 **Target Item:** ${targetFileLink}\n\n`);
+
         if (item.header) {
-          headerText += `: ${item.header}`;
+          markdown.appendMarkdown(`**Header:** ${item.header}\n\n`);
         }
         if (item.level) {
-          headerText += ` *(Level: ${item.level})*`;
+          markdown.appendMarkdown(`**Level:** ${item.level}\n\n`);
         }
-        markdown.appendMarkdown(`${headerText}\n\n---\n\n`);
+        markdown.appendMarkdown(`---\n\n`);
 
-        if (item.text) {
+        // Text
+        if (item.text) { 
           markdown.appendMarkdown(`${item.text.trim()}\n\n`);
         } else {
           markdown.appendMarkdown('*No requirement text defined.*\n\n');
         }
 
-        if (item.links && item.links.length > 0) {
+        // Only show upstream links if NOT hovering directly on a link item
+        if (!isInsideLinksBlock && item.links && item.links.length > 0) {
           const formattedClickableLinks = await formatLinksClickable(item.links);
           markdown.appendMarkdown(`**Upstream Links:** ${formattedClickableLinks}\n\n`);
         }
-
+ 
         if (item.ref) {
           markdown.appendMarkdown(`**Ref:** \`${item.ref}\``);
         }
