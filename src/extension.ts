@@ -35,19 +35,41 @@ function parseDoorstopFile(rawContent: string): DoorstopItem | undefined {
   return yaml.load(rawContent) as DoorstopItem;
 }
 
-function formatLinks(links: (string | Record<string, string | null>)[]): string {
-  return links
-    .map(link => {
-      if (typeof link === 'string') {
-        return `\`${link}\``;
+/**
+ * Creates a VS Code Command URI link that opens the target item file when clicked.
+ */
+async function makeClickableLink(uid: string): Promise<string> {
+  const files = await vscode.workspace.findFiles(`**/${uid}.{yml,md}`, '**/node_modules/**', 1);
+  if (files.length === 0) {
+    return `\`${uid}\``; // Fallback to plain text if file is missing
+  }
+
+  const fileUri = files[0];
+  
+  // vscode.open expects an array containing a stringified Uri string
+  const args = encodeURIComponent(JSON.stringify([fileUri.toString()]));
+  const commandUri = `command:vscode.open?${args}`;
+
+  return `[${uid}](${commandUri})`;
+}
+
+/**
+ * Formats Doorstop link arrays into clickable Markdown links.
+ */
+async function formatLinksClickable(links: (string | Record<string, string | null>)[]): Promise<string> {
+  const formattedLinks: string[] = [];
+
+  for (const link of links) {
+    if (typeof link === 'string') {
+      formattedLinks.push(await makeClickableLink(link));
+    } else if (typeof link === 'object' && link !== null) {
+      for (const key of Object.keys(link)) {
+        formattedLinks.push(await makeClickableLink(key));
       }
-      if (typeof link === 'object' && link !== null) {
-        return Object.keys(link).map(k => `\`${k}\``).join(', ');
-      }
-      return '';
-    })
-    .filter(Boolean)
-    .join(', ');
+    }
+  }
+
+  return formattedLinks.join(', ');
 }
 
 async function findReverseLinks(targetUid: string): Promise<string[]> {
@@ -93,30 +115,31 @@ async function findReverseLinks(targetUid: string): Promise<string[]> {
 export function activate(context: vscode.ExtensionContext) {
   vscode.window.showInformationMessage('Doorstop VS Code Extension is active!');
 
-  const uidRegex = /\b[A-Z0-9_-]+-\d+\b/g;
+  const uidRegex = /\b[a-zA-Z0-9_-]+-\d+\b/g;
 
   const hoverProvider = vscode.languages.registerHoverProvider({ scheme: 'file' }, {
     async provideHover(document: vscode.TextDocument, position: vscode.Position) {
       const lineText = document.lineAt(position.line).text;
-      
-      // Get the current file's UID from its filename (e.g. REQ-0001.yml -> REQ-0001)
       const currentFileName = path.basename(document.fileName);
       const currentFileUid = currentFileName.replace(/\.(yml|md)$/, '');
 
-      // Check if hovering specifically over line containing "derived:"
+      // 1. Hover over "derived:" line -> Shows clickable downstream (reverse) links
       const isDerivedHover = /^\s*derived\s*:/i.test(lineText);
 
       if (isDerivedHover) {
         const range = document.lineAt(position.line).range;
-        const reverseLinks = await findReverseLinks(currentFileUid);
+        const reverseLinkUids = await findReverseLinks(currentFileUid);
 
         const markdown = new vscode.MarkdownString();
-        markdown.isTrusted = true;
+        markdown.isTrusted = true; // Required to allow command URIs
 
         markdown.appendMarkdown(`### 🔗 **Downstream (Reverse) Links for ${currentFileUid}**\n\n---\n\n`);
 
-        if (reverseLinks.length > 0) {
-          markdown.appendMarkdown(reverseLinks.map(l => `\`${l}\``).join(', '));
+        if (reverseLinkUids.length > 0) {
+          const clickableReverseLinks = await Promise.all(
+            reverseLinkUids.map(uid => makeClickableLink(uid))
+          );
+          markdown.appendMarkdown(clickableReverseLinks.join(', '));
         } else {
           markdown.appendMarkdown('*No items link to this requirement.*');
         }
@@ -124,7 +147,7 @@ export function activate(context: vscode.ExtensionContext) {
         return new vscode.Hover(markdown, range);
       }
 
-      // Standard UID Hover (does NOT show downstream/reverse links)
+      // 2. Hover over UID -> Shows item details with clickable upstream links
       const range = document.getWordRangeAtPosition(position, uidRegex);
       if (!range) {
         return undefined;
@@ -146,7 +169,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         const markdown = new vscode.MarkdownString();
-        markdown.isTrusted = true;
+        markdown.isTrusted = true; // Enables click navigation
 
         let headerText = `### 📋 **${hoveredUid}**`;
         if (item.header) {
@@ -164,7 +187,8 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         if (item.links && item.links.length > 0) {
-          markdown.appendMarkdown(`**Upstream Links:** ${formatLinks(item.links)}\n\n`);
+          const formattedClickableLinks = await formatLinksClickable(item.links);
+          markdown.appendMarkdown(`**Upstream Links:** ${formattedClickableLinks}\n\n`);
         }
 
         if (item.ref) {
