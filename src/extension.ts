@@ -116,11 +116,24 @@ export function activate(context: vscode.ExtensionContext) {
 
   const treeProvider = new DoorstopTreeProvider();
 
-  // Registrieren der TreeView
-  vscode.window.registerTreeDataProvider('doorstop.treeView', treeProvider);
+  const treeView = vscode.window.createTreeView('doorstop.treeView', {
+    treeDataProvider: treeProvider,
+    showCollapseAll: true
+  });
+
+  const syncActiveRequirement = async (editor: vscode.TextEditor | undefined) => {
+    const item = await treeProvider.setActiveResource(editor?.document.uri);
+    if (item) {
+      await treeView.reveal(item, { select: true, focus: false, expand: true });
+    }
+  };
+
+  context.subscriptions.push(treeView);
+  context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(syncActiveRequirement));
 
   // Tree automatisch aktualisieren, wenn Dateien gespeichert werden
-  vscode.workspace.onDidSaveTextDocument(() => treeProvider.refresh());
+  context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(() => treeProvider.refresh()));
+  void syncActiveRequirement(vscode.window.activeTextEditor);
 
   const uidRegex = /\b[A-Z0-9_-]+-\d+\b/g;
 
