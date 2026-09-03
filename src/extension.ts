@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as yaml from 'js-yaml';
 import * as path from 'path';
 
+import { DoorstopTreeProvider } from './requirementTree';
 interface DoorstopItem {
   text?: string;
   header?: string;
@@ -113,6 +114,14 @@ async function findReverseLinks(targetUid: string): Promise<string[]> {
 export function activate(context: vscode.ExtensionContext) {
   vscode.window.showInformationMessage('Doorstop VS Code Extension is active!');
 
+  const treeProvider = new DoorstopTreeProvider();
+
+  // Registrieren der TreeView
+  vscode.window.registerTreeDataProvider('doorstop.treeView', treeProvider);
+
+  // Tree automatisch aktualisieren, wenn Dateien gespeichert werden
+  vscode.workspace.onDidSaveTextDocument(() => treeProvider.refresh());
+
   const uidRegex = /\b[A-Z0-9_-]+-\d+\b/g;
 
   const hoverProvider = vscode.languages.registerHoverProvider({ scheme: 'file' }, {
@@ -215,3 +224,5 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {}
+
+

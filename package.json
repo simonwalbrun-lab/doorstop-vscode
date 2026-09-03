@@ -4,6 +4,7 @@
   "description": "VS Code integration for Doorstop requirements management system.",
   "publisher": "SimonWalbrun",
   "version": "0.0.2",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/simonwalbrun-lab/doorstop-vscode.git"
@@ -26,7 +27,24 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
-    "commands": []
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "doorstop",
+          "title": "Doorstop Requirements",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "doorstop": [
+        {
+          "id": "doorstop.treeView",
+          "name": "Hierarchy",
+          "icon": "media/icon.svg"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
