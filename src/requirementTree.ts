@@ -62,7 +62,7 @@ export class RequirementTreeItem extends vscode.TreeItem {
   }
 
   setActive(active: boolean): void {
-    this.label = active ? `$(arrow-right) ${this.baseLabel}` : this.baseLabel;
+    this.label = active ? `${this.baseLabel}` : this.baseLabel;
   }
 }
 
@@ -90,6 +90,8 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     await this.loadItems();
     return element ? this.childrenByItem.get(element) || [] : this.roots;
   }
+
+  
 
   async setActiveResource(resourceUri: vscode.Uri | undefined): Promise<RequirementTreeItem | undefined> {
     await this.loadItems();
@@ -173,25 +175,33 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     }
 
     for (const [markerPath, items] of scopedItems) {
-      const itemsByUid = new Map(items.map(item => [item.itemData.uid, item]));
+      
+      this.sortItems(items);
+      const assignedItems = new Set<RequirementTreeItem>();
+      const itemsByLevel = new Map<string, RequirementTreeItem>();
       for (const item of items) {
-        const itemLinks = Array.isArray(item.itemData.links) ? item.itemData.links : [];
-        for (const link of itemLinks) {
-          const parentUid = typeof link === 'string' ? link : Object.keys(link || {})[0];
-          const parent = itemsByUid.get(parentUid);
-          if (!parent || parent === item) continue;
+        const level = String(item.itemData.level || '').trim();
+        if (level) itemsByLevel.set(level, item);
+      }
 
+      // Level is the fallback for documents that do not contain links.
+      for (const item of items) {
+        if (assignedItems.has(item)) continue;
+
+        const levelParts = String(item.itemData.level || '').trim().split('.');
+        const parentLevel = levelParts.length > 1 ? levelParts.slice(0, -1).join('.') : '';
+        const parent = parentLevel ? itemsByLevel.get(parentLevel) : undefined;
+        if (parent) {
           const children = this.childrenByItem.get(parent) || [];
           children.push(item);
           this.childrenByItem.set(parent, children);
+          assignedItems.add(item);
         }
       }
 
-      const hasParent = new Set([...this.childrenByItem.values()].flat().filter(item => items.includes(item)));
-      const topLevelItems = items.filter(item => !hasParent.has(item));
-      this.sortItems(topLevelItems);
-      this.childrenByItem.set(this.roots.find(root => root.resourceUri.fsPath === markerPath)!, topLevelItems);
-      for (const children of this.childrenByItem.values()) this.sortItems(children);
+      const topLevelItems = items.filter(item => !assignedItems.has(item));
+      const root = this.roots.find(rootItem => rootItem.resourceUri.fsPath === markerPath);
+      if (root) this.childrenByItem.set(root, topLevelItems);
     }
 
     for (const item of this.items.values()) {
@@ -216,4 +226,5 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
       return String(a.itemData.uid).localeCompare(String(b.itemData.uid));
     });
   }
+
 }
