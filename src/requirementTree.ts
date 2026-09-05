@@ -100,13 +100,16 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
   async setActiveResource(resourceUri: vscode.Uri | undefined): Promise<RequirementTreeItem | undefined> {
     await this.loadItems();
     const activePath = resourceUri?.fsPath;
+    console.log('[Doorstop][tree] Looking up resource:', JSON.stringify(activePath));
+    console.log('[Doorstop][tree] Loaded item count:', this.items.size);
 
     for (const item of this.items.values()) {
       item.setActive(item.resourceUri.fsPath === activePath);
     }
 
-    this._onDidChangeTreeData.fire();
-    return activePath ? [...this.items.values()].find(item => item.resourceUri.fsPath === activePath) : undefined;
+    const item = activePath ? [...this.items.values()].find(item => item.resourceUri.fsPath === activePath) : undefined;
+    console.log('[Doorstop][tree] Lookup result:', item?.resourceUri.fsPath ?? '<not found>');
+    return item;
   }
 
   private async loadItems(): Promise<void> {

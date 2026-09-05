@@ -23,7 +23,8 @@
     "onLanguage:markdown",
     "onLanguage:c",
     "onLanguage:cpp",
-    "onLanguage:python"
+    "onLanguage:python",
+    "onCustomEditor:doorstop.diagram"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -47,15 +48,27 @@
     },
     "commands": [
     {
-      "command": "doorstop.openDiagram",
+      "command": "doorstop.showDiagram",
       "title": "Doorstop: Open Traceability Graph",
       "icon": "$(graph)"
+    }
+  ],
+  "customEditors": [
+    {
+      "viewType": "doorstop.diagram",
+      "displayName": "Doorstop Diagram",
+      "selector": [
+        {
+          "filenamePattern": "*.doorstop.json"
+        }
+      ],
+      "priority": "default"
     }
   ],
   "menus": {
     "view/title": [
       {
-        "command": "doorstop.openDiagram",
+        "command": "doorstop.showDiagram",
         "when": "view == doorstopExplorer",
         "group": "navigation"
       }

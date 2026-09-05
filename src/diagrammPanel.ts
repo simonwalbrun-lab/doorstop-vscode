@@ -3,225 +3,453 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 
-export interface GraphNode {
-  id: string;
-  label: string;
-  fileUri: string;
-}
-
-export interface GraphEdge {
-  from: string;
-  to: string;
-}
-
 export class DoorstopDiagramPanel {
-  public static currentPanel: DoorstopDiagramPanel | undefined;
-  private readonly _panel: vscode.WebviewPanel;
-  private _disposables: vscode.Disposable[] = [];
+    public static currentPanel: DoorstopDiagramPanel | undefined;
+    private readonly _panel: vscode.WebviewPanel;
+    private readonly _initialDiagram?: any;
+    private readonly _onDiagramChanged?: (diagram: any) => void;
+    private _disposables: vscode.Disposable[] = [];
 
-  public static async createOrShow(extensionUri: vscode.Uri) {
-    if (DoorstopDiagramPanel.currentPanel) {
-      DoorstopDiagramPanel.currentPanel._panel.reveal(vscode.ViewColumn.One);
-      await DoorstopDiagramPanel.currentPanel.refreshGraph();
-      return;
+    public static createOrShow(extensionUri: vscode.Uri) {
+        if (DoorstopDiagramPanel.currentPanel) {
+            DoorstopDiagramPanel.currentPanel._panel.reveal(vscode.ViewColumn.One);
+            return;
+        }
+
+        const panel = vscode.window.createWebviewPanel(
+            'doorstopDiagram',
+            'Doorstop Traceability Graph',
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')],
+                retainContextWhenHidden: true // <--- DIESE ZEILE HINZUFÜGEN
+            }
+        );
+        DoorstopDiagramPanel.currentPanel = new DoorstopDiagramPanel(panel, extensionUri);
     }
 
-    const panel = vscode.window.createWebviewPanel(
-      'doorstopDiagram',
-      'Doorstop Traceability Graph',
-      vscode.ViewColumn.One,
-      {
-        enableScripts: true,
-        localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]
+      public static async createForCustomEditor(
+        panel: vscode.WebviewPanel,
+        extensionUri: vscode.Uri,
+        diagram: any,
+        onDiagramChanged: (diagram: any) => void
+      ) {
+        DoorstopDiagramPanel.currentPanel = new DoorstopDiagramPanel(panel, extensionUri, diagram, onDiagramChanged);
       }
-    );
 
-    DoorstopDiagramPanel.currentPanel = new DoorstopDiagramPanel(panel, extensionUri);
-  }
+      private constructor(
+        panel: vscode.WebviewPanel,
+        extensionUri: vscode.Uri,
+        initialDiagram?: any,
+        onDiagramChanged?: (diagram: any) => void
+      ) {
+        this._panel = panel;
+        this._initialDiagram = initialDiagram;
+        this._onDiagramChanged = onDiagramChanged;
+        this._panel.webview.options = {
+          enableScripts: true,
+          localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]
+        };
+        this._panel.webview.html = this._getHtmlForWebview();
 
-  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
-    this._panel = panel;
-    this._panel.webview.html = this._getHtmlForWebview();
+        this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 
-    // 1. Cleanup-Event beim Schließen des Panels
-    this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
-
-    // 2. Nachrichten aus dem Webview empfangen (z. B. Klick auf Knoten -> Datei öffnen)
-    this._panel.webview.onDidReceiveMessage(
-      async (message) => {
-        switch (message.command) {
-          case 'openFile': {
-            if (message.fileUri) {
-              const uri = vscode.Uri.file(message.fileUri);
-              await vscode.window.showTextDocument(uri);
-            }
-            return;
-          }
-          case 'addLink': {
-            vscode.window.showInformationMessage(`Link von ${message.source} zu ${message.target} hinzugefügt.`);
-            return;
-          }
-        }
-      },
-      null,
-      this._disposables
-    );
-
-    // Erstes Laden der Daten
-    this.refreshGraph();
-  }
-
-  // 3. Durchsucht den Workspace, baut den Graphen und schickt ihn ans Webview
-  public async refreshGraph(): Promise<void> {
-    const nodes: GraphNode[] = [];
-    const edges: GraphEdge[] = [];
-
-    const excludePattern = '**/{node_modules,.git,out,dist,.venv,venv}/**';
-    const files = await vscode.workspace.findFiles('**/*.{yml,md}', excludePattern);
-
-    for (const file of files) {
-      const fileName = path.basename(file.fsPath);
-      if (fileName.startsWith('.doorstop')) continue;
-
-      try {
-        const content = fs.readFileSync(file.fsPath, 'utf8');
-        let yamlContent = content;
-
-        if (content.startsWith('---')) {
-          const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-          if (match) yamlContent = match[1];
-        }
-
-        const data: any = yaml.load(yamlContent) || {};
-        const uid = fileName.replace(/\.(yml|md)$/, '');
-
-        // Knoten hinzufügen
-        nodes.push({
-          id: uid,
-          label: `${uid}: ${data.header || data.title || ''}`.trim(),
-          fileUri: file.fsPath
-        });
-
-        // Verknüpfungen (Links) auflösen
-        if (Array.isArray(data.links)) {
-          for (const link of data.links) {
-            const targetId = typeof link === 'string' ? link : link.item;
-            if (targetId) {
-              edges.push({ from: uid, to: String(targetId) });
-            }
-          }
-        }
-      } catch (e) {
-        // Fehlerhafte Yaml-Dateien überspringen
-      }
+        this._panel.webview.onDidReceiveMessage(
+            async (message) => {
+                switch (message.command) {
+                    case 'openFile': {
+                        if (message.fileUri) {
+                            const uri = vscode.Uri.file(message.fileUri);
+                            await vscode.window.showTextDocument(uri);
+                        }
+                        return;
+                    }
+                    case 'activateNode': {
+                      console.log('[Doorstop][webview] activateNode:', JSON.stringify(message.fileUri));
+                      if (message.fileUri) {
+                        await vscode.commands.executeCommand('doorstop.activateRequirement', message.fileUri);
+                      }
+                      return;
+                    }
+                    case 'resolveDroppedItem': {
+                      console.log('[Doorstop][webview] resolveDroppedItem:', JSON.stringify(message.droppedText));
+                        // Löst gezogene IDs oder Datei-Pfade serverseitig in VS Code auf
+                        await this.handleDroppedData(message.droppedText, message.pointer);
+                        return;
+                    }
+                    case 'diagramChanged': {
+                      this._onDiagramChanged?.(message.diagram);
+                      return;
+                    }
+                    case 'ready': {
+                      if (this._initialDiagram) {
+                        this._panel.webview.postMessage({
+                          command: 'loadDiagram',
+                          diagram: this._initialDiagram
+                        });
+                      }
+                      return;
+                    }
+                }
+            },
+            null,
+            this._disposables
+        );
     }
 
-    // Daten per PostMessage an den HTML/JS-Code im Webview senden
-    this._panel.webview.postMessage({
-      command: 'setData',
-      nodes,
-      edges
-    });
-  }
+            public static async readDiagram(uri: vscode.Uri): Promise<any> {
+              const content = await vscode.workspace.fs.readFile(uri);
+              const rawContent = Buffer.from(content).toString('utf8').trim();
+              if (rawContent.length === 0) {
+                return { nodes: [], edges: [] };
+              }
 
-  private _getHtmlForWebview(): string {
-    return `<!DOCTYPE html>
+              const diagram = JSON.parse(rawContent);
+              if (!diagram || !Array.isArray(diagram.nodes) || !Array.isArray(diagram.edges)) {
+                throw new Error('Invalid diagram format');
+              }
+
+              const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+              if (!workspaceRoot) {
+                return diagram;
+              }
+
+              return {
+                ...diagram,
+                nodes: diagram.nodes.map((node: any) => ({
+                  ...node,
+                  fileUri: typeof node.fileUri === 'string' && !path.isAbsolute(node.fileUri)
+                    ? path.resolve(workspaceRoot, node.fileUri)
+                    : node.fileUri
+                }))
+              };
+            }
+
+            public static serializeDiagram(diagram: unknown): Uint8Array {
+              return Buffer.from(JSON.stringify(DoorstopDiagramPanel.makePathsRelative(diagram), null, 2), 'utf8');
+            }
+
+            private static makePathsRelative(diagram: unknown): unknown {
+              if (!diagram || typeof diagram !== 'object' || !('nodes' in diagram) || !Array.isArray(diagram.nodes)) {
+                return diagram;
+              }
+
+              return {
+                ...diagram,
+                nodes: diagram.nodes.map((node: any) => ({
+                  ...node,
+                  fileUri: typeof node.fileUri === 'string'
+                    ? DoorstopDiagramPanel.toWorkspaceRelativePath(node.fileUri)
+                    : node.fileUri
+                }))
+              };
+            }
+
+            private static toWorkspaceRelativePath(filePath: string): string {
+              const workspaceFolder = vscode.workspace.workspaceFolders?.find(folder => {
+                const relativePath = path.relative(folder.uri.fsPath, filePath);
+                return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+              });
+
+              if (!workspaceFolder) {
+                return filePath;
+              }
+
+              return path.relative(workspaceFolder.uri.fsPath, filePath).replace(/\\/g, '/');
+            }
+
+    /**
+     * Löst gedroppten Text/URI auf und schickt die vollständigen Node-Daten an den Webview
+     */
+    private async handleDroppedData(droppedText: string, pointer: { x: number; y: number }) {
+      console.log('[Doorstop][drop] Received:', JSON.stringify(droppedText), 'at', pointer);
+        let targetFilePath: string | undefined = undefined;
+        let uid: string | undefined = undefined;
+
+        const cleanText = droppedText.trim().replace(/^file:\/\/\/?/, '');
+
+        // 1. Fall: Pfad aus Dateireiter oder URI-List
+        if (fs.existsSync(cleanText) || cleanText.includes('/') || cleanText.includes('\\')) {
+            targetFilePath = path.normalize(decodeURIComponent(cleanText));
+            uid = path.basename(targetFilePath).replace(/\.(yml|md)$/, '');
+        } else {
+            // 2. Fall: Nur UID/Text aus Editor markiert (z. B. "REQ-002")
+            uid = cleanText;
+            const excludePattern = '**/{node_modules,.git,out,dist,.venv,venv}/**';
+            const files = await vscode.workspace.findFiles(`**/${uid}.{yml,md}`, excludePattern);
+            if (files.length > 0) {
+                targetFilePath = files[0].fsPath;
+            }
+        }
+
+        if (!targetFilePath || !fs.existsSync(targetFilePath)) {
+          console.warn('[Doorstop][drop] Requirement file not found:', JSON.stringify(targetFilePath));
+            vscode.window.showWarningMessage(`Konnte Requirement für "${droppedText}" nicht finden.`);
+            return;
+        }
+
+        // Details & Links auslesen
+        try {
+            const content = fs.readFileSync(targetFilePath, 'utf8');
+            let yamlContent = content;
+
+            if (content.startsWith('---')) {
+                const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+                if (match) yamlContent = match[1];
+            }
+
+            const data: any = yaml.load(yamlContent) || {};
+            const title = data.header || data.title || '';
+            const links: string[] = [];
+
+            if (Array.isArray(data.links)) {
+                for (const l of data.links) {
+                    const targetId = typeof l === 'string' ? l : l.item;
+                    if (targetId) links.push(String(targetId));
+                }
+            }
+
+            // Knotendaten zurück an Webview schicken
+            this._panel.webview.postMessage({
+                command: 'addNode',
+                node: {
+                    uid,
+                    fileUri: targetFilePath,
+                    title,
+                    links,
+                    pointer
+                }
+            });
+        } catch (e) {
+            vscode.window.showErrorMessage(`Fehler beim Lesen der Requirement-Datei.`);
+        }
+    }
+
+    private _getHtmlForWebview(): string {
+        return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Doorstop Graph</title>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
   <style>
-    body {
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
       background-color: var(--vscode-editor-background);
       color: var(--vscode-editor-foreground);
       font-family: var(--vscode-font-family);
-      margin: 0;
-      padding: 16px;
-      overflow: auto;
     }
-    #graph {
-      display: flex;
-      justify-content: center;
+    #mynetwork {
+      width: 100vw;
+      height: 100vh;
     }
-    .node {
-      cursor: pointer;
+    #drop-hint {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.2rem;
+      color: var(--vscode-descriptionForeground);
+      pointer-events: none;
+      border: 2px dashed var(--vscode-descriptionForeground);
+      padding: 20px 40px;
+      border-radius: 8px;
     }
   </style>
 </head>
 <body>
-  <h3>Doorstop Traceability Map</h3>
-  <div id="graph">Lade Diagramm...</div>
+  <div id="drop-hint">Ziehe Requirements aus der TreeView oder dem Editor hierher</div>
+  <div id="mynetwork"></div>
 
   <script>
     const vscode = acquireVsCodeApi();
-    mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+    
+    const visNodes = new vis.DataSet([]);
+    const visEdges = new vis.DataSet([]);
+    const nodeMap = new Map();
 
-    let nodeMap = new Map();
+    const container = document.getElementById('mynetwork');
+    const data = { nodes: visNodes, edges: visEdges };
+    
+    const options = {
+      physics: { enabled: true, barnesHut: { gravitationalConstant: -2000 } },
+      interaction: { dragNodes: true, dragView: true, zoomView: true }
+    };
 
-    window.addEventListener('message', async (event) => {
+    const network = new vis.Network(container, data, options);
+
+    vscode.postMessage({ command: 'ready' });
+
+    // -------------------------------------------------------------
+    // STATE MANAGEMENT (PERSISTENZ)
+    // -------------------------------------------------------------
+    
+    // Hilfsfunktion: Speichert den aktuellen Graph-Zustand in VS Code
+    function saveGraphState() {
+      const rawNodes = visNodes.get();
+      const positions = network.getPositions();
+      const stateData = rawNodes.map(node => ({
+        uid: node.id,
+        fileUri: nodeMap.get(node.id),
+        title: node.label.split('\\n')[1] || '',
+        x: positions[node.id]?.x ?? node.x ?? 0,
+        y: positions[node.id]?.y ?? node.y ?? 0
+      }));
+      
+      vscode.setState({ savedNodes: stateData });
+    }
+
+    function getDiagramData() {
+      const positions = network.getPositions();
+      return {
+        nodes: visNodes.get().map(node => ({
+          id: node.id,
+          fileUri: nodeMap.get(node.id),
+          title: node.label.split('\\n')[1] || '',
+          x: positions[node.id]?.x ?? node.x ?? 0,
+          y: positions[node.id]?.y ?? node.y ?? 0
+        })),
+        edges: visEdges.get()
+      };
+    }
+
+    // Beim Laden: Vorhandenen Zustand wiederherstellen
+    const previousState = vscode.getState();
+    if (previousState && previousState.savedNodes && previousState.savedNodes.length > 0) {
+      document.getElementById('drop-hint').style.display = 'none';
+
+      previousState.savedNodes.forEach(item => {
+        vscode.postMessage({
+          command: 'resolveDroppedItem',
+          droppedText: item.fileUri || item.uid,
+          pointer: { x: item.x || 0, y: item.y || 0 }
+        });
+      });
+    }
+
+    // Drop Event Listener
+    container.addEventListener('dragover', (e) => e.preventDefault());
+
+    container.addEventListener('drop', (e) => {
+      e.preventDefault();
+      
+      const plainText = e.dataTransfer.getData('text/plain');
+      const uriList = e.dataTransfer.getData('text/uri-list');
+
+      const pointer = network.DOMtoCanvas({ x: e.clientX, y: e.clientY });
+
+      const droppedValue = plainText || uriList;
+      if (droppedValue) {
+        vscode.postMessage({
+          command: 'resolveDroppedItem',
+          droppedText: droppedValue,
+          pointer
+        });
+      }
+    });
+
+    // Knoten zeichnen & Zustand sichern
+    window.addEventListener('message', event => {
       const message = event.data;
-
-      if (message.command === 'setData') {
-        const nodes = message.nodes;
-        const edges = message.edges;
+      if (message.command === 'loadDiagram') {
+        visNodes.clear();
+        visEdges.clear();
         nodeMap.clear();
 
-        if (nodes.length === 0) {
-          document.getElementById('graph').innerText = 'Keine Requirements gefunden.';
-          return;
-        }
-
-        // Mermaid-Syntax (Flowchart LR) generieren
-        let mermaidCode = 'graph LR\\n';
-
-        nodes.forEach(node => {
-          nodeMap.set(node.id, node.fileUri);
-          // Sonderzeichen im Label für Mermaid escapen
-          const cleanLabel = node.label.replace(/["'()]/g, '');
-          mermaidCode += \`  \${node.id}["\${cleanLabel}"]\\n\`;
-        });
-
-        edges.forEach(edge => {
-          mermaidCode += \`  \${edge.from} --> \${edge.to}\\n\`;
-        });
-
-        const graphContainer = document.getElementById('graph');
-        graphContainer.innerHTML = '';
-
-        try {
-          const { svg } = await mermaid.render('mermaidSvg', mermaidCode);
-          graphContainer.innerHTML = svg;
-
-          // Event-Listener für Klicks auf Knoten hinzufügen
-          document.querySelectorAll('.node').forEach(nodeEl => {
-            nodeEl.style.cursor = 'pointer';
-            nodeEl.addEventListener('click', () => {
-              // Node-ID aus der Mermaid-Struktur auslesen
-              const id = nodeEl.id.replace(/^flowchart-/, '').split('-')[0];
-              const fileUri = nodeMap.get(id);
-              if (fileUri) {
-                vscode.postMessage({ command: 'openFile', fileUri });
-              }
-            });
+        message.diagram.nodes.forEach(item => {
+          nodeMap.set(item.id, item.fileUri);
+          visNodes.add({
+            id: item.id,
+            label: item.id + '\\n' + (item.title || ''),
+            shape: 'box',
+            x: item.x || 0,
+            y: item.y || 0,
+            margin: 10,
+            color: { background: '#2d2d2d', border: '#007acc' },
+            font: { color: '#ffffff' }
           });
-        } catch (err) {
-          graphContainer.innerText = 'Fehler beim Rendern des Graphen: ' + err;
+        });
+
+        visEdges.add(message.diagram.edges);
+        document.getElementById('drop-hint').style.display = visNodes.length > 0 ? 'none' : 'block';
+        saveGraphState();
+        return;
+      }
+      if (message.command === 'addNode') {
+        const { uid, fileUri, title, links, pointer } = message.node;
+
+        document.getElementById('drop-hint').style.display = 'none';
+
+        if (!visNodes.get(uid)) {
+          nodeMap.set(uid, fileUri);
+
+          visNodes.add({
+            id: uid,
+            label: uid + '\\n' + (title || ''),
+            shape: 'box',
+            x: pointer.x,
+            y: pointer.y,
+            margin: 10,
+            color: { background: '#2d2d2d', border: '#007acc' },
+            font: { color: '#ffffff' }
+          });
+
+          links.forEach(targetUid => {
+            if (visNodes.get(targetUid)) {
+              visEdges.add({ from: uid, to: targetUid, arrows: 'to' });
+            }
+          });
+
+          // Zustand nach dem Hinzufügen speichern
+          saveGraphState();
+          vscode.postMessage({ command: 'diagramChanged', diagram: getDiagramData() });
+        }
+      }
+    });
+
+    // Speichert Positionen auch beim Verschieben per Maus
+    network.on("dragEnd", function (params) {
+      if (params.nodes.length > 0) {
+        saveGraphState();
+        vscode.postMessage({ command: 'diagramChanged', diagram: getDiagramData() });
+      }
+    });
+
+    // Doppelklick öffnet Datei
+    network.on("click", function (params) {
+      if (params.nodes.length > 0) {
+        const fileUri = nodeMap.get(params.nodes[0]);
+        if (fileUri) {
+          vscode.postMessage({ command: 'activateNode', fileUri });
+        }
+      }
+    });
+
+    network.on("doubleClick", function (params) {
+      if (params.nodes.length > 0) {
+        const nodeId = params.nodes[0];
+        const fileUri = nodeMap.get(nodeId);
+        if (fileUri) {
+          vscode.postMessage({ command: 'openFile', fileUri });
         }
       }
     });
   </script>
 </body>
 </html>`;
-  }
-
-  public dispose() {
-    DoorstopDiagramPanel.currentPanel = undefined;
-    this._panel.dispose();
-    while (this._disposables.length) {
-      const x = this._disposables.pop();
-      if (x) x.dispose();
     }
-  }
+    public dispose() {
+        DoorstopDiagramPanel.currentPanel = undefined;
+        this._panel.dispose();
+        while (this._disposables.length) {
+            const x = this._disposables.pop();
+            if (x) x.dispose();
+        }
+    }
 }
