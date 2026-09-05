@@ -51,11 +51,18 @@ export class RequirementTreeItem extends vscode.TreeItem {
     this.description = itemData.uid || path.basename(resourceUri.fsPath);
 
     // Klick öffnet die Datei
-    this.command = {
-      command: 'vscode.open',
-      title: 'Open File',
-      arguments: [this.resourceUri]
-    };
+    if (!itemData.isPlaceholder) {
+      this.command = {
+        command: 'vscode.open',
+        title: 'Open File',
+        arguments: [this.resourceUri]
+      };
+    }
+
+    if (itemData.isPlaceholder) {
+      this.label = `${title} (placeholder)`;
+      this.description = 'Missing level';
+    }
   }
 
   setActive(active: boolean): void {
@@ -204,43 +211,82 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
 
     for (const [markerPath, items] of scopedItems) {
       this.sortItems(items);
-      const assignedItems = new Set<RequirementTreeItem>();
-      const itemsByLevel = new Map<string, RequirementTreeItem>();
-      for (const item of items) {
-        const level = String(item.itemData.level || '').trim();
-        if (level) {itemsByLevel.set(level, item);}
-      }
-
-      for (const item of items) {
-        if (assignedItems.has(item)) {continue;}
-
-        const levelParts = String(item.itemData.level || '').trim().split('.');
-        const parentLevel = levelParts.length > 1 ? levelParts.slice(0, -1).join('.') : '';
-        const parent = parentLevel ? itemsByLevel.get(parentLevel) : undefined;
-        if (parent) {
-          const children = this.childrenByItem.get(parent) || [];
-          children.push(item);
-          this.childrenByItem.set(parent, children);
-          this.childrenById.set(parent.id || parent.resourceUri.toString(), children);
-          
-          // Neu: Parent-Verknüpfung speichern
-          this.parentByItem.set(item, parent); 
-          this.parentById.set(item.id || item.resourceUri.toString(), parent);
-          assignedItems.add(item);
-        }
-      }
-
-      const topLevelItems = items.filter(item => !assignedItems.has(item));
       const root = this.roots.find(rootItem => rootItem.resourceUri.fsPath === markerPath);
-      if (root) {
-        this.childrenByItem.set(root, topLevelItems);
-        this.childrenById.set(root.id || root.resourceUri.toString(), topLevelItems);
-        
-        // Neu: Top-Level Items dem Root zuweisen
-        for (const item of topLevelItems) {
+      if (!root) {continue;}
+
+      const canonicalLevel = (value: unknown): string => {
+        const level = String(value || '').trim();
+        return /^\d+$/.test(level) ? `${level}.0` : level;
+      };
+
+      const nodesByLevel = new Map<string, RequirementTreeItem>();
+      for (const item of items) {
+        const level = canonicalLevel(item.itemData.level);
+        if (level) {nodesByLevel.set(level, item);}
+      }
+
+      const parentLevelFor = (level: string): string | undefined => {
+        const parts = level.split('.');
+        if (parts.length < 2 || (parts.length === 2 && parts[1] === '0')) {
+          return undefined;
+        }
+        if (parts[parts.length - 1] === '0') {
+          return `${parts[0]}.0`;
+        }
+        if (parts.length === 2) {
+          return `${parts[0]}.0`;
+        }
+        return parts.slice(0, -1).join('.');
+      };
+
+      const ensureNode = (level: string): RequirementTreeItem => {
+        const existing = nodesByLevel.get(level);
+        if (existing) {return existing;}
+
+        const placeholder = new RequirementTreeItem(
+          level,
+          vscode.TreeItemCollapsibleState.Collapsed,
+          vscode.Uri.parse(`doorstop-placeholder:${encodeURIComponent(markerPath)}#${level}`),
+          { uid: level, level, isPlaceholder: true },
+          level
+        );
+        nodesByLevel.set(level, placeholder);
+
+        const parentLevel = parentLevelFor(level);
+        const parent = parentLevel ? ensureNode(parentLevel) : root;
+        const children = this.childrenByItem.get(parent) || [];
+        children.push(placeholder);
+        this.childrenByItem.set(parent, children);
+        this.childrenById.set(parent.id || parent.resourceUri.toString(), children);
+        this.parentByItem.set(placeholder, parent);
+        this.parentById.set(placeholder.id || placeholder.resourceUri.toString(), parent);
+        return placeholder;
+      };
+
+      for (const item of items) {
+        const level = canonicalLevel(item.itemData.level);
+        if (!level) {
+          const rootChildren = this.childrenByItem.get(root) || [];
+          rootChildren.push(item);
+          this.childrenByItem.set(root, rootChildren);
+          this.childrenById.set(root.id || root.resourceUri.toString(), rootChildren);
           this.parentByItem.set(item, root);
           this.parentById.set(item.id || item.resourceUri.toString(), root);
+          continue;
         }
+
+        const parentLevel = parentLevelFor(level);
+        const parent = parentLevel ? ensureNode(parentLevel) : root;
+        const children = this.childrenByItem.get(parent) || [];
+        children.push(item);
+        this.childrenByItem.set(parent, children);
+        this.childrenById.set(parent.id || parent.resourceUri.toString(), children);
+        this.parentByItem.set(item, parent);
+        this.parentById.set(item.id || item.resourceUri.toString(), parent);
+      }
+
+      for (const children of this.childrenByItem.values()) {
+        this.sortItems(children);
       }
     }
 
