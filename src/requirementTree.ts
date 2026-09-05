@@ -126,7 +126,7 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
   }
 
   private async loadItems(): Promise<void> {
-    if (this.loaded) return;
+    if (this.loaded) {return;}
 
     if (!vscode.workspace.workspaceFolders?.length) {
       this.loaded = true;
@@ -147,12 +147,15 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
         { uid: marker.fsPath, isDoorstopRoot: true },
         path.basename(path.dirname(marker.fsPath))
       );
-      var existing = false
-      for (const existing_roots of this.roots)
-        if (root.resourceUri.path == existing_roots.resourceUri.path)
-          existing = true
-      if (existing)
-        continue
+      var existing = false;
+      for (const existing_roots of this.roots) {
+        if (root.resourceUri.path === existing_roots.resourceUri.path) {
+          existing = true;
+        }
+      }
+      if (existing) {
+        continue;
+      }
 
       this.roots.push(root);
       this.childrenByItem.set(root, []);
@@ -160,7 +163,7 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     }
 
     for (const file of requirementFiles) {
-      if (markerPathSet.has(file.fsPath)) continue;
+      if (markerPathSet.has(file.fsPath)) {continue;}
 
       const owner = markerPaths
         .filter(markerPath => {
@@ -168,7 +171,7 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
           return relative && !relative.startsWith('..') && !path.isAbsolute(relative);
         })
         .sort((a, b) => path.dirname(b).length - path.dirname(a).length)[0];
-      if (!owner) continue;
+      if (!owner) {continue;}
 
       try {
         const content = fs.readFileSync(file.fsPath, 'utf8');
@@ -179,7 +182,7 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
         let yamlHeader = content;
         if (content.startsWith('---')) {
           const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-          if (match) yamlHeader = match[1];
+          if (match) {yamlHeader = match[1];}
         }
 
         const data: any = yaml.load(yamlHeader) || {};
@@ -205,11 +208,11 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
       const itemsByLevel = new Map<string, RequirementTreeItem>();
       for (const item of items) {
         const level = String(item.itemData.level || '').trim();
-        if (level) itemsByLevel.set(level, item);
+        if (level) {itemsByLevel.set(level, item);}
       }
 
       for (const item of items) {
-        if (assignedItems.has(item)) continue;
+        if (assignedItems.has(item)) {continue;}
 
         const levelParts = String(item.itemData.level || '').trim().split('.');
         const parentLevel = levelParts.length > 1 ? levelParts.slice(0, -1).join('.') : '';
@@ -258,7 +261,7 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
       const levelB = String(b.itemData.level || '').split('.').map(Number);
       for (let index = 0; index < Math.max(levelA.length, levelB.length); index++) {
         const difference = (levelA[index] || 0) - (levelB[index] || 0);
-        if (difference !== 0) return difference;
+        if (difference !== 0) {return difference;}
       }
       return String(a.itemData.uid).localeCompare(String(b.itemData.uid));
     });

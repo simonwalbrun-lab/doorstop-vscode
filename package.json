@@ -3,7 +3,8 @@
   "displayName": "Doorstop Requirements",
   "description": "VS Code integration for Doorstop requirements management system.",
   "publisher": "SimonWalbrun",
-  "version": "0.0.2",
+  "version": "0.0.3",
+  "preview": true,
   "license": "MIT",
   "repository": {
     "type": "git",

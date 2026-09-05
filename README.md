@@ -28,4 +28,4 @@ This extension operates on workspace files and does not require external tools f
 For full requirement lifecycle management (creating documents, linking items, running validation), ensure [Doorstop](https://pypi.org/project/doorstop/) is installed in your Python environment:
 
 ```bash
-pip install doorstop-cli
+pip install doorstop

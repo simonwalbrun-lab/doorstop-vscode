@@ -53,7 +53,7 @@ async function findReverseLinks(targetUid: string): Promise<string[]> {
   const reverseLinkUids: string[] = [];
   for (const file of allFiles) {
     const itemUid = path.basename(file.fsPath).replace(/\.(yml|md)$/, '');
-    if (itemUid === targetUid) continue;
+    if (itemUid === targetUid) {continue;}
     try {
       const rawContent = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
       const item = parseDoorstopFile(rawContent);
@@ -90,28 +90,28 @@ export function registerHoverProvider(context: vscode.ExtensionContext): void {
       }
 
       const range = document.getWordRangeAtPosition(position, uidRegex);
-      if (!range) return undefined;
+      if (!range) {return undefined;}
       const hoveredUid = document.getText(range);
       const isInsideLinksBlock = /^\s*(-|\s)\s*[A-Z0-9_-]+-\d+/i.test(lineText)
         || /^\s*links\s*:/i.test(lineText);
       const files = await vscode.workspace.findFiles(`**/${hoveredUid}.{yml,md}`, '**/node_modules/**', 1);
-      if (files.length === 0) return undefined;
+      if (files.length === 0) {return undefined;}
 
       try {
         const rawContent = new TextDecoder().decode(await vscode.workspace.fs.readFile(files[0]));
         const item = parseDoorstopFile(rawContent);
-        if (!item) return undefined;
+        if (!item) {return undefined;}
         const markdown = new vscode.MarkdownString();
         markdown.isTrusted = true;
         markdown.appendMarkdown(`### 📋 **Target Item:** ${await makeClickableLink(hoveredUid)}\n\n`);
-        if (item.header) markdown.appendMarkdown(`**Header:** ${item.header}\n\n`);
-        if (item.level) markdown.appendMarkdown(`**Level:** ${item.level}\n\n`);
+        if (item.header) {markdown.appendMarkdown(`**Header:** ${item.header}\n\n`);}
+        if (item.level) {markdown.appendMarkdown(`**Level:** ${item.level}\n\n`);}
         markdown.appendMarkdown('---\n\n');
         markdown.appendMarkdown(item.text ? `${item.text.trim()}\n\n` : '*No requirement text defined.*\n\n');
         if (!isInsideLinksBlock && item.links?.length) {
           markdown.appendMarkdown(`**Upstream Links:** ${await formatLinksClickable(item.links)}\n\n`);
         }
-        if (item.ref) markdown.appendMarkdown(`**Ref:** \`${item.ref}\``);
+        if (item.ref) {markdown.appendMarkdown(`**Ref:** \`${item.ref}\``);}
         return new vscode.Hover(markdown, range);
       } catch (error) {
         console.error(`[Doorstop][hover] Failed to parse ${hoveredUid}:`, error);

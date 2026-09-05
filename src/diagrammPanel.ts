@@ -75,7 +75,11 @@ export class DoorstopDiagramPanel {
                     case 'resolveDroppedItem': {
                       console.log('[Doorstop][webview] resolveDroppedItem:', JSON.stringify(message.droppedText));
                         // Löst gezogene IDs oder Datei-Pfade serverseitig in VS Code auf
-                        await this.handleDroppedData(message.droppedText, message.pointer);
+                        if (typeof message.droppedText === 'string' && message.droppedText.trim().length > 0) {
+                          await this.handleDroppedData(message.droppedText, message.pointer);
+                        } else {
+                          console.warn('[Doorstop][webview] Ignoring empty drop payload');
+                        }
                         return;
                     }
                     case 'diagramChanged': {
@@ -167,12 +171,21 @@ export class DoorstopDiagramPanel {
         let targetFilePath: string | undefined = undefined;
         let uid: string | undefined = undefined;
 
-        const cleanText = droppedText.trim().replace(/^file:\/\/\/?/, '');
+        if (typeof droppedText !== 'string' || droppedText.trim().length === 0) {
+          console.warn('[Doorstop][drop] Ignoring invalid payload');
+          return;
+        }
+
+        const cleanText = droppedText.trim().split(/\r?\n/)[0];
+        const parsedUri = cleanText.startsWith('file:') ? vscode.Uri.parse(cleanText) : undefined;
+        const localPath = parsedUri ? parsedUri.fsPath : decodeURIComponent(cleanText);
+        console.log('[Doorstop][drop] Parsed local path:', JSON.stringify(localPath));
 
         // 1. Fall: Pfad aus Dateireiter oder URI-List
-        if (fs.existsSync(cleanText) || cleanText.includes('/') || cleanText.includes('\\')) {
-            targetFilePath = path.normalize(decodeURIComponent(cleanText));
+        if (fs.existsSync(localPath) || localPath.includes('/') || localPath.includes('\\')) {
+          targetFilePath = path.normalize(localPath);
             uid = path.basename(targetFilePath).replace(/\.(yml|md)$/, '');
+          console.log('[Doorstop][drop] Resolved file path and UID:', JSON.stringify(targetFilePath), JSON.stringify(uid));
         } else {
             // 2. Fall: Nur UID/Text aus Editor markiert (z. B. "REQ-002")
             uid = cleanText;
@@ -192,11 +205,12 @@ export class DoorstopDiagramPanel {
         // Details & Links auslesen
         try {
             const content = fs.readFileSync(targetFilePath, 'utf8');
+          console.log('[Doorstop][drop] Read requirement bytes:', content.length);
             let yamlContent = content;
 
             if (content.startsWith('---')) {
                 const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-                if (match) yamlContent = match[1];
+                if (match) {yamlContent = match[1];}
             }
 
             const data: any = yaml.load(yamlContent) || {};
@@ -206,12 +220,12 @@ export class DoorstopDiagramPanel {
             if (Array.isArray(data.links)) {
                 for (const l of data.links) {
                     const targetId = typeof l === 'string' ? l : l.item;
-                    if (targetId) links.push(String(targetId));
+                    if (targetId) {links.push(String(targetId));}
                 }
             }
 
             // Knotendaten zurück an Webview schicken
-            this._panel.webview.postMessage({
+            const delivered = await this._panel.webview.postMessage({
                 command: 'addNode',
                 node: {
                     uid,
@@ -221,7 +235,9 @@ export class DoorstopDiagramPanel {
                     pointer
                 }
             });
+              console.log('[Doorstop][drop] addNode delivered:', delivered);
         } catch (e) {
+              console.error('[Doorstop][drop] Failed to read or deliver requirement:', e);
             vscode.window.showErrorMessage(`Fehler beim Lesen der Requirement-Datei.`);
         }
     }
@@ -333,26 +349,56 @@ export class DoorstopDiagramPanel {
       });
     }
 
-    // Drop Event Listener
-    container.addEventListener('dragover', (e) => e.preventDefault());
-
-    container.addEventListener('drop', (e) => {
+    function handleDrop(e) {
       e.preventDefault();
+      e.stopPropagation();
+      console.log('[Doorstop][drop] Transfer types:', Array.from(e.dataTransfer?.types || []));
       
+      const treeData = e.dataTransfer.getData('application/vnd.code.tree.doorstop.treeView');
       const plainText = e.dataTransfer.getData('text/plain');
       const uriList = e.dataTransfer.getData('text/uri-list');
 
-      const pointer = network.DOMtoCanvas({ x: e.clientX, y: e.clientY });
+      const bounds = container.getBoundingClientRect();
+      const pointer = network.DOMtoCanvas({
+        x: e.clientX - bounds.left,
+        y: e.clientY - bounds.top
+      });
+      console.log('[Doorstop][drop] Canvas pointer:', pointer);
+
+      if (treeData) {
+        try {
+          const item = JSON.parse(treeData);
+          console.log('[Doorstop][drop] TreeView payload:', item);
+          const droppedText = typeof item === 'string' ? item : item?.fileUri || item?.uid;
+          if (typeof droppedText === 'string' && droppedText.trim().length > 0) {
+            vscode.postMessage({
+              command: 'resolveDroppedItem',
+              droppedText,
+              pointer
+            });
+            return;
+          }
+        } catch (error) {
+          console.warn('[Doorstop][drop] Invalid TreeView payload:', error);
+        }
+      }
 
       const droppedValue = plainText || uriList;
-      if (droppedValue) {
+      if (typeof droppedValue === 'string' && droppedValue.trim().length > 0) {
         vscode.postMessage({
           command: 'resolveDroppedItem',
           droppedText: droppedValue,
           pointer
         });
       }
-    });
+    }
+
+    // Capture the event before vis-network or its canvas can consume it.
+    window.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    }, true);
+    window.addEventListener('drop', handleDrop, true);
 
     // Knoten zeichnen & Zustand sichern
     window.addEventListener('message', event => {
@@ -383,6 +429,12 @@ export class DoorstopDiagramPanel {
       }
       if (message.command === 'addNode') {
         const { uid, fileUri, title, links, pointer } = message.node;
+        console.log('[Doorstop][webview] addNode received:', {
+          uid,
+          fileUri,
+          pointer,
+          existing: Boolean(visNodes.get(uid))
+        });
 
         document.getElementById('drop-hint').style.display = 'none';
 
@@ -405,6 +457,8 @@ export class DoorstopDiagramPanel {
               visEdges.add({ from: uid, to: targetUid, arrows: 'to' });
             }
           });
+
+          network.redraw();
 
           // Zustand nach dem Hinzufügen speichern
           saveGraphState();
@@ -449,7 +503,7 @@ export class DoorstopDiagramPanel {
         this._panel.dispose();
         while (this._disposables.length) {
             const x = this._disposables.pop();
-            if (x) x.dispose();
+            if (x) {x.dispose();}
         }
     }
 }

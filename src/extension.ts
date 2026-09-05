@@ -70,6 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
   // ------------------------------------------------------------------
   const dndController: vscode.TreeDragAndDropController<RequirementTreeItem> = {
     dragMimeTypes: [
+      'application/vnd.code.tree.doorstop.treeView',
       'text/plain',
       'text/uri-list'
     ],
@@ -79,6 +80,15 @@ export function activate(context: vscode.ExtensionContext) {
       console.log('[Doorstop][drag] Started:', item?.label ?? '<no item>');
       if (item && item.resourceUri) {
         console.log('[Doorstop][drag] File URI:', item.resourceUri.toString());
+        const payload = JSON.stringify({
+          uid: item.itemData?.uid || item.label,
+          fileUri: item.resourceUri.fsPath,
+          title: item.title
+        });
+        dataTransfer.set(
+          'application/vnd.code.tree.doorstop.treeView',
+          new vscode.DataTransferItem(payload)
+        );
         dataTransfer.set('text/plain', new vscode.DataTransferItem(item.resourceUri.fsPath));
         dataTransfer.set('text/uri-list', new vscode.DataTransferItem(item.resourceUri.toString()));
       }
