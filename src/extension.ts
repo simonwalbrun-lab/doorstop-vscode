@@ -3,6 +3,7 @@ import * as yaml from 'js-yaml';
 import * as path from 'path';
 
 import { DoorstopTreeProvider } from './requirementTree';
+import { DoorstopDiagramPanel } from './diagrammPanel';
 interface DoorstopItem {
   text?: string;
   header?: string;
@@ -115,6 +116,12 @@ export function activate(context: vscode.ExtensionContext) {
   vscode.window.showInformationMessage('Doorstop VS Code Extension is active!');
 
   const treeProvider = new DoorstopTreeProvider();
+  const openDiagramCmd = vscode.commands.registerCommand('doorstop.openDiagram', () => {
+    DoorstopDiagramPanel.createOrShow(context.extensionUri);
+  });
+
+  context.subscriptions.push(openDiagramCmd);
+
 
   const treeView = vscode.window.createTreeView('doorstop.treeView', {
     treeDataProvider: treeProvider,

@@ -26,7 +26,6 @@ function extractTitle(itemData: any, rawContent: string): string {
   return firstLine || 'Unbenanntes Requirement';
 }
 
-
 export class RequirementTreeItem extends vscode.TreeItem {
   private readonly baseLabel: string;
 
@@ -45,9 +44,6 @@ export class RequirementTreeItem extends vscode.TreeItem {
     const iconDerived = itemData.derived ? '🔀' : '🔹';
     const iconReviewed = itemData.reviewed ? '✅' : '⚠️';
 
-    // Titel mit Icons und Requirement-Header
-    
-    
     // Label und Beschreibung im Tree:
     this.baseLabel = `${iconActive}${iconNormative}${iconDerived}${iconReviewed} ${title}`;
     this.label = this.baseLabel;
@@ -71,6 +67,7 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
   private items = new Map<string, RequirementTreeItem>();
   private childrenByItem = new Map<RequirementTreeItem, RequirementTreeItem[]>();
+  private parentByItem = new Map<RequirementTreeItem, RequirementTreeItem>(); // Neu: Speichert Eltern-Elemente
   private roots: RequirementTreeItem[] = [];
   private loaded = false;
 
@@ -78,6 +75,7 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     this.loaded = false;
     this.items.clear();
     this.childrenByItem.clear();
+    this.parentByItem.clear(); // Neu: Parent-Lookup leeren
     this.roots = [];
     this._onDidChangeTreeData.fire();
   }
@@ -86,12 +84,18 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     return element;
   }
 
+  /**
+   * ZWINGEND ERFORDERLICH FÜR treeView.reveal():
+   * Gibt das Eltern-Element eines Items zurück.
+   */
+  getParent(element: RequirementTreeItem): vscode.ProviderResult<RequirementTreeItem> {
+    return this.parentByItem.get(element);
+  }
+
   async getChildren(element?: RequirementTreeItem): Promise<RequirementTreeItem[]> {
     await this.loadItems();
     return element ? this.childrenByItem.get(element) || [] : this.roots;
   }
-
-  
 
   async setActiveResource(resourceUri: vscode.Uri | undefined): Promise<RequirementTreeItem | undefined> {
     await this.loadItems();
@@ -113,8 +117,8 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
       return;
     }
 
-    const markers = await vscode.workspace.findFiles('**/.doorstop{,.yml}', '**/node_modules/**');
-    const requirementFiles = await vscode.workspace.findFiles('**/*.{yml,md}', '**/node_modules/**');
+    const markers = await vscode.workspace.findFiles('**/.doorstop.yml', undefined);
+    const requirementFiles = await vscode.workspace.findFiles('**/*.{yml,md}', undefined);
     const markerPaths = markers.map(marker => marker.fsPath);
     const markerPathSet = new Set(markerPaths);
     const scopedItems = new Map<string, RequirementTreeItem[]>();
@@ -127,6 +131,13 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
         { uid: marker.fsPath, isDoorstopRoot: true },
         path.basename(path.dirname(marker.fsPath))
       );
+      var existing = false
+      for (const existing_roots of this.roots)
+        if (root.resourceUri.path == existing_roots.resourceUri.path)
+          existing = true
+      if (existing)
+        continue
+
       this.roots.push(root);
       this.childrenByItem.set(root, []);
       scopedItems.set(marker.fsPath, []);
@@ -154,19 +165,17 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
           const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
           if (match) yamlHeader = match[1];
         }
-        // label is first matching line of the header or the first line of the file
-        
 
         const data: any = yaml.load(yamlHeader) || {};
         data.uid = uid;
-        const title = extractTitle(data, content);;
+        const title = extractTitle(data, content);
         const item = new RequirementTreeItem(
-            uid,
-            vscode.TreeItemCollapsibleState.None,
-            file,
-            data,
-            title
-          );
+          uid,
+          vscode.TreeItemCollapsibleState.None,
+          file,
+          data,
+          title
+        );
         scopedItems.get(owner)?.push(item);
         this.items.set(file.fsPath, item);
       } catch (e) {
@@ -175,7 +184,6 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     }
 
     for (const [markerPath, items] of scopedItems) {
-      
       this.sortItems(items);
       const assignedItems = new Set<RequirementTreeItem>();
       const itemsByLevel = new Map<string, RequirementTreeItem>();
@@ -184,7 +192,6 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
         if (level) itemsByLevel.set(level, item);
       }
 
-      // Level is the fallback for documents that do not contain links.
       for (const item of items) {
         if (assignedItems.has(item)) continue;
 
@@ -195,13 +202,23 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
           const children = this.childrenByItem.get(parent) || [];
           children.push(item);
           this.childrenByItem.set(parent, children);
+          
+          // Neu: Parent-Verknüpfung speichern
+          this.parentByItem.set(item, parent); 
           assignedItems.add(item);
         }
       }
 
       const topLevelItems = items.filter(item => !assignedItems.has(item));
       const root = this.roots.find(rootItem => rootItem.resourceUri.fsPath === markerPath);
-      if (root) this.childrenByItem.set(root, topLevelItems);
+      if (root) {
+        this.childrenByItem.set(root, topLevelItems);
+        
+        // Neu: Top-Level Items dem Root zuweisen
+        for (const item of topLevelItems) {
+          this.parentByItem.set(item, root);
+        }
+      }
     }
 
     for (const item of this.items.values()) {
@@ -226,5 +243,4 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
       return String(a.itemData.uid).localeCompare(String(b.itemData.uid));
     });
   }
-
 }

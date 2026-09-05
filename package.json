@@ -44,7 +44,23 @@
           "icon": "media/icon.svg"
         }
       ]
+    },
+    "commands": [
+    {
+      "command": "doorstop.openDiagram",
+      "title": "Doorstop: Open Traceability Graph",
+      "icon": "$(graph)"
     }
+  ],
+  "menus": {
+    "view/title": [
+      {
+        "command": "doorstop.openDiagram",
+        "when": "view == doorstopExplorer",
+        "group": "navigation"
+      }
+    ]
+  }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
