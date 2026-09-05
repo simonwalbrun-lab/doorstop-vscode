@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { DoorstopTreeProvider,RequirementTreeItem } from './requirementTree';
 import { DoorstopDiagramPanel } from './diagrammPanel';
 import { registerHoverProvider } from './hoverProvider';
+import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
 interface DoorstopDiagramDocument extends vscode.CustomDocument {
   diagram: unknown;
 }
@@ -151,6 +152,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   const syncActiveRequirement = async (editor: vscode.TextEditor | undefined) => {
     console.log('[Doorstop][syncActiveRequirement] Editor:', editor?.document.uri.toString() ?? '<none>');
+    recordViewedRequirement(editor?.document.uri);
     const item = await treeProvider.setActiveResource(editor?.document.uri);
     console.log('[Doorstop][syncActiveRequirement] Tree item:', item?.label ?? '<not found>');
     if (item) {
@@ -206,6 +208,7 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   registerHoverProvider(context);
+  registerCompletionProvider(context);
 }
 
 export function deactivate() {}
