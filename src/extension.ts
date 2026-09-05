@@ -102,21 +102,23 @@ export function activate(context: vscode.ExtensionContext) {
       console.log('[Doorstop][activateRequirement] Tree item:', item?.label ?? '<not found>');
       if (item) {
         try {
+          await prepareTreeItemForReveal(treeProvider, item);
           console.log('[Doorstop][activateRequirement] Revealing tree item');
           await treeView.reveal(item, { select: true, focus: true, expand: true });
           console.log('[Doorstop][activateRequirement] Reveal completed');
-        } catch {
-          console.warn('[Doorstop][activateRequirement] Initial reveal failed, retrying');
+        } catch (error) {
+          console.warn('[Doorstop][activateRequirement] Initial reveal failed, retrying:', error);
           try {
             await treeProvider.getChildren();
             const refreshedItem = await treeProvider.setActiveResource(vscode.Uri.file(filePath));
             if (refreshedItem) {
+              await prepareTreeItemForReveal(treeProvider, refreshedItem);
               console.log('[Doorstop][activateRequirement] Revealing refreshed tree item');
               await treeView.reveal(refreshedItem, { select: true, focus: true, expand: true });
               console.log('[Doorstop][activateRequirement] Retry reveal completed');
             }
-          } catch {
-            console.error('[Doorstop][activateRequirement] Retry reveal failed');
+          } catch (retryError) {
+            console.error('[Doorstop][activateRequirement] Retry reveal failed:', retryError);
             return;
           }
         }
@@ -143,21 +145,23 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('[Doorstop][syncActiveRequirement] Tree item:', item?.label ?? '<not found>');
     if (item) {
       try {
+        await prepareTreeItemForReveal(treeProvider, item);
         console.log('[Doorstop][syncActiveRequirement] Revealing tree item');
         await treeView.reveal(item, { select: true, focus: false, expand: true });
         console.log('[Doorstop][syncActiveRequirement] Reveal completed');
-      } catch {
-        console.warn('[Doorstop][syncActiveRequirement] Initial reveal failed, retrying');
+      } catch (error) {
+        console.warn('[Doorstop][syncActiveRequirement] Initial reveal failed, retrying:', error);
         try {
           await treeProvider.getChildren();
           const refreshedItem = await treeProvider.setActiveResource(editor?.document.uri);
           if (refreshedItem) {
+            await prepareTreeItemForReveal(treeProvider, refreshedItem);
             console.log('[Doorstop][syncActiveRequirement] Revealing refreshed tree item');
             await treeView.reveal(refreshedItem, { select: true, focus: false, expand: true });
             console.log('[Doorstop][syncActiveRequirement] Retry reveal completed');
           }
-        } catch {
-          console.error('[Doorstop][syncActiveRequirement] Retry reveal failed');
+        } catch (retryError) {
+          console.error('[Doorstop][syncActiveRequirement] Retry reveal failed:', retryError);
           return;
         }
       }
@@ -173,6 +177,23 @@ export function activate(context: vscode.ExtensionContext) {
   }));
 
   void syncActiveRequirement(vscode.window.activeTextEditor);
+
+  async function prepareTreeItemForReveal(
+    provider: DoorstopTreeProvider,
+    item: RequirementTreeItem
+  ): Promise<void> {
+    const ancestors: RequirementTreeItem[] = [];
+    let current: RequirementTreeItem | undefined = item;
+    while (current) {
+      ancestors.unshift(current);
+      current = provider.getParent(current) as RequirementTreeItem | undefined;
+    }
+
+    console.log('[Doorstop][tree] Reveal path:', ancestors.map(element => element.id));
+    for (const ancestor of ancestors) {
+      await provider.getChildren(ancestor);
+    }
+  }
 
   registerHoverProvider(context);
 }

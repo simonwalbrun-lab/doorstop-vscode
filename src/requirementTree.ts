@@ -37,6 +37,7 @@ export class RequirementTreeItem extends vscode.TreeItem {
     public readonly title: string
   ) {
     super(label, collapsibleState);
+    this.id = resourceUri.toString();
 
     // 4 Icons für Status aufbauen (z. B. Active, Normative, Derived, Reviewed)
     const iconActive = itemData.active !== false ? '🟢' : '⚪';
@@ -67,7 +68,9 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
   private items = new Map<string, RequirementTreeItem>();
   private childrenByItem = new Map<RequirementTreeItem, RequirementTreeItem[]>();
+  private childrenById = new Map<string, RequirementTreeItem[]>();
   private parentByItem = new Map<RequirementTreeItem, RequirementTreeItem>(); // Neu: Speichert Eltern-Elemente
+  private parentById = new Map<string, RequirementTreeItem>();
   private roots: RequirementTreeItem[] = [];
   private loaded = false;
 
@@ -75,7 +78,9 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     this.loaded = false;
     this.items.clear();
     this.childrenByItem.clear();
+    this.childrenById.clear();
     this.parentByItem.clear(); // Neu: Parent-Lookup leeren
+    this.parentById.clear();
     this.roots = [];
     this._onDidChangeTreeData.fire();
   }
@@ -89,12 +94,20 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
    * Gibt das Eltern-Element eines Items zurück.
    */
   getParent(element: RequirementTreeItem): vscode.ProviderResult<RequirementTreeItem> {
-    return this.parentByItem.get(element);
+    const parent = this.parentByItem.get(element)
+      || (element.id ? this.parentById.get(element.id) : undefined);
+    console.log('[Doorstop][tree] Parent:', element.id, '->', parent?.id ?? '<root>');
+    return parent;
   }
 
   async getChildren(element?: RequirementTreeItem): Promise<RequirementTreeItem[]> {
     await this.loadItems();
-    return element ? this.childrenByItem.get(element) || [] : this.roots;
+    if (!element) {
+      return this.roots;
+    }
+    return this.childrenByItem.get(element)
+      || (element.id ? this.childrenById.get(element.id) : undefined)
+      || [];
   }
 
   async setActiveResource(resourceUri: vscode.Uri | undefined): Promise<RequirementTreeItem | undefined> {
@@ -205,9 +218,11 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
           const children = this.childrenByItem.get(parent) || [];
           children.push(item);
           this.childrenByItem.set(parent, children);
+          this.childrenById.set(parent.id || parent.resourceUri.toString(), children);
           
           // Neu: Parent-Verknüpfung speichern
           this.parentByItem.set(item, parent); 
+          this.parentById.set(item.id || item.resourceUri.toString(), parent);
           assignedItems.add(item);
         }
       }
@@ -216,10 +231,12 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
       const root = this.roots.find(rootItem => rootItem.resourceUri.fsPath === markerPath);
       if (root) {
         this.childrenByItem.set(root, topLevelItems);
+        this.childrenById.set(root.id || root.resourceUri.toString(), topLevelItems);
         
         // Neu: Top-Level Items dem Root zuweisen
         for (const item of topLevelItems) {
           this.parentByItem.set(item, root);
+          this.parentById.set(item.id || item.resourceUri.toString(), root);
         }
       }
     }
