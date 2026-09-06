@@ -3,7 +3,10 @@
   "displayName": "Doorstop Requirements",
   "description": "VS Code integration for Doorstop requirements management system.",
   "publisher": "SimonWalbrun",
-  "version": "0.0.2",
+  "icon": "media/Icons-marketplace.png",
+  "version": "0.0.4",
+  "preview": true,
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/simonwalbrun-lab/doorstop-vscode.git"
@@ -16,17 +19,154 @@
   ],
   "activationEvents": [
     "workspaceContains:**/.doorstop.yml",
-    "workspaceContains:**/REQ*.yml",
-    "workspaceContains:**/REQ*.md",
     "onLanguage:yaml",
-    "onLanguage:markdown",
-    "onLanguage:c",
-    "onLanguage:cpp",
-    "onLanguage:python"
+    "onLanguage:markdown"
   ],
   "main": "./dist/extension.js",
   "contributes": {
-    "commands": []
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "doorstop",
+          "title": "Doorstop",
+          "icon": "media/icon-activity-bar.svg"
+        }
+      ]
+    },
+    "views": {
+      "doorstop": [
+        {
+          "id": "doorstop.treeView",
+          "name": "Explorer",
+          "icon": "media/icon-activity-bar.svg"
+        },
+        {
+          "id": "doorstop.commandsView",
+          "name": "Commands",
+          "icon": "media/icon-activity-bar.svg"
+        }
+      ]
+    },
+    "commands": [
+    {
+      "command": "doorstop.showDiagram",
+      "title": "Doorstop: Open Traceability Graph",
+      "icon": "$(graph)"
+    },
+    {
+      "command": "doorstop.restartServer",
+      "title": "Doorstop: Restart Server",
+      "icon": "$(refresh)"
+    },
+    {
+      "command": "doorstop.deriveRequirement",
+      "title": "Doorstop: Derive Requirement",
+      "icon": "$(add)"
+    },
+    {
+      "command": "doorstop.createDoc",
+      "title": "Doorstop: Create Document",
+      "icon": "$(file-directory-create)"
+    },
+    {
+      "command": "doorstop.refresh",
+      "title": "Doorstop: Refresh",
+      "icon": "$(refresh)"
+    },
+    {
+      "command": "doorstop.add",
+      "title": "Doorstop: Add Item",
+      "icon": "$(file-add)"
+    },
+    {
+      "command": "doorstop.review",
+      "title": "Doorstop: Review",
+      "icon": "$(unverified)"
+    },
+    {
+      "command": "doorstop.clear",
+      "title": "Doorstop: Clear Suspect",
+      "icon": "$(call-incoming)"
+    },
+    {
+      "command": "doorstop.link",
+      "title": "Doorstop: Link Items",
+      "icon": "$(link)"
+    },
+    {
+      "command": "doorstop.reorder",
+      "title": "Doorstop: Reorder Document",
+      "icon": "$(list-ordered)"
+    },
+    {
+      "command": "doorstop.import",
+      "title": "Doorstop: Import",
+      "icon": "$(folder-opened)"
+    },
+    {
+      "command": "doorstop.export",
+      "title": "Doorstop: Export",
+      "icon": "$(save)"
+    },
+    {
+      "command": "doorstop.publish",
+      "title": "Doorstop: Publish",
+      "icon": "$(rocket)"
+    }
+  ],
+  "customEditors": [
+    {
+      "viewType": "doorstop.diagram",
+      "displayName": "Doorstop Diagram",
+      "selector": [
+        {
+          "filenamePattern": "*.doorstop.json"
+        }
+      ],
+      "priority": "default"
+    }
+  ],
+  "menus": {
+    "view/title": [
+      {
+        "command": "doorstop.createDoc",
+        "when": "view == doorstop.treeView",
+        "group": "navigation"
+      },
+      {
+        "command": "doorstop.refresh",
+        "when": "view == doorstop.treeView",
+        "group": "navigation"
+      },
+      {
+        "command": "doorstop.showDiagram",
+        "when": "view == doorstop.treeView",
+        "group": "navigation"
+      }
+    ],
+    "view/item/context": [
+      {
+        "command": "doorstop.add",
+        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem == doorstop.item)",
+        "group": "inline@1"
+      },
+      {
+        "command": "doorstop.review",
+        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem == doorstop.item)",
+        "group": "inline@2"
+      },
+      {
+        "command": "doorstop.clear",
+        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "group": "inline@3"
+      },
+      {
+        "command": "doorstop.link",
+        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "group": "inline@4"
+      }
+    ]
+  }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

@@ -1,217 +1,310 @@
 import * as vscode from 'vscode';
-import * as yaml from 'js-yaml';
-import * as path from 'path';
 
-interface DoorstopItem {
-  text?: string;
-  header?: string;
-  level?: string;
-  active?: boolean;
-  derived?: boolean;
-  normative?: boolean;
-  links?: (string | Record<string, string | null>)[];
-  ref?: string;
+import { DoorstopTreeProvider,RequirementTreeItem } from './requirementTree';
+import { DoorstopDiagramPanel } from './diagrammPanel';
+import { registerHoverProvider } from './hoverProvider';
+import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
+import { DoorstopServer } from './doorstopServer';
+import { registerDeriveProvider } from './deriveProvider';
+import { DoorstopCommandsProvider } from './commandsProvider';
+import { registerDoorstopCommands } from './doorstopCommands';
+interface DoorstopDiagramDocument extends vscode.CustomDocument {
+  diagram: unknown;
 }
+export async function activate(context: vscode.ExtensionContext) {
+  console.log('[Doorstop][activate] Extension activation started');
+  vscode.window.showInformationMessage('Doorstop VS Code Extension is active!');
 
-function parseDoorstopFile(rawContent: string): DoorstopItem | undefined {
-  const trimmed = rawContent.trimStart();
+  const doorstopServer = new DoorstopServer();
+  context.subscriptions.push(doorstopServer);
 
-  if (trimmed.startsWith('---')) {
-    const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-    const match = trimmed.match(frontmatterRegex);
-
-    if (match) {
-      const yamlHeader = match[1];
-      const markdownBody = match[2];
-      const item = (yaml.load(yamlHeader) as DoorstopItem) || {};
-      
-      if (!item.text && markdownBody.trim().length > 0) {
-        item.text = markdownBody.trim();
-      }
-      return item;
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+  const findDoorstopMarker = async (): Promise<boolean> => {
+    if (!workspaceFolder) {
+      return false;
     }
-  }
+    const markers = await vscode.workspace.findFiles(
+      new vscode.RelativePattern(workspaceFolder, '**/.doorstop.yml'),
+      '**/{node_modules,.git,out,dist,.venv,venv}/**',
+      1
+    );
+    return markers.length > 0;
+  };
 
-  return yaml.load(rawContent) as DoorstopItem;
-}
-
-/**
- * Creates a VS Code Command URI link that opens the target item file when clicked.
- */
-async function makeClickableLink(uid: string): Promise<string> {
-  const files = await vscode.workspace.findFiles(`**/${uid}.{yml,md}`, '**/node_modules/**', 1);
-  if (files.length === 0) {
-    return `\`${uid}\``; // Fallback to plain text if file is missing
-  }
-
-  const fileUri = files[0];
-  const args = encodeURIComponent(JSON.stringify([fileUri.toString()]));
-  const commandUri = `command:vscode.open?${args}`;
-
-  return `[${uid}](${commandUri})`;
-}
-
-/**
- * Formats Doorstop link arrays into clickable Markdown links.
- */
-async function formatLinksClickable(links: (string | Record<string, string | null>)[]): Promise<string> {
-  const formattedLinks: string[] = [];
-
-  for (const link of links) {
-    if (typeof link === 'string') {
-      formattedLinks.push(await makeClickableLink(link));
-    } else if (typeof link === 'object' && link !== null) {
-      for (const key of Object.keys(link)) {
-        formattedLinks.push(await makeClickableLink(key));
-      }
+  const getActivePythonPath = async (): Promise<string> => {
+    const pythonExtension = vscode.extensions.getExtension('ms-python.python');
+    if (!pythonExtension) {
+      throw new Error('The Python extension is not installed.');
     }
-  }
+    if (!pythonExtension.isActive) {
+      await pythonExtension.activate();
+    }
 
-  return formattedLinks.join(', ');
-}
+    const api = pythonExtension.exports as {
+      environments?: {
+        getActiveEnvironmentPath(uri?: vscode.Uri): Promise<{ path?: string } | undefined>;
+      };
+    };
+    const environment = await api.environments?.getActiveEnvironmentPath(workspaceFolder?.uri);
+    if (!environment?.path) {
+      throw new Error('No active Python environment was selected for this workspace.');
+    }
+    return environment.path;
+  };
 
-async function findReverseLinks(targetUid: string): Promise<string[]> {
-  const allFiles = await vscode.workspace.findFiles('**/*.{yml,md}', '**/node_modules/**');
-  const reverseLinks: string[] = [];
-
-  for (const file of allFiles) {
-    const fileName = path.basename(file.fsPath);
-    const itemUid = fileName.replace(/\.(yml|md)$/, '');
-
-    if (itemUid === targetUid) {
-      continue;
+  const startDoorstopServer = async (restart = false): Promise<void> => {
+    if (!workspaceFolder || !(await findDoorstopMarker())) {
+      void vscode.window.showWarningMessage('No .doorstop.yml project was found in the workspace.');
+      return;
     }
 
     try {
-      const fileData = await vscode.workspace.fs.readFile(file);
-      const rawContent = new TextDecoder().decode(fileData);
-      const item = parseDoorstopFile(rawContent);
+      const pythonPath = await getActivePythonPath();
+      if (restart) {
+        await doorstopServer.restart(workspaceFolder.uri.fsPath, pythonPath);
+      } else {
+        await doorstopServer.start(workspaceFolder.uri.fsPath, pythonPath);
+      }
+      console.log('[Doorstop][server] Server is ready at 127.0.0.1:7867');
+      void vscode.window.showInformationMessage('Doorstop server is ready.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[Doorstop][server] Failed to start:', message);
+      void vscode.window.showWarningMessage(`Doorstop server unavailable: ${message}`);
+    }
+  };
 
-      if (item && item.links) {
-        const hasLink = item.links.some(link => {
-          if (typeof link === 'string') {
-            return link === targetUid;
-          }
-          if (typeof link === 'object' && link !== null) {
-            return Object.keys(link).includes(targetUid);
-          }
-          return false;
+  const restartServerCommand = vscode.commands.registerCommand(
+    'doorstop.restartServer',
+    () => startDoorstopServer(true)
+  );
+  context.subscriptions.push(restartServerCommand);
+
+  if (workspaceFolder) {
+    await startDoorstopServer();
+  }
+
+  const treeProvider = new DoorstopTreeProvider();
+  const commandsProvider = new DoorstopCommandsProvider();
+  context.subscriptions.push(...registerDoorstopCommands({
+    context,
+    server: doorstopServer,
+    tree: treeProvider,
+    utilities: commandsProvider,
+    workspaceFolder: workspaceFolder || vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder,
+    getPythonPath: getActivePythonPath
+  }));
+  if (workspaceFolder) {
+    registerDeriveProvider(context, {
+      server: doorstopServer,
+      workspaceFolder,
+      getPythonPath: getActivePythonPath,
+      onChanged: () => treeProvider.refresh()
+    });
+  }
+  const openDiagramCmd = vscode.commands.registerCommand('doorstop.openDiagram', () => {
+    DoorstopDiagramPanel.createOrShow(context.extensionUri);
+  });
+  const documentChangeEvent = new vscode.EventEmitter<vscode.CustomDocumentContentChangeEvent<DoorstopDiagramDocument>>();
+  const diagramEditorProvider: vscode.CustomEditorProvider<DoorstopDiagramDocument> = {
+    onDidChangeCustomDocument: documentChangeEvent.event,
+    async openCustomDocument(uri) {
+      return {
+        uri,
+        diagram: await DoorstopDiagramPanel.readDiagram(uri),
+        dispose() { }
+      };
+    },
+    async resolveCustomEditor(document, webviewPanel) {
+      await DoorstopDiagramPanel.createForCustomEditor(
+        webviewPanel,
+        context.extensionUri,
+        document.diagram,
+        diagram => {
+          document.diagram = diagram;
+          documentChangeEvent.fire({ document });
+        }
+      );
+    },
+    async saveCustomDocument(document) {
+      await vscode.workspace.fs.writeFile(
+        document.uri,
+        DoorstopDiagramPanel.serializeDiagram(document.diagram)
+      );
+    },
+    async saveCustomDocumentAs(document, destination) {
+      await vscode.workspace.fs.writeFile(
+        destination,
+        DoorstopDiagramPanel.serializeDiagram(document.diagram)
+      );
+    },
+    async revertCustomDocument(document) {
+      document.diagram = await DoorstopDiagramPanel.readDiagram(document.uri);
+    },
+    async backupCustomDocument(document, context) {
+      await vscode.workspace.fs.writeFile(
+        context.destination,
+        DoorstopDiagramPanel.serializeDiagram(document.diagram)
+      );
+      return {
+        id: context.destination.toString(),
+        delete: () => vscode.workspace.fs.delete(context.destination)
+      };
+    }
+  };
+  const customEditor = vscode.window.registerCustomEditorProvider(
+    'doorstop.diagram',
+    diagramEditorProvider
+  );
+  // ------------------------------------------------------------------
+  // STELLE A: DragAndDropController definieren & TreeView erstellen
+  // ------------------------------------------------------------------
+  const dndController: vscode.TreeDragAndDropController<RequirementTreeItem> = {
+    dragMimeTypes: [
+      'application/vnd.code.tree.doorstop.treeView',
+      'text/plain',
+      'text/uri-list'
+    ],
+    dropMimeTypes: [],
+    handleDrag(source, dataTransfer) {
+      const item = source[0];
+      console.log('[Doorstop][drag] Started:', item?.label ?? '<no item>');
+      if (item && item.resourceUri) {
+        console.log('[Doorstop][drag] File URI:', item.resourceUri.toString());
+        const payload = JSON.stringify({
+          uid: item.itemData?.uid || item.label,
+          fileUri: item.resourceUri.fsPath,
+          title: item.title
         });
+        dataTransfer.set(
+          'application/vnd.code.tree.doorstop.treeView',
+          new vscode.DataTransferItem(payload)
+        );
+        dataTransfer.set('text/plain', new vscode.DataTransferItem(item.resourceUri.fsPath));
+        dataTransfer.set('text/uri-list', new vscode.DataTransferItem(item.resourceUri.toString()));
+      }
+    }
+  };
 
-        if (hasLink) {
-          reverseLinks.push(itemUid);
+  context.subscriptions.push(openDiagramCmd, customEditor);
+
+
+  const treeView = vscode.window.createTreeView('doorstop.treeView', {
+    treeDataProvider: treeProvider,
+    showCollapseAll: true,
+    dragAndDropController: dndController
+  });
+  const commandsView = vscode.window.createTreeView('doorstop.commandsView', {
+    treeDataProvider: commandsProvider,
+    showCollapseAll: false
+  });
+
+  const activateRequirementCommand = vscode.commands.registerCommand(
+    'doorstop.activateRequirement',
+    async (filePath: string) => {
+      console.log('[Doorstop][activateRequirement] Command received:', JSON.stringify(filePath));
+      const item = await treeProvider.setActiveResource(vscode.Uri.file(filePath));
+      console.log('[Doorstop][activateRequirement] Tree item:', item?.label ?? '<not found>');
+      if (item) {
+        try {
+          await prepareTreeItemForReveal(treeProvider, item);
+          console.log('[Doorstop][activateRequirement] Revealing tree item');
+          await treeView.reveal(item, { select: true, focus: true, expand: true });
+          console.log('[Doorstop][activateRequirement] Reveal completed');
+        } catch (error) {
+          console.warn('[Doorstop][activateRequirement] Initial reveal failed, retrying:', error);
+          try {
+            await treeProvider.getChildren();
+            const refreshedItem = await treeProvider.setActiveResource(vscode.Uri.file(filePath));
+            if (refreshedItem) {
+              await prepareTreeItemForReveal(treeProvider, refreshedItem);
+              console.log('[Doorstop][activateRequirement] Revealing refreshed tree item');
+              await treeView.reveal(refreshedItem, { select: true, focus: true, expand: true });
+              console.log('[Doorstop][activateRequirement] Retry reveal completed');
+            }
+          } catch (retryError) {
+            console.error('[Doorstop][activateRequirement] Retry reveal failed:', retryError);
+            return;
+          }
+        }
+      } else {
+        console.warn('[Doorstop][activateRequirement] No tree item matched path');
+      }
+    }
+  );
+
+  const showDiagramCommand = vscode.commands.registerCommand('doorstop.showDiagram', () => {
+    // Ruft das Diagramm-Panel auf und übergibt die Extension-URI
+    DoorstopDiagramPanel.createOrShow(context.extensionUri);
+  });
+
+  context.subscriptions.push(
+    treeView,
+    commandsView,
+    showDiagramCommand,
+    activateRequirementCommand
+  );
+
+  const syncActiveRequirement = async (editor: vscode.TextEditor | undefined) => {
+    console.log('[Doorstop][syncActiveRequirement] Editor:', editor?.document.uri.toString() ?? '<none>');
+    recordViewedRequirement(editor?.document.uri);
+    const item = await treeProvider.setActiveResource(editor?.document.uri);
+    console.log('[Doorstop][syncActiveRequirement] Tree item:', item?.label ?? '<not found>');
+    if (item) {
+      try {
+        await prepareTreeItemForReveal(treeProvider, item);
+        console.log('[Doorstop][syncActiveRequirement] Revealing tree item');
+        await treeView.reveal(item, { select: true, focus: false, expand: true });
+        console.log('[Doorstop][syncActiveRequirement] Reveal completed');
+      } catch (error) {
+        console.warn('[Doorstop][syncActiveRequirement] Initial reveal failed, retrying:', error);
+        try {
+          await treeProvider.getChildren();
+          const refreshedItem = await treeProvider.setActiveResource(editor?.document.uri);
+          if (refreshedItem) {
+            await prepareTreeItemForReveal(treeProvider, refreshedItem);
+            console.log('[Doorstop][syncActiveRequirement] Revealing refreshed tree item');
+            await treeView.reveal(refreshedItem, { select: true, focus: false, expand: true });
+            console.log('[Doorstop][syncActiveRequirement] Retry reveal completed');
+          }
+        } catch (retryError) {
+          console.error('[Doorstop][syncActiveRequirement] Retry reveal failed:', retryError);
+          return;
         }
       }
-    } catch {
-      // Ignore unparseable files
+    } else {
+      console.log('[Doorstop][syncActiveRequirement] No tree item matched editor');
+    }
+  };
+
+  context.subscriptions.push(treeView);
+  context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => {
+    console.log('[Doorstop][event] Active editor changed');
+    void syncActiveRequirement(editor).catch(() => undefined);
+  }));
+
+  void syncActiveRequirement(vscode.window.activeTextEditor);
+
+  async function prepareTreeItemForReveal(
+    provider: DoorstopTreeProvider,
+    item: RequirementTreeItem
+  ): Promise<void> {
+    const ancestors: RequirementTreeItem[] = [];
+    let current: RequirementTreeItem | undefined = item;
+    while (current) {
+      ancestors.unshift(current);
+      current = provider.getParent(current) as RequirementTreeItem | undefined;
+    }
+
+    console.log('[Doorstop][tree] Reveal path:', ancestors.map(element => element.id));
+    for (const ancestor of ancestors) {
+      await provider.getChildren(ancestor);
     }
   }
 
-  return reverseLinks;
-}
-
-export function activate(context: vscode.ExtensionContext) {
-  vscode.window.showInformationMessage('Doorstop VS Code Extension is active!');
-
-  const uidRegex = /\b[A-Z0-9_-]+-\d+\b/g;
-
-  const hoverProvider = vscode.languages.registerHoverProvider({ scheme: 'file' }, {
-    async provideHover(document: vscode.TextDocument, position: vscode.Position) {
-      const lineText = document.lineAt(position.line).text;
-      const currentFileName = path.basename(document.fileName);
-      const currentFileUid = currentFileName.replace(/\.(yml|md)$/, '');
-
-      // 1. Hover over "derived:" line -> Downstream (reverse) links for current file
-      const isDerivedHover = /^\s*derived\s*:/i.test(lineText);
-
-      if (isDerivedHover) {
-        const range = document.lineAt(position.line).range;
-        const reverseLinkUids = await findReverseLinks(currentFileUid);
-
-        const markdown = new vscode.MarkdownString();
-        markdown.isTrusted = true;
-
-        markdown.appendMarkdown(`### 🔗 **Downstream (Reverse) Links for ${currentFileUid}**\n\n---\n\n`);
-
-        if (reverseLinkUids.length > 0) {
-          const clickableReverseLinks = await Promise.all(
-            reverseLinkUids.map(uid => makeClickableLink(uid))
-          );
-          markdown.appendMarkdown(clickableReverseLinks.join(', '));
-        } else {
-          markdown.appendMarkdown('*No items link to this requirement.*');
-        }
-
-        return new vscode.Hover(markdown, range);
-      }
-
-      // 2. Extract Hovered UID
-      const range = document.getWordRangeAtPosition(position, uidRegex);
-      if (!range) {
-        return undefined;
-      }
-
-      const hoveredUid = document.getText(range);
-
-      // Check if the current line is inside a `links:` block or list (e.g. "- SYS-0001: null")
-      const isInsideLinksBlock = /^\s*(-|\s)\s*[A-Z0-9_-]+-\d+/i.test(lineText) || /^\s*links\s*:/i.test(lineText);
-
-      const files = await vscode.workspace.findFiles(`**/${hoveredUid}.{yml,md}`, '**/node_modules/**', 1);
-      if (files.length === 0) {
-        return undefined;
-      }
-
-      try {
-        const fileData = await vscode.workspace.fs.readFile(files[0]);
-        const rawContent = new TextDecoder().decode(fileData);
-        const item = parseDoorstopFile(rawContent);
-
-        if (!item) {
-          return undefined;
-        }
-
-        const markdown = new vscode.MarkdownString();
-        markdown.isTrusted = true;
-
-        // Open Link Header
-        const targetFileLink = await makeClickableLink(hoveredUid);
-        markdown.appendMarkdown(`### 📋 **Target Item:** ${targetFileLink}\n\n`);
-
-        if (item.header) {
-          markdown.appendMarkdown(`**Header:** ${item.header}\n\n`);
-        }
-        if (item.level) {
-          markdown.appendMarkdown(`**Level:** ${item.level}\n\n`);
-        }
-        markdown.appendMarkdown(`---\n\n`);
-
-        // Text
-        if (item.text) { 
-          markdown.appendMarkdown(`${item.text.trim()}\n\n`);
-        } else {
-          markdown.appendMarkdown('*No requirement text defined.*\n\n');
-        }
-
-        // Only show upstream links if NOT hovering directly on a link item
-        if (!isInsideLinksBlock && item.links && item.links.length > 0) {
-          const formattedClickableLinks = await formatLinksClickable(item.links);
-          markdown.appendMarkdown(`**Upstream Links:** ${formattedClickableLinks}\n\n`);
-        }
- 
-        if (item.ref) {
-          markdown.appendMarkdown(`**Ref:** \`${item.ref}\``);
-        }
-
-        return new vscode.Hover(markdown, range);
-
-      } catch (error) {
-        console.error(`Error parsing Doorstop file for ${hoveredUid}:`, error);
-        return undefined;
-      }
-    }
-  });
-
-  context.subscriptions.push(hoverProvider);
+  registerHoverProvider(context);
+  registerCompletionProvider(context);
 }
 
 export function deactivate() {}
+

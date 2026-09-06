@@ -1,0 +1,33 @@
+<mxfile host="Electron" pages="2">
+  <diagram name="activity-bar" id="UQ2f5ONoBfvLs-LeOQlI">
+    <mxGraphModel dx="334" dy="201" grid="1" gridSize="1" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="128" pageHeight="128" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="zZitpvyyYXLB7JXFSLH2-11" parent="1" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=#f5f5f5;verticalAlign=top;aspect=fixed;imageAspect=0;editableCssRules=.*;image=data:image/svg+xml,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWdlbSI+PHBhdGggZD0iTTEwLjUgMyA4IDlsNCAxMyA0LTEzLTIuNS02Ii8+PHBhdGggZD0iTTE3IDNhMiAyIDAgMCAxIDEuNi44bDMgNGEyIDIgMCAwIDEgLjAxMyAyLjM4MmwtNy45OSAxMC45ODZhMiAyIDAgMCAxLTMuMjQ3IDBsLTcuOTktMTAuOTg2QTIgMiAwIDAgMSAyLjQgNy44bDIuOTk4LTMuOTk3QTIgMiAwIDAgMSA3IDN6Ii8+PHBhdGggZD0iTTIgOWgyMCIvPjwvc3ZnPg==;labelBorderColor=#666666;" value="" vertex="1">
+          <mxGeometry height="73.14" width="73.14" x="27" as="geometry" />
+        </mxCell>
+        <mxCell id="zZitpvyyYXLB7JXFSLH2-12" parent="1" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=#f5f5f5;verticalAlign=top;aspect=fixed;imageAspect=0;editableCssRules=.*;image=data:image/svg+xml,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWhhbmQtaGVscGluZyI+PHBhdGggZD0iTTExIDEyaDJhMiAyIDAgMSAwIDAtNGgtM2MtLjYgMC0xLjEuMi0xLjQuNkwzIDE0Ii8+PHBhdGggZD0ibTcgMTggMS42LTEuNGMuMy0uNC44LS42IDEuNC0uNmg0YzEuMSAwIDIuMS0uNCAyLjgtMS4ybDQuNi00LjRhMiAyIDAgMCAwLTIuNzUtMi45MWwtNC4yIDMuOSIvPjxwYXRoIGQ9Im0yIDEzIDYgNiIvPjwvc3ZnPg==;imageBorder=none;noLabel=1;clipPath=inset(15% 0% 15% 0%);labelBorderColor=#666666;imageBackground=none;" value="" vertex="1">
+          <mxGeometry height="68" width="97.14" x="7" y="59" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="marketplace" id="EJo83qTnOabn-k-egJEJ">
+    <mxGraphModel dx="400" dy="241" grid="1" gridSize="8" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="128" pageHeight="128" math="0" shadow="0">
+      <root>
+        <mxCell id="b3RtMnwbsp3l4D1Hpwn0-0" />
+        <mxCell id="b3RtMnwbsp3l4D1Hpwn0-1" parent="b3RtMnwbsp3l4D1Hpwn0-0" />
+        <mxCell id="KdYp-lgVWl0xUBdwNF5a-0" parent="b3RtMnwbsp3l4D1Hpwn0-1" style="rounded=1;whiteSpace=wrap;html=1;shadow=0;strokeWidth=0;fillColor=#d0cee2;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="127" width="127" x="1" y="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b3RtMnwbsp3l4D1Hpwn0-2" parent="b3RtMnwbsp3l4D1Hpwn0-1" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=#f5f5f5;verticalAlign=top;aspect=fixed;imageAspect=0;editableCssRules=.*;image=data:image/svg+xml,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWdlbSI+PHBhdGggZD0iTTEwLjUgMyA4IDlsNCAxMyA0LTEzLTIuNS02Ii8+PHBhdGggZD0iTTE3IDNhMiAyIDAgMCAxIDEuNi44bDMgNGEyIDIgMCAwIDEgLjAxMyAyLjM4MmwtNy45OSAxMC45ODZhMiAyIDAgMCAxLTMuMjQ3IDBsLTcuOTktMTAuOTg2QTIgMiAwIDAgMSAyLjQgNy44bDIuOTk4LTMuOTk3QTIgMiAwIDAgMSA3IDN6Ii8+PHBhdGggZD0iTTIgOWgyMCIvPjwvc3ZnPg==;labelBorderColor=#666666;" value="" vertex="1">
+          <mxGeometry height="73.14" width="73.14" x="27" as="geometry" />
+        </mxCell>
+        <mxCell id="b3RtMnwbsp3l4D1Hpwn0-3" parent="b3RtMnwbsp3l4D1Hpwn0-1" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=#f5f5f5;verticalAlign=top;aspect=fixed;imageAspect=0;editableCssRules=.*;image=data:image/svg+xml,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWhhbmQtaGVscGluZyI+PHBhdGggZD0iTTExIDEyaDJhMiAyIDAgMSAwIDAtNGgtM2MtLjYgMC0xLjEuMi0xLjQuNkwzIDE0Ii8+PHBhdGggZD0ibTcgMTggMS42LTEuNGMuMy0uNC44LS42IDEuNC0uNmg0YzEuMSAwIDIuMS0uNCAyLjgtMS4ybDQuNi00LjRhMiAyIDAgMCAwLTIuNzUtMi45MWwtNC4yIDMuOSIvPjxwYXRoIGQ9Im0yIDEzIDYgNiIvPjwvc3ZnPg==;imageBorder=none;noLabel=1;clipPath=inset(15% 0% 15% 0%);labelBorderColor=#666666;imageBackground=none;" value="" vertex="1">
+          <mxGeometry height="68" width="97.14" x="7" y="59" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
