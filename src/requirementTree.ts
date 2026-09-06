@@ -44,16 +44,15 @@ export class RequirementTreeItem extends vscode.TreeItem {
         ? 'doorstop.placeholder'
         : 'doorstop.item';
 
-    // 4 Icons für Status aufbauen (z. B. Active, Normative, Derived, Reviewed)
-    const iconActive = itemData.active !== false ? '🟢' : '⚪';
-    const iconNormative = itemData.normative !== false ? '📜' : '📄';
-    const iconDerived = itemData.derived ? '🔀' : '🔹';
-    const iconReviewed = itemData.reviewed ? '✅' : '⚠️';
-
     // Label und Beschreibung im Tree:
-    this.baseLabel = `${iconActive}${iconNormative}${iconDerived}${iconReviewed} ${title}`;
+    this.baseLabel = title;
     this.label = this.baseLabel;
     this.description = itemData.uid || path.basename(resourceUri.fsPath);
+    if (itemData.isDoorstopRoot) {
+      this.iconPath = vscode.ThemeIcon.Folder;
+    } else {
+      this.setTreeIcon('file');
+    }
 
     // Klick öffnet die Datei
     if (!itemData.isPlaceholder) {
@@ -72,6 +71,10 @@ export class RequirementTreeItem extends vscode.TreeItem {
 
   setActive(active: boolean): void {
     this.label = active ? `${this.baseLabel}` : this.baseLabel;
+  }
+
+  setTreeIcon(icon: 'folder' | 'file' | 'files'): void {
+    this.iconPath = new vscode.ThemeIcon(icon);
   }
 }
 
@@ -299,6 +302,11 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
       item.collapsibleState = this.childrenByItem.has(item)
         ? vscode.TreeItemCollapsibleState.Collapsed
         : vscode.TreeItemCollapsibleState.None;
+      item.setTreeIcon(this.childrenByItem.has(item) ? 'files' : 'file');
+    }
+
+    for (const root of this.roots) {
+      root.iconPath = vscode.ThemeIcon.Folder;
     }
 
     this.sortItems(this.roots);
