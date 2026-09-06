@@ -4,14 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-- 
+- Diagnostics
+- Canvas with Traces and Drag and Drop.
+- Jump to new files. 
+
+## [0.0.4] - 2026-09-06
+
+### Added
+
+- palette: command into commands palette for quick access
+- sidebar.commands: often used commands for quick access
+- sidebar.treeview: commands by click
+    items:  add, review, remove suspicous and link
+    documents: add document
+- codeLens: derive requiremts per click downstream
+- completion: autocomplete to link upstream with history
+
 
 ## [0.0.3] - 2026-09-05
 
-### Added 
+### Added
 
-- Treeview of all doorstop items in explorer with name 
-- Diagram to collect items for later usage
+- Treeview of all doorstop items in explorer with name
+- Canvas to collect items for later usage
 
 ## [0.0.2] - 2026-08-31
 

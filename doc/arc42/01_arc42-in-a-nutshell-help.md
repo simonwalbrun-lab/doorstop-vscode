@@ -1,5 +1,7 @@
 # Doorstop Requirements for VS Code
 
+> it is outdated. the latest features are not represented here.
+
 Compact arc42 architecture description for the current implementation.
 
 ## 1. Requirements & Goals
@@ -15,7 +17,7 @@ Compact arc42 architecture description for the current implementation.
 ### Quality Goals
 
 | Priority | Goal | Concrete expectation |
-|---|---|---|
+| --- | --- | --- |
 | 1 | Usability | Requirements and diagrams are reachable without leaving VS Code. |
 | 2 | Reliability | Invalid files or drag payloads fail without crashing the extension host. |
 | 3 | Portability | Diagram files use workspace-relative requirement paths. |
@@ -50,7 +52,7 @@ graph TD
 ## 3. Building Block View
 
 | Component | Responsibility |
-|---|---|
+| --- | --- |
 | `extension.ts` | Activation, commands, custom editor provider, TreeView wiring, synchronization, and drag source. |
 | `requirementTree.ts` | Discovers, parses, hierarchically organizes, and exposes requirements. |
 | `diagrammPanel.ts` | Hosts the graph webview, resolves drops, loads/saves diagrams, and forwards node actions. |

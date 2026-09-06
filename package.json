@@ -28,7 +28,7 @@
       "activitybar": [
         {
           "id": "doorstop",
-          "title": "Doorstop Requirements",
+          "title": "Doorstop",
           "icon": "media/icon-activity-bar.svg"
         }
       ]
@@ -37,12 +37,12 @@
       "doorstop": [
         {
           "id": "doorstop.treeView",
-          "name": "Doorstop Explorer",
+          "name": "Explorer",
           "icon": "media/icon-activity-bar.svg"
         },
         {
           "id": "doorstop.commandsView",
-          "name": "Commands & Utilities",
+          "name": "Commands",
           "icon": "media/icon-activity-bar.svg"
         }
       ]
