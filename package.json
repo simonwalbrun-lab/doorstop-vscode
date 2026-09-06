@@ -3,7 +3,8 @@
   "displayName": "Doorstop Requirements",
   "description": "VS Code integration for Doorstop requirements management system.",
   "publisher": "SimonWalbrun",
-  "version": "0.0.3",
+  "icon": "media/Icons-marketplace.png",
+  "version": "0.0.4",
   "preview": true,
   "license": "MIT",
   "repository": {
@@ -18,14 +19,8 @@
   ],
   "activationEvents": [
     "workspaceContains:**/.doorstop.yml",
-    "workspaceContains:**/REQ*.yml",
-    "workspaceContains:**/REQ*.md",
     "onLanguage:yaml",
-    "onLanguage:markdown",
-    "onLanguage:c",
-    "onLanguage:cpp",
-    "onLanguage:python",
-    "onCustomEditor:doorstop.diagram"
+    "onLanguage:markdown"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -34,7 +29,7 @@
         {
           "id": "doorstop",
           "title": "Doorstop Requirements",
-          "icon": "media/icon.svg"
+          "icon": "media/icon-activity-bar.svg"
         }
       ]
     },
@@ -43,7 +38,7 @@
         {
           "id": "doorstop.treeView",
           "name": "Hierarchy",
-          "icon": "media/icon.svg"
+          "icon": "media/icon-activity-bar.svg"
         }
       ]
     },
@@ -52,6 +47,16 @@
       "command": "doorstop.showDiagram",
       "title": "Doorstop: Open Traceability Graph",
       "icon": "$(graph)"
+    },
+    {
+      "command": "doorstop.restartServer",
+      "title": "Doorstop: Restart Server",
+      "icon": "$(refresh)"
+    },
+    {
+      "command": "doorstop.deriveRequirement",
+      "title": "Doorstop: Derive Requirement",
+      "icon": "$(add)"
     }
   ],
   "customEditors": [

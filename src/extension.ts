@@ -4,14 +4,93 @@ import { DoorstopTreeProvider,RequirementTreeItem } from './requirementTree';
 import { DoorstopDiagramPanel } from './diagrammPanel';
 import { registerHoverProvider } from './hoverProvider';
 import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
+import { DoorstopServer } from './doorstopServer';
+import { registerDeriveProvider } from './deriveProvider';
 interface DoorstopDiagramDocument extends vscode.CustomDocument {
   diagram: unknown;
 }
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
   console.log('[Doorstop][activate] Extension activation started');
   vscode.window.showInformationMessage('Doorstop VS Code Extension is active!');
 
+  const doorstopServer = new DoorstopServer();
+  context.subscriptions.push(doorstopServer);
+
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+  const findDoorstopMarker = async (): Promise<boolean> => {
+    if (!workspaceFolder) {
+      return false;
+    }
+    const markers = await vscode.workspace.findFiles(
+      new vscode.RelativePattern(workspaceFolder, '**/.doorstop.yml'),
+      '**/{node_modules,.git,out,dist,.venv,venv}/**',
+      1
+    );
+    return markers.length > 0;
+  };
+
+  const getActivePythonPath = async (): Promise<string> => {
+    const pythonExtension = vscode.extensions.getExtension('ms-python.python');
+    if (!pythonExtension) {
+      throw new Error('The Python extension is not installed.');
+    }
+    if (!pythonExtension.isActive) {
+      await pythonExtension.activate();
+    }
+
+    const api = pythonExtension.exports as {
+      environments?: {
+        getActiveEnvironmentPath(uri?: vscode.Uri): Promise<{ path?: string } | undefined>;
+      };
+    };
+    const environment = await api.environments?.getActiveEnvironmentPath(workspaceFolder?.uri);
+    if (!environment?.path) {
+      throw new Error('No active Python environment was selected for this workspace.');
+    }
+    return environment.path;
+  };
+
+  const startDoorstopServer = async (restart = false): Promise<void> => {
+    if (!workspaceFolder || !(await findDoorstopMarker())) {
+      void vscode.window.showWarningMessage('No .doorstop.yml project was found in the workspace.');
+      return;
+    }
+
+    try {
+      const pythonPath = await getActivePythonPath();
+      if (restart) {
+        await doorstopServer.restart(workspaceFolder.uri.fsPath, pythonPath);
+      } else {
+        await doorstopServer.start(workspaceFolder.uri.fsPath, pythonPath);
+      }
+      console.log('[Doorstop][server] Server is ready at 127.0.0.1:7867');
+      void vscode.window.showInformationMessage('Doorstop server is ready.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[Doorstop][server] Failed to start:', message);
+      void vscode.window.showWarningMessage(`Doorstop server unavailable: ${message}`);
+    }
+  };
+
+  const restartServerCommand = vscode.commands.registerCommand(
+    'doorstop.restartServer',
+    () => startDoorstopServer(true)
+  );
+  context.subscriptions.push(restartServerCommand);
+
+  if (workspaceFolder) {
+    await startDoorstopServer();
+  }
+
   const treeProvider = new DoorstopTreeProvider();
+  if (workspaceFolder) {
+    registerDeriveProvider(context, {
+      server: doorstopServer,
+      workspaceFolder,
+      getPythonPath: getActivePythonPath,
+      onChanged: () => treeProvider.refresh()
+    });
+  }
   const openDiagramCmd = vscode.commands.registerCommand('doorstop.openDiagram', () => {
     DoorstopDiagramPanel.createOrShow(context.extensionUri);
   });
