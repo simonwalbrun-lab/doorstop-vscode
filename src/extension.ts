@@ -6,6 +6,8 @@ import { registerHoverProvider } from './hoverProvider';
 import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
 import { DoorstopServer } from './doorstopServer';
 import { registerDeriveProvider } from './deriveProvider';
+import { DoorstopCommandsProvider } from './commandsProvider';
+import { registerDoorstopCommands } from './doorstopCommands';
 interface DoorstopDiagramDocument extends vscode.CustomDocument {
   diagram: unknown;
 }
@@ -83,6 +85,15 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   const treeProvider = new DoorstopTreeProvider();
+  const commandsProvider = new DoorstopCommandsProvider();
+  context.subscriptions.push(...registerDoorstopCommands({
+    context,
+    server: doorstopServer,
+    tree: treeProvider,
+    utilities: commandsProvider,
+    workspaceFolder: workspaceFolder || vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder,
+    getPythonPath: getActivePythonPath
+  }));
   if (workspaceFolder) {
     registerDeriveProvider(context, {
       server: doorstopServer,
@@ -183,6 +194,10 @@ export async function activate(context: vscode.ExtensionContext) {
     showCollapseAll: true,
     dragAndDropController: dndController
   });
+  const commandsView = vscode.window.createTreeView('doorstop.commandsView', {
+    treeDataProvider: commandsProvider,
+    showCollapseAll: false
+  });
 
   const activateRequirementCommand = vscode.commands.registerCommand(
     'doorstop.activateRequirement',
@@ -225,6 +240,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     treeView,
+    commandsView,
     showDiagramCommand,
     activateRequirementCommand
   );

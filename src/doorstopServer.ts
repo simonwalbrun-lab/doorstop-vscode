@@ -107,19 +107,23 @@ export class DoorstopServer {
     return this.start(projectPath, pythonPath);
   }
 
-  runCommand(projectPath: string, pythonPath: string, args: string[]): Promise<DoorstopCommandResult> {
+  runCommand(projectPath: string, pythonPath: string, args: string[], input?: string): Promise<DoorstopCommandResult> {
     const command = this.resolveCliCommand(pythonPath);
     return new Promise((resolve, reject) => {
       const child = spawn(command, args, {
         cwd: projectPath,
         shell: false,
         windowsHide: true,
-        stdio: ['ignore', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe']
       });
       let stdout = '';
       let stderr = '';
       child.stdout?.on('data', data => stdout += String(data));
       child.stderr?.on('data', data => stderr += String(data));
+      if (input !== undefined) {
+        child.stdin?.write(input);
+      }
+      child.stdin?.end();
       child.once('error', error => reject(new Error(`Unable to run ${command}: ${error.message}`)));
       child.once('close', (code, signal) => {
         if (signal) {

@@ -38,6 +38,11 @@ export class RequirementTreeItem extends vscode.TreeItem {
   ) {
     super(label, collapsibleState);
     this.id = resourceUri.toString();
+    this.contextValue = itemData.isDoorstopRoot
+      ? 'doorstop.root'
+      : itemData.isPlaceholder
+        ? 'doorstop.placeholder'
+        : 'doorstop.item';
 
     // 4 Icons für Status aufbauen (z. B. Active, Normative, Derived, Reviewed)
     const iconActive = itemData.active !== false ? '🟢' : '⚪';
@@ -151,7 +156,7 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
         path.basename(path.dirname(marker.fsPath)),
         vscode.TreeItemCollapsibleState.Collapsed,
         marker,
-        { uid: marker.fsPath, isDoorstopRoot: true },
+        { uid: marker.fsPath, prefix: this.readDocumentPrefix(marker.fsPath), isDoorstopRoot: true },
         path.basename(path.dirname(marker.fsPath))
       );
       var existing = false;
@@ -311,5 +316,41 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
       }
       return String(a.itemData.uid).localeCompare(String(b.itemData.uid));
     });
+  }
+
+  private readDocumentPrefix(markerPath: string): string | undefined {
+    try {
+      const data = yaml.load(fs.readFileSync(markerPath, 'utf8'));
+      return this.findPrefix(data);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private findPrefix(value: unknown): string | undefined {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const prefix = this.findPrefix(entry);
+        if (prefix) {
+          return prefix;
+        }
+      }
+      return undefined;
+    }
+
+    const record = value as Record<string, unknown>;
+    if (typeof record.prefix === 'string' && record.prefix.trim()) {
+      return record.prefix.trim();
+    }
+    for (const entry of Object.values(record)) {
+      const prefix = this.findPrefix(entry);
+      if (prefix) {
+        return prefix;
+      }
+    }
+    return undefined;
   }
 }
