@@ -81,3 +81,22 @@ class PublishRequest(BaseModel):
 
 class PublishResponse(BaseModel):
     path: str
+
+
+class ItemNode(BaseModel):
+    uid: str
+    path: str
+    level: str
+    header: Optional[str] = None
+    text: Optional[str] = None
+
+
+class DocumentNode(BaseModel):
+    prefix: str
+    markerPath: str
+    parentPrefix: Optional[str] = None
+    items: List[ItemNode]
+
+
+class TreeResponse(BaseModel):
+    documents: List[DocumentNode]

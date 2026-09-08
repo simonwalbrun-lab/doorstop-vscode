@@ -1,29 +1,57 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
-import * as yaml from 'js-yaml';
+
+import { DoorstopServer } from './doorstopServer';
+
+interface ItemNode {
+  uid: string;
+  path: string;
+  level: string;
+  header?: string;
+  text?: string;
+}
+
+interface DocumentNode {
+  prefix: string;
+  markerPath: string;
+  parentPrefix?: string;
+  items: ItemNode[];
+}
+
+interface TreeResponse {
+  documents: DocumentNode[];
+}
 
 /**
- * Extrahiert den Namen/Header aus dem Markdown-Textkörper,
- * falls 'header' nicht direkt im YAML-Frontmatter definiert ist.
+ * Resolves a display title from a server-provided item node: explicit header,
+ * then a markdown H1 in the text, then the first non-empty line, then a fallback.
  */
-function extractTitle(itemData: any, rawContent: string): string {
-  // 1. Falls explizit ein 'header' im YAML definiert ist
-  if (itemData.header) {
-    return itemData.header;
+function extractTitle(node: ItemNode): string {
+  if (node.header) {
+    return node.header;
   }
 
-  // 2. Suche nach einer Markdown-Überschrift (z. B. # some name 4)
-  const h1Match = rawContent.match(/^#\s+(.+)$/m);
+  const text = node.text || '';
+  const h1Match = text.match(/^#\s+(.+)$/m);
   if (h1Match) {
     return h1Match[1].trim();
   }
 
-  // 3. Fallback: Erste Zeile des Fließtexts nach dem Frontmatter
-  const textWithoutFrontmatter = rawContent.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').trim();
-  const firstLine = textWithoutFrontmatter.split('\n')[0]?.trim();
-
+  const firstLine = text.split('\n')[0]?.trim();
   return firstLine || 'Unbenanntes Requirement';
+}
+
+/**
+ * Outline depth of a dotted level string, matching Doorstop's own `Item.depth`
+ * (`len(self.level)`): the number of segments once a trailing ".0" (a heading
+ * marker) is stripped. E.g. "1" / "1.0" -> 1, "1.2" -> 2, "1.14.0" -> 2, "1.14.1" -> 3.
+ */
+function levelDepth(level: string): number {
+  const parts = level.split('.').filter(part => part.length > 0);
+  if (parts.length > 1 && parts[parts.length - 1] === '0') {
+    return parts.length - 1;
+  }
+  return parts.length || 1;
 }
 
 export class RequirementTreeItem extends vscode.TreeItem {
@@ -38,11 +66,7 @@ export class RequirementTreeItem extends vscode.TreeItem {
   ) {
     super(label, collapsibleState);
     this.id = resourceUri.toString();
-    this.contextValue = itemData.isDoorstopRoot
-      ? 'doorstop.root'
-      : itemData.isPlaceholder
-        ? 'doorstop.placeholder'
-        : 'doorstop.item';
+    this.contextValue = itemData.isDoorstopRoot ? 'doorstop.root' : 'doorstop.item';
 
     // Label und Beschreibung im Tree:
     this.baseLabel = title;
@@ -55,18 +79,11 @@ export class RequirementTreeItem extends vscode.TreeItem {
     }
 
     // Klick öffnet die Datei
-    if (!itemData.isPlaceholder) {
-      this.command = {
-        command: 'vscode.open',
-        title: 'Open File',
-        arguments: [this.resourceUri]
-      };
-    }
-
-    if (itemData.isPlaceholder) {
-      this.label = `${title} (placeholder)`;
-      this.description = 'Missing level';
-    }
+    this.command = {
+      command: 'vscode.open',
+      title: 'Open File',
+      arguments: [this.resourceUri]
+    };
   }
 
   setActive(active: boolean): void {
@@ -88,6 +105,9 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
   private parentById = new Map<string, RequirementTreeItem>();
   private roots: RequirementTreeItem[] = [];
   private loaded = false;
+  private serverErrorShown = false;
+
+  constructor(private readonly server: DoorstopServer) {}
 
   refresh(): void {
     this.loaded = false;
@@ -148,23 +168,35 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
       return;
     }
 
-    const markers = await vscode.workspace.findFiles('**/.doorstop.yml', undefined);
-    const requirementFiles = await vscode.workspace.findFiles('**/*.{yml,md}', undefined);
-    const markerPaths = markers.map(marker => marker.fsPath);
-    const markerPathSet = new Set(markerPaths);
-    const scopedItems = new Map<string, RequirementTreeItem[]>();
+    const start = Date.now();
+    let response: TreeResponse;
+    try {
+      response = await this.server.request<TreeResponse>('GET', '/tree');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[Doorstop][tree] Failed to load tree from server:', message);
+      if (!this.serverErrorShown) {
+        this.serverErrorShown = true;
+        void vscode.window.showErrorMessage(`Doorstop tree view: could not reach the Doorstop server (${message}).`);
+      }
+      this.loaded = true;
+      return;
+    }
+    this.serverErrorShown = false;
 
-    for (const marker of markers) {
+    for (const document of response.documents) {
+      const label = path.basename(path.dirname(document.markerPath));
       const root = new RequirementTreeItem(
-        path.basename(path.dirname(marker.fsPath)),
+        label,
         vscode.TreeItemCollapsibleState.Collapsed,
-        marker,
-        { uid: marker.fsPath, prefix: this.readDocumentPrefix(marker.fsPath), isDoorstopRoot: true },
-        path.basename(path.dirname(marker.fsPath))
+        vscode.Uri.file(document.markerPath),
+        { uid: document.markerPath, prefix: document.prefix, isDoorstopRoot: true },
+        label
       );
-      var existing = false;
-      for (const existing_roots of this.roots) {
-        if (root.resourceUri.path === existing_roots.resourceUri.path) {
+
+      let existing = false;
+      for (const existingRoot of this.roots) {
+        if (root.resourceUri.path === existingRoot.resourceUri.path) {
           existing = true;
         }
       }
@@ -174,128 +206,20 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
 
       this.roots.push(root);
       this.childrenByItem.set(root, []);
-      scopedItems.set(marker.fsPath, []);
-    }
 
-    for (const file of requirementFiles) {
-      if (markerPathSet.has(file.fsPath)) {continue;}
-
-      const owner = markerPaths
-        .filter(markerPath => {
-          const relative = path.relative(path.dirname(markerPath), file.fsPath);
-          return relative && !relative.startsWith('..') && !path.isAbsolute(relative);
-        })
-        .sort((a, b) => path.dirname(b).length - path.dirname(a).length)[0];
-      if (!owner) {continue;}
-
-      try {
-        const content = fs.readFileSync(file.fsPath, 'utf8');
-        const fileName = path.basename(file.fsPath);
-        const uid = fileName.replace(/\.(yml|md)$/, '');
-
-        // Standard-Frontmatter Parser
-        let yamlHeader = content;
-        if (content.startsWith('---')) {
-          const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-          if (match) {yamlHeader = match[1];}
-        }
-
-        const data: any = yaml.load(yamlHeader) || {};
-        data.uid = uid;
-        const title = extractTitle(data, content);
+      const items = document.items.map(node => {
         const item = new RequirementTreeItem(
-          uid,
+          node.uid,
           vscode.TreeItemCollapsibleState.None,
-          file,
-          data,
-          title
+          vscode.Uri.file(node.path),
+          { uid: node.uid, level: node.level, header: node.header },
+          extractTitle(node)
         );
-        scopedItems.get(owner)?.push(item);
-        this.items.set(file.fsPath, item);
-      } catch (e) {
-        // Ignorieren bei Nicht-Doorstop YAMLs
-      }
-    }
+        this.items.set(item.resourceUri.fsPath, item);
+        return item;
+      });
 
-    for (const [markerPath, items] of scopedItems) {
-      this.sortItems(items);
-      const root = this.roots.find(rootItem => rootItem.resourceUri.fsPath === markerPath);
-      if (!root) {continue;}
-
-      const canonicalLevel = (value: unknown): string => {
-        const level = String(value || '').trim();
-        return /^\d+$/.test(level) ? `${level}.0` : level;
-      };
-
-      const nodesByLevel = new Map<string, RequirementTreeItem>();
-      for (const item of items) {
-        const level = canonicalLevel(item.itemData.level);
-        if (level) {nodesByLevel.set(level, item);}
-      }
-
-      const parentLevelFor = (level: string): string | undefined => {
-        const parts = level.split('.');
-        if (parts.length < 2 || (parts.length === 2 && parts[1] === '0')) {
-          return undefined;
-        }
-        if (parts[parts.length - 1] === '0') {
-          return `${parts[0]}.0`;
-        }
-        if (parts.length === 2) {
-          return `${parts[0]}.0`;
-        }
-        return parts.slice(0, -1).join('.');
-      };
-
-      const ensureNode = (level: string): RequirementTreeItem => {
-        const existing = nodesByLevel.get(level);
-        if (existing) {return existing;}
-
-        const placeholder = new RequirementTreeItem(
-          level,
-          vscode.TreeItemCollapsibleState.Collapsed,
-          vscode.Uri.parse(`doorstop-placeholder:${encodeURIComponent(markerPath)}#${level}`),
-          { uid: level, level, isPlaceholder: true },
-          level
-        );
-        nodesByLevel.set(level, placeholder);
-
-        const parentLevel = parentLevelFor(level);
-        const parent = parentLevel ? ensureNode(parentLevel) : root;
-        const children = this.childrenByItem.get(parent) || [];
-        children.push(placeholder);
-        this.childrenByItem.set(parent, children);
-        this.childrenById.set(parent.id || parent.resourceUri.toString(), children);
-        this.parentByItem.set(placeholder, parent);
-        this.parentById.set(placeholder.id || placeholder.resourceUri.toString(), parent);
-        return placeholder;
-      };
-
-      for (const item of items) {
-        const level = canonicalLevel(item.itemData.level);
-        if (!level) {
-          const rootChildren = this.childrenByItem.get(root) || [];
-          rootChildren.push(item);
-          this.childrenByItem.set(root, rootChildren);
-          this.childrenById.set(root.id || root.resourceUri.toString(), rootChildren);
-          this.parentByItem.set(item, root);
-          this.parentById.set(item.id || item.resourceUri.toString(), root);
-          continue;
-        }
-
-        const parentLevel = parentLevelFor(level);
-        const parent = parentLevel ? ensureNode(parentLevel) : root;
-        const children = this.childrenByItem.get(parent) || [];
-        children.push(item);
-        this.childrenByItem.set(parent, children);
-        this.childrenById.set(parent.id || parent.resourceUri.toString(), children);
-        this.parentByItem.set(item, parent);
-        this.parentById.set(item.id || item.resourceUri.toString(), parent);
-      }
-
-      for (const children of this.childrenByItem.values()) {
-        this.sortItems(children);
-      }
+      this.attachHierarchy(root, items);
     }
 
     for (const item of this.items.values()) {
@@ -312,6 +236,39 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     this.sortItems(this.roots);
 
     this.loaded = true;
+    console.log(`[Doorstop][tree] loadItems via server took ${Date.now() - start}ms`);
+  }
+
+  /**
+   * Nests items purely by outline depth (like the indentation in Doorstop's own
+   * generated index.yml) instead of reconstructing a level-string tree: each
+   * item's parent is the nearest preceding item (in level order) with a shallower
+   * depth, or the document root. No synthetic nodes for skipped intermediate levels.
+   */
+  private attachHierarchy(root: RequirementTreeItem, items: RequirementTreeItem[]): void {
+    this.sortItems(items);
+
+    const ancestors: { depth: number; node: RequirementTreeItem }[] = [];
+    for (const item of items) {
+      const depth = levelDepth(String(item.itemData.level || ''));
+      while (ancestors.length > 0 && ancestors[ancestors.length - 1].depth >= depth) {
+        ancestors.pop();
+      }
+      const parent = ancestors.length > 0 ? ancestors[ancestors.length - 1].node : root;
+
+      const children = this.childrenByItem.get(parent) || [];
+      children.push(item);
+      this.childrenByItem.set(parent, children);
+      this.childrenById.set(parent.id || parent.resourceUri.toString(), children);
+      this.parentByItem.set(item, parent);
+      this.parentById.set(item.id || item.resourceUri.toString(), parent);
+
+      ancestors.push({ depth, node: item });
+    }
+
+    for (const children of this.childrenByItem.values()) {
+      this.sortItems(children);
+    }
   }
 
   private sortItems(items: RequirementTreeItem[]): void {
@@ -324,41 +281,5 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
       }
       return String(a.itemData.uid).localeCompare(String(b.itemData.uid));
     });
-  }
-
-  private readDocumentPrefix(markerPath: string): string | undefined {
-    try {
-      const data = yaml.load(fs.readFileSync(markerPath, 'utf8'));
-      return this.findPrefix(data);
-    } catch {
-      return undefined;
-    }
-  }
-
-  private findPrefix(value: unknown): string | undefined {
-    if (!value || typeof value !== 'object') {
-      return undefined;
-    }
-    if (Array.isArray(value)) {
-      for (const entry of value) {
-        const prefix = this.findPrefix(entry);
-        if (prefix) {
-          return prefix;
-        }
-      }
-      return undefined;
-    }
-
-    const record = value as Record<string, unknown>;
-    if (typeof record.prefix === 'string' && record.prefix.trim()) {
-      return record.prefix.trim();
-    }
-    for (const entry of Object.values(record)) {
-      const prefix = this.findPrefix(entry);
-      if (prefix) {
-        return prefix;
-      }
-    }
-    return undefined;
   }
 }

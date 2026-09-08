@@ -84,7 +84,7 @@ export async function activate(context: vscode.ExtensionContext) {
     await startDoorstopServer();
   }
 
-  const treeProvider = new DoorstopTreeProvider();
+  const treeProvider = new DoorstopTreeProvider(doorstopServer);
   const commandsProvider = new DoorstopCommandsProvider();
   context.subscriptions.push(...registerDoorstopCommands({
     context,
