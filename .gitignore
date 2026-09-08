@@ -3,3 +3,6 @@ dist
 node_modules
 .vscode-test/
 *.vsix
+server/.venv/
+server/**/__pycache__/
+server/**/*.egg-info/

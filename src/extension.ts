@@ -91,14 +91,12 @@ export async function activate(context: vscode.ExtensionContext) {
     server: doorstopServer,
     tree: treeProvider,
     utilities: commandsProvider,
-    workspaceFolder: workspaceFolder || vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder,
-    getPythonPath: getActivePythonPath
+    workspaceFolder: workspaceFolder || vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder
   }));
   if (workspaceFolder) {
     registerDeriveProvider(context, {
       server: doorstopServer,
       workspaceFolder,
-      getPythonPath: getActivePythonPath,
       onChanged: () => treeProvider.refresh()
     });
   }

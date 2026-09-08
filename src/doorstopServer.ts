@@ -1,6 +1,4 @@
 import { ChildProcess, spawn } from 'node:child_process';
-import * as fs from 'node:fs';
-import * as net from 'node:net';
 import * as path from 'node:path';
 
 export const DOORSTOP_SERVER_HOST = '127.0.0.1';
@@ -13,10 +11,14 @@ interface DoorstopServerOptions {
   retryIntervalMs?: number;
 }
 
-export interface DoorstopCommandResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
+export class DoorstopApiError extends Error {
+  constructor(public readonly code: string, message: string, public readonly status: number) {
+    super(message);
+  }
+}
+
+interface ErrorPayload {
+  error?: { code?: string; message?: string };
 }
 
 export class DoorstopServer {
@@ -27,6 +29,7 @@ export class DoorstopServer {
   private process: ChildProcess | undefined;
   private startPromise: Promise<void> | undefined;
   private disposed = false;
+  private recentStderr = '';
 
   constructor(options: DoorstopServerOptions = {}) {
     this.host = options.host || DOORSTOP_SERVER_HOST;
@@ -47,10 +50,11 @@ export class DoorstopServer {
       return this.startPromise;
     }
 
-    const command = this.resolveServerCommand(pythonPath);
+    this.recentStderr = '';
 
     this.startPromise = new Promise<void>((resolve, reject) => {
-      const child = spawn(command, [
+      const child = spawn(pythonPath, [
+        '-m', 'doorstop_server',
         '--project', path.resolve(projectPath),
         '--host', this.host,
         '--port', String(this.port)
@@ -66,7 +70,9 @@ export class DoorstopServer {
         console.log(`[Doorstop][server] ${String(data).trimEnd()}`);
       });
       child.stderr?.on('data', data => {
-        console.warn(`[Doorstop][server] ${String(data).trimEnd()}`);
+        const text = String(data);
+        console.warn(`[Doorstop][server] ${text.trimEnd()}`);
+        this.recentStderr = (this.recentStderr + text).slice(-2000);
       });
 
       let settled = false;
@@ -80,15 +86,19 @@ export class DoorstopServer {
       };
 
       child.on('error', error => {
-        settleReject(new Error(`Unable to start ${command}: ${error.message}`));
+        settleReject(new Error(`Unable to start ${pythonPath} -m doorstop_server: ${error.message}`));
       });
       child.on('exit', (code, signal) => {
         if (!settled) {
-          settleReject(new Error(`${command} exited before becoming ready (code ${code ?? 'none'}, signal ${signal ?? 'none'}).`));
+          const detail = this.recentStderr.trim();
+          const suffix = detail ? `\n${detail}` : '';
+          settleReject(new Error(
+            `doorstop_server exited before becoming ready (code ${code ?? 'none'}, signal ${signal ?? 'none'}).${suffix}`
+          ));
         }
       });
 
-      void this.waitForPort().then(() => {
+      void this.waitForHealthy().then(() => {
         if (settled) {
           return;
         }
@@ -107,32 +117,26 @@ export class DoorstopServer {
     return this.start(projectPath, pythonPath);
   }
 
-  runCommand(projectPath: string, pythonPath: string, args: string[], input?: string): Promise<DoorstopCommandResult> {
-    const command = this.resolveCliCommand(pythonPath);
-    return new Promise((resolve, reject) => {
-      const child = spawn(command, args, {
-        cwd: projectPath,
-        shell: false,
-        windowsHide: true,
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
-      let stdout = '';
-      let stderr = '';
-      child.stdout?.on('data', data => stdout += String(data));
-      child.stderr?.on('data', data => stderr += String(data));
-      if (input !== undefined) {
-        child.stdin?.write(input);
-      }
-      child.stdin?.end();
-      child.once('error', error => reject(new Error(`Unable to run ${command}: ${error.message}`)));
-      child.once('close', (code, signal) => {
-        if (signal) {
-          reject(new Error(`${command} was terminated by signal ${signal}.`));
-          return;
-        }
-        resolve({ stdout, stderr, exitCode: code ?? 1 });
-      });
+  async request<T>(method: 'GET' | 'POST' | 'DELETE', pathName: string, body?: unknown): Promise<T> {
+    const response = await fetch(`http://${this.host}:${this.port}${pathName}`, {
+      method,
+      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined
     });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => undefined) as ErrorPayload | undefined;
+      throw new DoorstopApiError(
+        payload?.error?.code ?? 'UNKNOWN',
+        payload?.error?.message ?? response.statusText,
+        response.status
+      );
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+    return response.json() as Promise<T>;
   }
 
   dispose(): void {
@@ -148,33 +152,13 @@ export class DoorstopServer {
     }
   }
 
-  private resolveServerCommand(pythonPath: string): string {
-    const pythonDirectory = path.dirname(pythonPath);
-    const executableName = process.platform === 'win32' ? 'doorstop-server.exe' : 'doorstop-server';
-    const command = path.join(pythonDirectory, executableName);
-    if (!fs.existsSync(command)) {
-      throw new Error(`No Doorstop installation found in the selected Python environment (${pythonPath}).`);
-    }
-    return command;
-  }
-
-  private resolveCliCommand(pythonPath: string): string {
-    const pythonDirectory = path.dirname(pythonPath);
-    const executableName = process.platform === 'win32' ? 'doorstop.exe' : 'doorstop';
-    const command = path.join(pythonDirectory, executableName);
-    if (!fs.existsSync(command)) {
-      throw new Error(`No Doorstop CLI installation found in the selected Python environment (${pythonPath}).`);
-    }
-    return command;
-  }
-
-  private async waitForPort(): Promise<void> {
+  private async waitForHealthy(): Promise<void> {
     const deadline = Date.now() + this.startupTimeoutMs;
     while (Date.now() < deadline) {
       if (this.disposed) {
         throw new Error('Doorstop server startup was cancelled.');
       }
-      if (await this.canConnect()) {
+      if (await this.isHealthy()) {
         return;
       }
       await new Promise(resolve => setTimeout(resolve, this.retryIntervalMs));
@@ -182,16 +166,12 @@ export class DoorstopServer {
     throw new Error(`Timed out waiting for Doorstop server at ${this.host}:${this.port}.`);
   }
 
-  private canConnect(): Promise<boolean> {
-    return new Promise(resolve => {
-      const socket = net.createConnection({ host: this.host, port: this.port });
-      const finish = (available: boolean): void => {
-        socket.destroy();
-        resolve(available);
-      };
-      socket.once('connect', () => finish(true));
-      socket.once('error', () => finish(false));
-      socket.setTimeout(this.retryIntervalMs, () => finish(false));
-    });
+  private async isHealthy(): Promise<boolean> {
+    try {
+      const response = await fetch(`http://${this.host}:${this.port}/health`);
+      return response.ok;
+    } catch {
+      return false;
+    }
   }
 }

@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 
-import { DoorstopServer, DOORSTOP_SERVER_HOST, DOORSTOP_SERVER_PORT } from './doorstopServer';
+import { DoorstopServer } from './doorstopServer';
 import { DoorstopTreeProvider, RequirementTreeItem } from './requirementTree';
 
 interface CommandOptions {
@@ -10,7 +10,6 @@ interface CommandOptions {
   tree: DoorstopTreeProvider;
   utilities: { refresh(): void };
   workspaceFolder: vscode.WorkspaceFolder;
-  getPythonPath: () => Promise<string>;
 }
 
 function itemArgument(value: unknown): RequirementTreeItem | undefined {
@@ -81,38 +80,52 @@ function nextLevel(level: unknown): string | undefined {
   return parts.join('.');
 }
 
-function commonArgs(projectPath: string): string[] {
-  return ['--project', projectPath, '--server', DOORSTOP_SERVER_HOST, '--port', String(DOORSTOP_SERVER_PORT)];
+/** Builds a `{scope, target}` body matching the server's review/clear disambiguation. */
+function reviewClearTarget(item: RequirementTreeItem | undefined, choice: string | undefined): { scope: 'item' | 'document' | 'all'; target?: string } | undefined {
+  if (item?.itemData.isDoorstopRoot) {
+    return { scope: 'document', target: item.itemData.prefix };
+  }
+  if (item) {
+    return { scope: 'item', target: item.itemData.uid };
+  }
+  if (choice === 'all') {
+    return { scope: 'all' };
+  }
+  if (choice) {
+    return { scope: 'document', target: choice };
+  }
+  return undefined;
 }
 
 export function registerDoorstopCommands(options: CommandOptions): vscode.Disposable[] {
   const register = (id: string, handler: (...args: any[]) => Promise<void> | void): vscode.Disposable =>
     vscode.commands.registerCommand(id, handler);
 
-  const run = async (args: string[], input?: string): Promise<boolean> => {
+  const run = async <T>(op: () => Promise<T>): Promise<T | undefined> => {
     try {
-      const result = await options.server.runCommand(
-        options.workspaceFolder.uri.fsPath,
-        await options.getPythonPath(),
-        args.concat(commonArgs(options.workspaceFolder.uri.fsPath)),
-        input
-      );
-      if (result.exitCode !== 0) {
-        throw new Error(result.stderr.trim() || result.stdout.trim() || `doorstop ${args[0]} failed.`);
-      }
+      const result = await op();
       options.tree.refresh();
       options.utilities.refresh();
-      return true;
+      return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       void vscode.window.showErrorMessage(`Doorstop command failed: ${message}`);
-      return false;
+      return undefined;
     }
   };
 
   const createDoc = register('doorstop.createDoc', async () => {
     const prefix = await vscode.window.showInputBox({ prompt: 'Enter the new document prefix' });
-    if (prefix) {await run(['create', prefix]);}
+    if (!prefix) {return;}
+    const folders = await vscode.window.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      openLabel: 'Select Document Folder',
+      defaultUri: vscode.Uri.file(path.join(options.workspaceFolder.uri.fsPath, prefix))
+    });
+    if (!folders?.[0]) {return;}
+    await run(() => options.server.request('POST', '/documents', { prefix, path: folders[0].fsPath }));
   });
 
   const refresh = register('doorstop.refresh', () => {
@@ -132,66 +145,82 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     } else if (!item) {
       level = await vscode.window.showInputBox({ prompt: 'Enter level (optional)', placeHolder: '1.2.3' });
     }
-    await run(level ? ['add', prefix, '-l', level] : ['add', prefix]);
+    await run(() => options.server.request('POST', `/documents/${encodeURIComponent(prefix)}/items`, level ? { level } : {}));
   });
 
   const review = register('doorstop.review', async (value?: unknown) => {
     const item = itemArgument(value);
-    const root = item?.itemData.isDoorstopRoot ? item : undefined;
-    const target = root?.itemData.prefix
-      || item?.itemData.uid
-      || await chooseDocumentOrAll(options.tree);
-    if (target) {await run(['review', String(target)]);}
+    const choice = item ? undefined : await chooseDocumentOrAll(options.tree);
+    const body = reviewClearTarget(item, choice);
+    if (body) {await run(() => options.server.request('POST', '/review', body));}
   });
 
   const clear = register('doorstop.clear', async (value?: unknown) => {
     const item = itemArgument(value);
-    const root = item?.itemData.isDoorstopRoot ? item : undefined;
-    const target = root?.itemData.prefix
-      || item?.itemData.uid
-      || await chooseDocumentOrAll(options.tree);
-    if (target) {await run(['clear', String(target)]);}
+    const choice = item ? undefined : await chooseDocumentOrAll(options.tree);
+    const body = reviewClearTarget(item, choice);
+    if (body) {await run(() => options.server.request('POST', '/clear', body));}
   });
 
   const link = register('doorstop.link', async (value?: unknown) => {
     const item = itemArgument(value);
     const parentUid = item?.itemData.uid || await vscode.window.showInputBox({ prompt: 'Enter parent item UID' });
     const childUid = editorUid() || await vscode.window.showInputBox({ prompt: 'Enter child item UID' });
-    if (childUid && parentUid) {await run(['link', childUid, String(parentUid)]);}
+    if (childUid && parentUid) {
+      await run(() => options.server.request('POST', `/items/${encodeURIComponent(childUid)}/links`, { parentUid: String(parentUid) }));
+    }
   });
 
   const reorder = register('doorstop.reorder', async () => {
     const prefix = await choosePrefix(options.tree);
     if (!prefix) {return;}
     const mode = await vscode.window.showQuickPick([
-      { label: 'Automatic', value: '-a' },
-      { label: 'Manual', value: '-m' }
+      { label: 'Automatic', value: 'auto' as const },
+      { label: 'Manual', value: 'manual' as const }
     ], { placeHolder: 'Select reorder mode' });
     if (!mode) {return;}
 
-    let indexInput: string | undefined;
-    if (mode.value === '-m') {
-      const root = await rootForPrefix(options.tree, prefix);
-      if (root) {
-        const indexUri = vscode.Uri.file(path.join(path.dirname(root.resourceUri.fsPath), 'index.yml'));
-        try {
-          await vscode.workspace.fs.stat(indexUri);
-          const loadIndex = await vscode.window.showQuickPick(
-            [
-              { label: 'Yes', value: 'y\n', description: 'Load the existing index.yml file' },
-              { label: 'No', value: 'n\n', description: 'Do not load the existing index.yml file' }
-            ],
-            { placeHolder: `Load existing index.yml for ${prefix}?` }
-          );
-          if (!loadIndex) {return;}
-          indexInput = loadIndex.value;
-        } catch {
-          // No generated index exists; Doorstop will not ask this question.
+    if (mode.value === 'auto') {
+      await run(() => options.server.request('POST', `/documents/${encodeURIComponent(prefix)}/reorder`, { mode: 'auto' }));
+      return;
+    }
+
+    const root = await rootForPrefix(options.tree, prefix);
+    let loadExisting = true;
+    if (root) {
+      const indexUri = vscode.Uri.file(path.join(path.dirname(root.resourceUri.fsPath), 'index.yml'));
+      try {
+        await vscode.workspace.fs.stat(indexUri);
+        const choice = await vscode.window.showQuickPick(
+          [
+            { label: 'Yes', value: true, description: 'Load the existing index.yml file' },
+            { label: 'No', value: false, description: 'Discard it and start a new one' }
+          ],
+          { placeHolder: `Load existing index.yml for ${prefix}?` }
+        );
+        if (!choice) {return;}
+        loadExisting = choice.value;
+        if (!loadExisting) {
+          await run(() => options.server.request('DELETE', `/documents/${encodeURIComponent(prefix)}/reorder/index`));
         }
+      } catch {
+        // No generated index exists yet.
       }
     }
 
-    await run(['reorder', prefix, mode.value], indexInput);
+    const indexResult = await run(() =>
+      options.server.request<{ indexPath: string }>('POST', `/documents/${encodeURIComponent(prefix)}/reorder/index`)
+    );
+    if (!indexResult) {return;}
+
+    await vscode.window.showTextDocument(vscode.Uri.file(indexResult.indexPath));
+    const apply = await vscode.window.showInformationMessage(
+      `Edit ${path.basename(indexResult.indexPath)}, save it, then apply the reorder.`,
+      'Apply Reorder'
+    );
+    if (apply) {
+      await run(() => options.server.request('POST', `/documents/${encodeURIComponent(prefix)}/reorder`, { mode: 'manual' }));
+    }
   });
 
   const importCommand = register('doorstop.import', async () => {
@@ -204,17 +233,19 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
         'Doorstop Documents': ['yaml', 'yml', 'csv', 'tsv', 'xlsx']
       }
     });
-    if (files?.[0]) {await run(['import', files[0].fsPath, target]);}
+    if (files?.[0]) {
+      await run(() => options.server.request('POST', `/documents/${encodeURIComponent(target)}/import`, { sourcePath: files[0].fsPath }));
+    }
   });
 
   const exportCommand = register('doorstop.export', async () => {
     const prefix = await choosePrefix(options.tree);
     if (!prefix) {return;}
     const format = await vscode.window.showQuickPick([
-      { label: 'YAML', value: '-y', extension: 'yaml' },
-      { label: 'CSV', value: '-c', extension: 'csv' },
-      { label: 'TSV', value: '-t', extension: 'tsv' },
-      { label: 'XLSX', value: '-x', extension: 'xlsx' }
+      { label: 'YAML', value: 'yaml' as const, extension: 'yaml' },
+      { label: 'CSV', value: 'csv' as const, extension: 'csv' },
+      { label: 'TSV', value: 'tsv' as const, extension: 'tsv' },
+      { label: 'XLSX', value: 'xlsx' as const, extension: 'xlsx' }
     ], { placeHolder: 'Select export format' });
     if (!format) {return;}
     const destination = await vscode.window.showSaveDialog({
@@ -224,18 +255,30 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
         [`${format.label} Documents`]: [format.extension]
       }
     });
-    if (destination) {await run(['export', format.value, prefix, destination.fsPath]);}
+    if (destination) {
+      await run(() => options.server.request('POST', `/documents/${encodeURIComponent(prefix)}/export`, {
+        format: format.value,
+        destinationPath: destination.fsPath
+      }));
+    }
   });
 
   const publish = register('doorstop.publish', async () => {
     const prefix = await choosePrefix(options.tree);
     if (!prefix) {return;}
     const format = await vscode.window.showQuickPick([
-      { label: 'Markdown', value: '-m' }, { label: 'HTML', value: '-H' }, { label: 'LaTeX', value: '-l' }
+      { label: 'Markdown', value: 'markdown' as const },
+      { label: 'HTML', value: 'html' as const },
+      { label: 'LaTeX', value: 'latex' as const }
     ], { placeHolder: 'Select publish format' });
     if (!format) {return;}
     const destination = await vscode.window.showSaveDialog({ saveLabel: 'Publish' });
-    if (destination) {await run(['publish', format.value, prefix, destination.fsPath]);}
+    if (destination) {
+      await run(() => options.server.request('POST', `/documents/${encodeURIComponent(prefix)}/publish`, {
+        format: format.value,
+        destinationPath: destination.fsPath
+      }));
+    }
   });
 
   return [createDoc, refresh, add, review, clear, link, reorder, importCommand, exportCommand, publish];

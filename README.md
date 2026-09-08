@@ -55,8 +55,14 @@ Collect and organize requirements on a visual canvas for spatial planning (and s
 
 ## Requirements
 
-For full requirement lifecycle management (creating documents, linking items, running validations), ensure [Doorstop](https://pypi.org/project/doorstop/) is installed in your environment:
+For full requirement lifecycle management (creating documents, linking items, running validations), this extension launches a small local server that wraps the [Doorstop](https://pypi.org/project/doorstop/) Python API directly. Install it into the Python environment selected for your workspace (the interpreter chosen via the Python extension) — this single command also pulls in `doorstop`, `fastapi`, and `uvicorn` as dependencies:
 
 ```bash
-pip install doorstop
+pip install <path-to-this-extension-repo>/server
+```
+
+For local development of the server itself, use an editable install so source edits take effect without reinstalling:
+
+```bash
+pip install -e <path-to-this-extension-repo>/server
 ```

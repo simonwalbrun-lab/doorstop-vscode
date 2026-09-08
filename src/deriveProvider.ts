@@ -2,7 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import * as yaml from 'js-yaml';
 
-import { DoorstopServer, DOORSTOP_SERVER_HOST, DOORSTOP_SERVER_PORT } from './doorstopServer';
+import { DoorstopServer } from './doorstopServer';
 
 export interface DeriveCommandContext {
   sourceUid: string;
@@ -12,7 +12,6 @@ export interface DeriveCommandContext {
 interface DeriveProviderOptions {
   server: DoorstopServer;
   workspaceFolder: vscode.WorkspaceFolder;
-  getPythonPath: () => Promise<string>;
   onChanged?: () => void;
 }
 
@@ -144,11 +143,6 @@ function getSourceUid(document: vscode.TextDocument): string | undefined {
   return path.basename(document.fileName, extension);
 }
 
-function parseAddedUid(output: string): string | undefined {
-  const match = output.match(/(?:^|\r?\n)\s*added item:\s*([A-Za-z0-9_.-]+)\s*\(/i);
-  return match?.[1];
-}
-
 export function registerDeriveProvider(
   context: vscode.ExtensionContext,
   options: DeriveProviderOptions
@@ -201,34 +195,14 @@ export function registerDeriveProvider(
       }
 
       try {
-        const pythonPath = await options.getPythonPath();
-        const commonArgs = [
-          '--project', options.workspaceFolder.uri.fsPath,
-          '--server', DOORSTOP_SERVER_HOST,
-          '--port', String(DOORSTOP_SERVER_PORT)
-        ];
-        const addResult = await options.server.runCommand(
-          options.workspaceFolder.uri.fsPath,
-          pythonPath,
-          ['add', target, ...commonArgs]
+        const addResult = await options.server.request<{ uid: string }>(
+          'POST', `/documents/${encodeURIComponent(target)}/items`, {}
         );
-        if (addResult.exitCode !== 0) {
-          throw new Error(addResult.stderr.trim() || addResult.stdout.trim() || 'doorstop add failed.');
-        }
+        const childUid = addResult.uid;
 
-        const childUid = parseAddedUid(addResult.stdout);
-        if (!childUid) {
-          throw new Error('doorstop add succeeded but returned no generated item UID.');
-        }
-
-        const linkResult = await options.server.runCommand(
-          options.workspaceFolder.uri.fsPath,
-          pythonPath,
-          ['link', childUid, deriveContext.sourceUid, ...commonArgs]
+        await options.server.request(
+          'POST', `/items/${encodeURIComponent(childUid)}/links`, { parentUid: deriveContext.sourceUid }
         );
-        if (linkResult.exitCode !== 0) {
-          throw new Error(linkResult.stderr.trim() || linkResult.stdout.trim() || 'doorstop link failed.');
-        }
 
         options.onChanged?.();
         void vscode.window.showInformationMessage(`${childUid} was derived from ${deriveContext.sourceUid}.`);
