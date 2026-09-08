@@ -4,9 +4,12 @@
     e.stopPropagation();
 
     const { messaging } = window.DoorstopDiagram;
+    console.log('[Doorstop][drop] Transfer types:', Array.from(e.dataTransfer?.types || []));
+
     const treeData = e.dataTransfer.getData('application/vnd.code.tree.doorstop.treeView');
     const plainText = e.dataTransfer.getData('text/plain');
     const uriList = e.dataTransfer.getData('text/uri-list');
+    console.log('[Doorstop][drop] Transfer values:', { treeData, plainText, uriList });
 
     const bounds = container.getBoundingClientRect();
     const pointer = network.DOMtoCanvas({
@@ -30,6 +33,8 @@
     const droppedValue = plainText || uriList;
     if (typeof droppedValue === 'string' && droppedValue.trim().length > 0) {
       messaging.send('resolveDroppedItem', { droppedText: droppedValue, pointer });
+    } else {
+      console.warn('[Doorstop][drop] No usable data on this drop (see Transfer values above). Use the tree item\'s "Add to Diagram" context menu entry instead.');
     }
   }
 

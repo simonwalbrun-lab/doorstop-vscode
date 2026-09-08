@@ -186,7 +186,18 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  context.subscriptions.push(openDiagramCmd, customEditor);
+  const addToDiagramCmd = vscode.commands.registerCommand('doorstop.addToDiagram', (item?: RequirementTreeItem) => {
+    if (!item?.resourceUri) {
+      return;
+    }
+    if (!DoorstopDiagramPanel.currentPanel) {
+      vscode.window.showInformationMessage('Open the Doorstop Traceability Graph first (Doorstop: Open Traceability Graph).');
+      return;
+    }
+    DoorstopDiagramPanel.currentPanel.addRequirementToDiagram(item.resourceUri.fsPath);
+  });
+
+  context.subscriptions.push(openDiagramCmd, customEditor, addToDiagramCmd);
 
 
   const treeView = vscode.window.createTreeView('doorstop.treeView', {

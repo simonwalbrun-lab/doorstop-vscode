@@ -123,6 +123,20 @@ export class DoorstopDiagramPanel {
         }
     }
 
+    /**
+     * Fügt ein Requirement über einen Befehl (z. B. Kontextmenü der TreeView) statt per Drag&Drop hinzu.
+     * Notwendig, weil VS Code Drag-Payloads aus einem TreeDragAndDropController nicht zuverlässig
+     * als DataTransfer im Webview ankommen (bekannte Plattform-Einschränkung).
+     */
+    public async addRequirementToDiagram(fileUri: string): Promise<void> {
+        this._panel.reveal();
+        const pointer = {
+            x: Math.round((Math.random() - 0.5) * 300),
+            y: Math.round((Math.random() - 0.5) * 300)
+        };
+        await this.handleDroppedData(fileUri, pointer);
+    }
+
             public static async readDiagram(uri: vscode.Uri): Promise<any> {
               const content = await vscode.workspace.fs.readFile(uri);
               const rawContent = Buffer.from(content).toString('utf8').trim();

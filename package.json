@@ -112,6 +112,11 @@
       "command": "doorstop.publish",
       "title": "Doorstop: Publish",
       "icon": "$(rocket)"
+    },
+    {
+      "command": "doorstop.addToDiagram",
+      "title": "Doorstop: Add to Diagram",
+      "icon": "$(graph)"
     }
   ],
   "customEditors": [
@@ -164,6 +169,11 @@
         "command": "doorstop.link",
         "when": "view == doorstop.treeView && viewItem == doorstop.item",
         "group": "inline@4"
+      },
+      {
+        "command": "doorstop.addToDiagram",
+        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "group": "7_diagram@1"
       }
     ]
   }
