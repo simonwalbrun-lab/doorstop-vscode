@@ -48,7 +48,7 @@ graph TD
     end
 
     %% Interactions & Flows
-    ReqNode == "Drag & Drop" ==> Canvas
+    ReqNode == "RMT. doorstop add to canvas" ==> Canvas
     FileTabs == "Drag Selected Text / Tab" ==> Canvas
     RawFiles == "1. Drag & Drop File" ==> Canvas
     SavedDiagrams == "Open Diagram File" ==> DiagramWebview
