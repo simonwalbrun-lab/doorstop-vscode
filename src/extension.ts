@@ -150,7 +150,9 @@ export async function activate(context: vscode.ExtensionContext) {
       await DoorstopDiagramPanel.createForCustomEditor(
         webviewPanel,
         context.extensionUri,
-        document.diagram,
+        // Getter, not a snapshot: the webview reloads whenever its tab is hidden and
+        // shown again, and must be handed the document's content as it is *now*.
+        () => document.diagram,
         diagram => {
           document.diagram = diagram;
           documentChangeEvent.fire({ document });

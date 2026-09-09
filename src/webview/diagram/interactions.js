@@ -102,9 +102,16 @@
       }
     });
 
+    // Ghost nodes aren't in `nodeMap` (only real, on-canvas body items are), so click
+    // and double-click fall back to `ghostMeta`'s `fileUri` - clicking/double-clicking
+    // a ghost behaves the same as a body item (spec.md Assumptions).
+    function fileUriFor(nodeId) {
+      return state.nodeMap.get(nodeId) ?? state.ghostMeta.get(nodeId)?.fileUri;
+    }
+
     network.on('click', (params) => {
       if (params.nodes.length > 0) {
-        const fileUri = state.nodeMap.get(params.nodes[0]);
+        const fileUri = fileUriFor(params.nodes[0]);
         if (fileUri) {
           messaging.send('activateNode', { fileUri });
           // Preview tab beside the diagram: updates as you click around instead of
@@ -116,7 +123,7 @@
 
     network.on('doubleClick', (params) => {
       if (params.nodes.length > 0) {
-        const fileUri = state.nodeMap.get(params.nodes[0]);
+        const fileUri = fileUriFor(params.nodes[0]);
         if (fileUri) {
           // Locks the preview tab into a permanent one, still beside the diagram.
           messaging.send('openFile', { fileUri, preview: false });
@@ -128,6 +135,20 @@
       params.event.preventDefault();
       const nodeId = network.getNodeAt(params.pointer.DOM);
       if (nodeId) {
+        const ghost = state.ghostMeta.get(nodeId);
+        if (ghost) {
+          showContextMenu(params.event.clientX, params.event.clientY, [
+            {
+              label: 'Add to Diagram',
+              onClick: () => messaging.send('promoteGhost', {
+                uid: ghost.uid,
+                fileUri: ghost.fileUri,
+                pointer: params.pointer.canvas
+              })
+            }
+          ]);
+          return;
+        }
         showContextMenu(params.event.clientX, params.event.clientY, [
           {
             label: 'Add Linked Item...',

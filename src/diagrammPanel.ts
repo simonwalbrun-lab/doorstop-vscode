@@ -9,6 +9,7 @@ import { choosePrefix, AddedItem } from './doorstopCommands';
 import { LinkInfo, TreeResponse } from './doorstopTypes';
 
 interface NodeMeta {
+    path: string;
     documentPrefix: string;
     active: boolean;
     normative: boolean;
@@ -16,6 +17,31 @@ interface NodeMeta {
     reviewed: boolean;
     cleared: boolean;
     links: LinkInfo[];
+    header: string | null;
+}
+
+/**
+ * One connection between a ghost item and a body item on the canvas. `ghostIsParent`
+ * records which way the underlying doorstop link runs, so the rendered edge can point
+ * the same way body-to-body edges already do (child -> parent, arrowhead at the parent)
+ * instead of always pointing at the ghost.
+ */
+interface GhostTether {
+    bodyUid: string;
+    ghostIsParent: boolean;
+}
+
+interface GhostNode {
+    uid: string;
+    fileUri: string;
+    header: string | null;
+    documentPrefix: string;
+    tethers: GhostTether[];
+    active: boolean;
+    normative: boolean;
+    derived: boolean;
+    reviewed: boolean;
+    cleared: boolean;
 }
 
 interface DocMeta {
@@ -36,7 +62,7 @@ export class DoorstopDiagramPanel {
     public static currentPanel: DoorstopDiagramPanel | undefined;
     private readonly _panel: vscode.WebviewPanel;
     private readonly _extensionUri: vscode.Uri;
-    private readonly _initialDiagram?: any;
+    private readonly _getDiagram?: () => any;
     private readonly _onDiagramChanged?: (diagram: any) => void;
     private readonly _server?: DoorstopServer;
     private readonly _treeProvider?: DoorstopTreeProvider;
@@ -47,25 +73,25 @@ export class DoorstopDiagramPanel {
       public static async createForCustomEditor(
         panel: vscode.WebviewPanel,
         extensionUri: vscode.Uri,
-        diagram: any,
+        getDiagram: () => any,
         onDiagramChanged: (diagram: any) => void,
         server: DoorstopServer,
         treeProvider: DoorstopTreeProvider
       ) {
-        DoorstopDiagramPanel.currentPanel = new DoorstopDiagramPanel(panel, extensionUri, diagram, onDiagramChanged, server, treeProvider);
+        DoorstopDiagramPanel.currentPanel = new DoorstopDiagramPanel(panel, extensionUri, getDiagram, onDiagramChanged, server, treeProvider);
       }
 
       private constructor(
         panel: vscode.WebviewPanel,
         extensionUri: vscode.Uri,
-        initialDiagram?: any,
+        getDiagram?: () => any,
         onDiagramChanged?: (diagram: any) => void,
         server?: DoorstopServer,
         treeProvider?: DoorstopTreeProvider
       ) {
         this._panel = panel;
         this._extensionUri = extensionUri;
-        this._initialDiagram = initialDiagram;
+        this._getDiagram = getDiagram;
         this._onDiagramChanged = onDiagramChanged;
         this._server = server;
         this._treeProvider = treeProvider;
@@ -96,6 +122,10 @@ export class DoorstopDiagramPanel {
                         return this.handleRemoveLink(message);
                     case 'createLinkedItem':
                         return this.handleCreateLinkedItem(message);
+                    case 'requestGhostPreview':
+                        return this.handleRequestGhostPreview(message);
+                    case 'promoteGhost':
+                        return this.handlePromoteGhost(message);
                 }
             },
             null,
@@ -158,7 +188,13 @@ export class DoorstopDiagramPanel {
     }
 
     private async handleReady(): Promise<void> {
-        if (!this._initialDiagram) {
+        // `ready` arrives on every webview load, not just the first one: VS Code tears
+        // the webview down when its tab is hidden and rebuilds it when it comes back.
+        // So this must read the document's content as it is *now* - serving a snapshot
+        // taken when the editor was opened would roll the canvas back to that state,
+        // and the next edit on the rolled-back canvas would then be what gets saved.
+        const currentDiagram = this._getDiagram?.();
+        if (!currentDiagram) {
             return;
         }
         // Metadata enrichment (status/colors/authoritative edges) must never prevent the
@@ -167,10 +203,10 @@ export class DoorstopDiagramPanel {
         // fall back to rendering exactly what is on disk rather than showing nothing.
         let meta: Record<string, NodeMeta> = {};
         let documents: Record<string, DocMeta> = {};
-        let diagram = this._initialDiagram;
+        let diagram = currentDiagram;
         try {
             ({ meta, documents } = await this.fetchTreeMeta());
-            diagram = this.withAuthoritativeEdges(this._initialDiagram, meta);
+            diagram = this.withAuthoritativeEdges(currentDiagram, meta);
         } catch (e) {
             console.warn('[Doorstop][diagram] Falling back to on-disk diagram without server metadata:', e);
             if (!this._metaWarningShown) {
@@ -187,11 +223,13 @@ export class DoorstopDiagramPanel {
     /**
      * Loads the live document/item hierarchy from the doorstop server (status flags,
      * owning document, real links) and caches it for reuse by drag-and-drop and the
-     * canvas's add-link/create-item flows within this panel's lifetime.
+     * canvas's add-link/create-item/ghost-preview flows within this panel's lifetime.
+     * Returns `undefined` (rather than throwing) on any failure, so callers can tell
+     * "server unreachable" apart from "server reachable, tree is empty".
      */
-    private async fetchTreeMeta(): Promise<{ meta: Record<string, NodeMeta>; documents: Record<string, DocMeta> }> {
+    private async refreshItemMeta(): Promise<{ meta: Record<string, NodeMeta>; documents: Record<string, DocMeta> } | undefined> {
         if (!this._server) {
-            return { meta: {}, documents: {} };
+            return undefined;
         }
         try {
             const tree = await this._server.request<TreeResponse>('GET', '/tree');
@@ -201,6 +239,7 @@ export class DoorstopDiagramPanel {
                 documents[document.prefix] = { prefix: document.prefix, parentPrefix: document.parentPrefix };
                 for (const item of document.items) {
                     meta[item.uid] = {
+                        path: item.path,
                         documentPrefix: document.prefix,
                         active: item.active,
                         normative: item.normative,
@@ -209,7 +248,8 @@ export class DoorstopDiagramPanel {
                         cleared: item.cleared,
                         // Defensive default: an older/mismatched server response (e.g. before
                         // a server restart picked up a schema change) may omit this field.
-                        links: Array.isArray(item.links) ? item.links : []
+                        links: Array.isArray(item.links) ? item.links : [],
+                        header: item.header ?? null
                     };
                 }
             }
@@ -217,7 +257,140 @@ export class DoorstopDiagramPanel {
             return { meta, documents };
         } catch (e) {
             console.warn('[Doorstop][diagram] Failed to fetch /tree metadata:', e);
-            return { meta: {}, documents: {} };
+            return undefined;
+        }
+    }
+
+    private async fetchTreeMeta(): Promise<{ meta: Record<string, NodeMeta>; documents: Record<string, DocMeta> }> {
+        return (await this.refreshItemMeta()) ?? { meta: {}, documents: {} };
+    }
+
+    /**
+     * One-hop ghost adjacency over the already-cached `/tree` data (`this._itemMeta`,
+     * refreshed by `refreshItemMeta` just before this is called): for every body item,
+     * every item it links to (its parents) and every item that links to it (its
+     * children) becomes a ghost candidate. An item related to several body items is
+     * folded into a single ghost with multiple tethers (FR-006), never duplicated.
+     */
+    private computeGhostItems(bodyUids: string[]): GhostNode[] {
+        const bodySet = new Set(bodyUids);
+        const ghosts = new Map<string, GhostNode>();
+
+        const addTether = (ghostUid: string, bodyUid: string, ghostIsParent: boolean) => {
+            if (bodySet.has(ghostUid)) {
+                return;
+            }
+            const meta = this._itemMeta[ghostUid];
+            if (!meta) {
+                return;
+            }
+            const existing = ghosts.get(ghostUid);
+            if (existing) {
+                // Deduplicated per (body item, direction): two items that link to each
+                // other are genuinely tethered twice, once each way.
+                const alreadyTethered = existing.tethers.some(
+                    tether => tether.bodyUid === bodyUid && tether.ghostIsParent === ghostIsParent
+                );
+                if (!alreadyTethered) {
+                    existing.tethers.push({ bodyUid, ghostIsParent });
+                }
+                return;
+            }
+            ghosts.set(ghostUid, {
+                uid: ghostUid,
+                fileUri: meta.path,
+                header: meta.header,
+                documentPrefix: meta.documentPrefix,
+                tethers: [{ bodyUid, ghostIsParent }],
+                active: meta.active,
+                normative: meta.normative,
+                derived: meta.derived,
+                reviewed: meta.reviewed,
+                cleared: meta.cleared
+            });
+        };
+
+        for (const bodyUid of bodyUids) {
+            const bodyMeta = this._itemMeta[bodyUid];
+            if (!bodyMeta) {
+                continue;
+            }
+            // The body item's own links point up to its parents.
+            for (const link of bodyMeta.links) {
+                addTether(link.uid, bodyUid, true);
+            }
+            // Anything whose links point back at this body item is one of its children.
+            for (const [otherUid, otherMeta] of Object.entries(this._itemMeta)) {
+                if (bodySet.has(otherUid)) {
+                    continue;
+                }
+                if (otherMeta.links.some(link => link.uid === bodyUid)) {
+                    addTether(otherUid, bodyUid, false);
+                }
+            }
+        }
+
+        return Array.from(ghosts.values());
+    }
+
+    /**
+     * Enable: refreshes the tree cache and replies with every ghost item tethered to
+     * the given on-canvas body items, or `incomplete: true` if the server couldn't be
+     * reached (FR-012 — the webview must leave existing body items untouched in that
+     * case). Disable: acknowledged implicitly; the webview clears its own ghost state
+     * without a round trip since nothing about ghosts is ever persisted (FR-011).
+     */
+    private async handleRequestGhostPreview(message: any): Promise<void> {
+        if (!message.enabled) {
+            return;
+        }
+        const bodyUids: string[] = Array.isArray(message.bodyUids) ? message.bodyUids : [];
+        // Reuse the existing cache on the happy path (it's already populated by
+        // `handleReady` on diagram load, and kept current by every mutating command's
+        // own refresh) - only pay for a fresh `/tree` fetch when the cache is empty,
+        // per research.md §1 / the "no new server call on the happy path" contract.
+        const isCacheEmpty = Object.keys(this._itemMeta).length === 0;
+        if (isCacheEmpty) {
+            const refreshed = await this.refreshItemMeta();
+            if (!refreshed) {
+                this._panel.webview.postMessage({ command: 'ghostPreviewData', nodes: [], edges: [], incomplete: true });
+                return;
+            }
+        }
+        const nodes = this.computeGhostItems(bodyUids);
+        // Same orientation as the body-to-body edges built by `withAuthoritativeEdges`:
+        // the edge runs child -> parent, so the arrowhead lands on the parent whichever
+        // side of the link the ghost happens to be on.
+        const edges = nodes.flatMap(node =>
+            node.tethers.map(tether => tether.ghostIsParent
+                ? { from: tether.bodyUid, to: node.uid, ephemeral: true }
+                : { from: node.uid, to: tether.bodyUid, ephemeral: true })
+        );
+        this._panel.webview.postMessage({ command: 'ghostPreviewData', nodes, edges, incomplete: false });
+    }
+
+    /**
+     * Promotes a ghost item to a real body item by reusing the same resolution path
+     * as drag-and-drop / "Add to Diagram" (`handleDroppedData`), then opens its file
+     * in the diagram's secondary editor column - the same place clicking any other
+     * node already opens its file - matching this extension's existing "jump to new
+     * items" convention (FR-015).
+     */
+    private async handlePromoteGhost(message: any): Promise<void> {
+        const { fileUri } = message;
+        if (typeof fileUri !== 'string' || fileUri.length === 0) {
+            return;
+        }
+        const pointer = message.pointer || { x: 0, y: 0 };
+        try {
+            await this.handleDroppedData(fileUri, pointer);
+            await vscode.window.showTextDocument(vscode.Uri.file(fileUri), {
+                viewColumn: this.getOrCreateSideColumn(),
+                preview: false
+            });
+        } catch (e) {
+            const error = e instanceof Error ? e.message : String(e);
+            vscode.window.showErrorMessage(`Could not add ghost item to diagram: ${error}`);
         }
     }
 
@@ -333,7 +506,10 @@ export class DoorstopDiagramPanel {
 
             await vscode.commands.executeCommand('doorstop.refresh');
             await vscode.commands.executeCommand('doorstop.activateRequirement', created.path);
-            await vscode.window.showTextDocument(vscode.Uri.file(created.path));
+            await vscode.window.showTextDocument(vscode.Uri.file(created.path), {
+                viewColumn: this.getOrCreateSideColumn(),
+                preview: false
+            });
         } catch (e) {
             const error = e instanceof Error ? e.message : String(e);
             vscode.window.showErrorMessage(`Could not create linked item: ${error}`);
@@ -500,6 +676,7 @@ export class DoorstopDiagramPanel {
                     uid,
                     fileUri: targetFilePath,
                     title,
+                    header: title,
                     links,
                     pointer,
                     documentPrefix: knownMeta?.documentPrefix,
