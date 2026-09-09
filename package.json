@@ -18,9 +18,7 @@
     "Other"
   ],
   "activationEvents": [
-    "workspaceContains:**/.doorstop.yml",
-    "onLanguage:yaml",
-    "onLanguage:markdown"
+    "workspaceContains:**/.doorstop.yml"
   ],
   "main": "./dist/extension.js",
   "contributes": {
