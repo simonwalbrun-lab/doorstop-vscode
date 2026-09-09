@@ -104,10 +104,36 @@ export class DoorstopDiagramPanel {
     }
 
     private async handleOpenFile(message: any): Promise<void> {
-        if (message.fileUri) {
-            const uri = vscode.Uri.file(message.fileUri);
-            await vscode.window.showTextDocument(uri);
+        if (!message.fileUri) {
+            return;
         }
+        const uri = vscode.Uri.file(message.fileUri);
+        const preview = Boolean(message.preview);
+        await vscode.window.showTextDocument(uri, {
+            viewColumn: this.getOrCreateSideColumn(),
+            preview,
+            // Preview clicks keep the diagram focused for continued browsing; a
+            // double-click (locking the tab in) is treated as intent to switch to it.
+            preserveFocus: preview
+        });
+    }
+
+    /**
+     * Resolves the column to open a clicked node's file into: an already-open editor
+     * group other than the diagram's own, if one exists (reused as-is, closest to the
+     * diagram first), otherwise `ViewColumn.Beside` to create one. Using an explicit
+     * existing column - rather than always relying on `Beside`, which resolves relative
+     * to whichever editor is currently active - keeps reusing the same second editor
+     * even after it has stolen focus away from the diagram at some point.
+     */
+    private getOrCreateSideColumn(): vscode.ViewColumn {
+        const diagramColumn = this._panel.viewColumn;
+        const otherColumns = vscode.window.tabGroups.all
+            .map(group => group.viewColumn)
+            .filter(column => column !== diagramColumn)
+            .sort((a, b) => a - b);
+        const closestToTheRight = otherColumns.find(column => diagramColumn === undefined || column > diagramColumn);
+        return closestToTheRight ?? otherColumns[0] ?? vscode.ViewColumn.Beside;
     }
 
     private async handleActivateNode(message: any): Promise<void> {

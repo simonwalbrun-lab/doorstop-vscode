@@ -28,8 +28,10 @@ html, body {
 }
 
 #toolbar {
+  /* Bottom-left, not top-left: vis-network's own manipulation bar (Edit/Add Edge/
+     Delete) docks at the top of the canvas and would otherwise overlap this. */
   position: absolute;
-  top: 12px;
+  bottom: 12px;
   left: 12px;
   z-index: 10;
 }

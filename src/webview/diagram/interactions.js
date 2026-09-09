@@ -43,26 +43,30 @@
   }
 
   /**
-   * A single-item floating menu for the destructive "Remove Link" action, kept
-   * deliberately separate from vis-network's own delete gesture (which only removes
-   * the edge from the canvas view) so users can't sever a real doorstop link by accident.
+   * A small floating context menu at (x, y). `items` is a list of {label, onClick}.
+   * Used for right-click actions that must be an explicit, separate step rather than
+   * firing immediately on right-click - e.g. destructive actions (Remove Link) that
+   * must stay distinct from vis-network's own delete gesture (canvas-only removal),
+   * and multi-step flows (Add Linked Item) that shouldn't jump straight into a picker.
    */
-  function showRemoveLinkMenu(x, y, onConfirm) {
+  function showContextMenu(x, y, items) {
     dismissContextMenu();
     const menu = document.createElement('div');
     menu.id = 'doorstop-context-menu';
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
 
-    const item = document.createElement('div');
-    item.className = 'doorstop-context-menu-item';
-    item.textContent = 'Remove Link';
-    item.addEventListener('click', (e) => {
-      e.stopPropagation();
-      dismissContextMenu();
-      onConfirm();
+    items.forEach(({ label, onClick }) => {
+      const item = document.createElement('div');
+      item.className = 'doorstop-context-menu-item';
+      item.textContent = label;
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dismissContextMenu();
+        onClick();
+      });
+      menu.appendChild(item);
     });
-    menu.appendChild(item);
     document.body.appendChild(menu);
 
     const dismiss = () => {
@@ -103,6 +107,9 @@
         const fileUri = state.nodeMap.get(params.nodes[0]);
         if (fileUri) {
           messaging.send('activateNode', { fileUri });
+          // Preview tab beside the diagram: updates as you click around instead of
+          // piling up tabs, and never replaces the diagram itself in its own column.
+          messaging.send('openFile', { fileUri, preview: true });
         }
       }
     });
@@ -111,7 +118,8 @@
       if (params.nodes.length > 0) {
         const fileUri = state.nodeMap.get(params.nodes[0]);
         if (fileUri) {
-          messaging.send('openFile', { fileUri });
+          // Locks the preview tab into a permanent one, still beside the diagram.
+          messaging.send('openFile', { fileUri, preview: false });
         }
       }
     });
@@ -120,16 +128,24 @@
       params.event.preventDefault();
       const nodeId = network.getNodeAt(params.pointer.DOM);
       if (nodeId) {
-        messaging.send('createLinkedItem', { sourceUid: nodeId, pointer: params.pointer.canvas });
+        showContextMenu(params.event.clientX, params.event.clientY, [
+          {
+            label: 'Add Linked Item...',
+            onClick: () => messaging.send('createLinkedItem', { sourceUid: nodeId, pointer: params.pointer.canvas })
+          }
+        ]);
         return;
       }
       const edgeId = network.getEdgeAt(params.pointer.DOM);
       if (edgeId) {
         const edge = state.visEdges.get(edgeId);
         if (edge) {
-          showRemoveLinkMenu(params.event.clientX, params.event.clientY, () => {
-            messaging.send('removeLink', { from: edge.from, to: edge.to });
-          });
+          showContextMenu(params.event.clientX, params.event.clientY, [
+            {
+              label: 'Remove Link',
+              onClick: () => messaging.send('removeLink', { from: edge.from, to: edge.to })
+            }
+          ]);
         }
       }
     });
