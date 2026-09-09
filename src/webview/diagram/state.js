@@ -6,6 +6,7 @@
   const nodeMeta = new Map();
   let manualPositions = null;
   let hierarchical = false;
+  let physicsEnabled = true;
 
   function getDiagramData(network) {
     const positions = network.getPositions();
@@ -50,6 +51,8 @@
     get manualPositions() { return manualPositions; },
     set manualPositions(value) { manualPositions = value; },
     get hierarchical() { return hierarchical; },
-    set hierarchical(value) { hierarchical = value; }
+    set hierarchical(value) { hierarchical = value; },
+    get physicsEnabled() { return physicsEnabled; },
+    set physicsEnabled(value) { physicsEnabled = value; }
   };
 })();

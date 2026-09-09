@@ -6,6 +6,7 @@ import { registerHoverProvider } from './hoverProvider';
 import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
 import { DoorstopServer } from './doorstopServer';
 import { registerDeriveProvider } from './deriveProvider';
+import { registerDefinitionProvider } from './definitionProvider';
 import { DoorstopCommandsProvider } from './commandsProvider';
 import { registerDoorstopCommands } from './doorstopCommands';
 interface DoorstopDiagramDocument extends vscode.CustomDocument {
@@ -17,6 +18,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const doorstopServer = new DoorstopServer();
   context.subscriptions.push(doorstopServer);
+
+  // Persisted per-user preference (not workspace config): whether the Explorer
+  // tree automatically reveals the active requirement. Defaults to true (today's
+  // existing behavior) if unset or unreadable. Mirrored into a when-clause
+  // context key so the two view/title toggle buttons can react to it.
+  let autoRevealEnabled = context.globalState.get<boolean>('doorstop.autoRevealEnabled', true);
+  void vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', autoRevealEnabled);
 
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   const findDoorstopMarker = async (): Promise<boolean> => {
@@ -98,6 +106,10 @@ export async function activate(context: vscode.ExtensionContext) {
       server: doorstopServer,
       workspaceFolder,
       onChanged: () => treeProvider.refresh()
+    });
+    registerDefinitionProvider(context, {
+      server: doorstopServer,
+      workspaceFolder
     });
   }
   const newDiagramCmd = vscode.commands.registerCommand('doorstop.newDiagram', async () => {
@@ -235,6 +247,10 @@ export async function activate(context: vscode.ExtensionContext) {
     'doorstop.activateRequirement',
     async (filePath: string) => {
       console.log('[Doorstop][activateRequirement] Command received:', JSON.stringify(filePath));
+      if (!autoRevealEnabled) {
+        console.log('[Doorstop][activateRequirement] Auto-reveal disabled, skipping');
+        return;
+      }
       const item = await treeProvider.setActiveResource(vscode.Uri.file(filePath));
       console.log('[Doorstop][activateRequirement] Tree item:', item?.label ?? '<not found>');
       if (item) {
@@ -265,6 +281,18 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  const toggleAutoRevealCommand = vscode.commands.registerCommand('doorstop.toggleAutoReveal', async () => {
+    autoRevealEnabled = false;
+    await context.globalState.update('doorstop.autoRevealEnabled', false);
+    await vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', false);
+  });
+
+  const enableAutoRevealCommand = vscode.commands.registerCommand('doorstop.enableAutoReveal', async () => {
+    autoRevealEnabled = true;
+    await context.globalState.update('doorstop.autoRevealEnabled', true);
+    await vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', true);
+  });
+
   const showDiagramCommand = vscode.commands.registerCommand('doorstop.showDiagram', async () => {
     const [uri] = (await vscode.window.showOpenDialog({
       defaultUri: workspaceFolder?.uri,
@@ -282,12 +310,18 @@ export async function activate(context: vscode.ExtensionContext) {
     treeView,
     commandsView,
     showDiagramCommand,
-    activateRequirementCommand
+    activateRequirementCommand,
+    toggleAutoRevealCommand,
+    enableAutoRevealCommand
   );
 
   const syncActiveRequirement = async (editor: vscode.TextEditor | undefined) => {
     console.log('[Doorstop][syncActiveRequirement] Editor:', editor?.document.uri.toString() ?? '<none>');
     recordViewedRequirement(editor?.document.uri);
+    if (!autoRevealEnabled) {
+      console.log('[Doorstop][syncActiveRequirement] Auto-reveal disabled, skipping');
+      return;
+    }
     const item = await treeProvider.setActiveResource(editor?.document.uri);
     console.log('[Doorstop][syncActiveRequirement] Tree item:', item?.label ?? '<not found>');
     if (item) {
@@ -344,6 +378,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
   registerHoverProvider(context);
   registerCompletionProvider(context);
+
+  // Exported purely for extension-host tests (src/test/extension.test.ts) to
+  // observe internal state that has no other public surface; not used by the
+  // extension itself or intended for other extensions to depend on.
+  return { treeProvider };
 }
 
 export function deactivate() {}

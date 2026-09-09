@@ -120,6 +120,16 @@
       "command": "doorstop.addToDiagram",
       "title": "Doorstop: Add to Diagram",
       "icon": "$(graph)"
+    },
+    {
+      "command": "doorstop.toggleAutoReveal",
+      "title": "Doorstop: Disable Auto-Reveal",
+      "icon": "$(sync)"
+    },
+    {
+      "command": "doorstop.enableAutoReveal",
+      "title": "Doorstop: Enable Auto-Reveal",
+      "icon": "$(sync-ignored)"
     }
   ],
   "customEditors": [
@@ -154,6 +164,16 @@
       {
         "command": "doorstop.newDiagram",
         "when": "view == doorstop.treeView",
+        "group": "navigation"
+      },
+      {
+        "command": "doorstop.toggleAutoReveal",
+        "when": "view == doorstop.treeView && doorstop.autoRevealEnabled",
+        "group": "navigation"
+      },
+      {
+        "command": "doorstop.enableAutoReveal",
+        "when": "view == doorstop.treeView && !doorstop.autoRevealEnabled",
         "group": "navigation"
       }
     ],

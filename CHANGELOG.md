@@ -6,7 +6,9 @@ All notable changes to this project will be documented in this file.
 
 - Diagnostics
 - Canvas with Traces and Drag and Drop.
-- Jump to new files. 
+- Jump to new files.
+- Canvas: toggle to enable/disable automatic physics-based layout (gravity)
+- Go to Definition (F12) and Find All References (Shift+F12) for requirement UIDs, including a usages view on `derived:` lines
 
 ## [0.0.4] - 2026-09-06
 

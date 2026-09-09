@@ -3,8 +3,13 @@
 
   const container = document.getElementById('mynetwork');
   const data = { nodes: state.visNodes, edges: state.visEdges };
-  const PHYSICS_OPTIONS = { enabled: true, barnesHut: { gravitationalConstant: -2000 } };
+  const PHYSICS_ON = { enabled: true, barnesHut: { gravitationalConstant: -2000 } };
+  const PHYSICS_OFF = { enabled: false };
   const pendingLinkOps = new Map();
+
+  function currentPhysicsOptions() {
+    return state.physicsEnabled ? PHYSICS_ON : PHYSICS_OFF;
+  }
 
   function mergeMeta(node, meta) {
     const nodeMeta = meta && meta[node.id ?? node.uid];
@@ -40,7 +45,7 @@
   }
 
   const options = {
-    physics: PHYSICS_OPTIONS,
+    physics: currentPhysicsOptions(),
     interaction: { dragNodes: true, dragView: true, zoomView: true },
     manipulation: {
       enabled: true,
@@ -163,6 +168,7 @@
 
   function setupLayoutToggle() {
     const button = document.getElementById('layout-toggle');
+    const physicsButton = document.getElementById('physics-toggle');
     if (!button) {
       return;
     }
@@ -175,10 +181,13 @@
         });
         state.hierarchical = true;
         button.textContent = 'Manual Layout';
+        // Auto-arrange only applies to the free-form layout; hierarchical positions
+        // are always computed directly, so the physics toggle is moot while active.
+        if (physicsButton) { physicsButton.disabled = true; }
       } else {
         network.setOptions({
           layout: { hierarchical: { enabled: false } },
-          physics: PHYSICS_OPTIONS
+          physics: currentPhysicsOptions()
         });
         if (state.manualPositions) {
           state.visNodes.update(
@@ -188,6 +197,21 @@
         network.redraw();
         state.hierarchical = false;
         button.textContent = 'Hierarchical Layout';
+        if (physicsButton) { physicsButton.disabled = false; }
+      }
+    });
+  }
+
+  function setupPhysicsToggle() {
+    const button = document.getElementById('physics-toggle');
+    if (!button) {
+      return;
+    }
+    button.addEventListener('click', () => {
+      state.physicsEnabled = !state.physicsEnabled;
+      button.textContent = state.physicsEnabled ? 'Disable Auto-Arrange' : 'Enable Auto-Arrange';
+      if (!state.hierarchical) {
+        network.setOptions({ physics: currentPhysicsOptions() });
       }
     });
   }
@@ -201,6 +225,7 @@
   }
 
   setupLayoutToggle();
+  setupPhysicsToggle();
   setupLegendToggle();
 
   messaging.init(network);

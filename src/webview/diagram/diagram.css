@@ -51,6 +51,11 @@ html, body {
   background: var(--vscode-button-hoverBackground);
 }
 
+#toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 #legend {
   position: absolute;
   top: 12px;
