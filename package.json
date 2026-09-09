@@ -18,9 +18,7 @@
     "Other"
   ],
   "activationEvents": [
-    "workspaceContains:**/.doorstop.yml",
-    "onLanguage:yaml",
-    "onLanguage:markdown"
+    "workspaceContains:**/.doorstop.yml"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -52,6 +50,11 @@
       "command": "doorstop.showDiagram",
       "title": "Doorstop: Open Traceability Graph",
       "icon": "$(graph)"
+    },
+    {
+      "command": "doorstop.newDiagram",
+      "title": "Doorstop: New Traceability Graph",
+      "icon": "$(new-file)"
     },
     {
       "command": "doorstop.restartServer",
@@ -112,6 +115,11 @@
       "command": "doorstop.publish",
       "title": "Doorstop: Publish",
       "icon": "$(rocket)"
+    },
+    {
+      "command": "doorstop.addToDiagram",
+      "title": "Doorstop: Add to Diagram",
+      "icon": "$(graph)"
     }
   ],
   "customEditors": [
@@ -142,6 +150,11 @@
         "command": "doorstop.showDiagram",
         "when": "view == doorstop.treeView",
         "group": "navigation"
+      },
+      {
+        "command": "doorstop.newDiagram",
+        "when": "view == doorstop.treeView",
+        "group": "navigation"
       }
     ],
     "view/item/context": [
@@ -164,6 +177,36 @@
         "command": "doorstop.link",
         "when": "view == doorstop.treeView && viewItem == doorstop.item",
         "group": "inline@4"
+      },
+      {
+        "command": "doorstop.addToDiagram",
+        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "group": "7_diagram@1"
+      },
+      {
+        "command": "doorstop.add",
+        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem == doorstop.item)",
+        "group": "1_requirement@1"
+      },
+      {
+        "command": "doorstop.deriveRequirement",
+        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "group": "1_requirement@2"
+      },
+      {
+        "command": "doorstop.review",
+        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem == doorstop.item)",
+        "group": "1_requirement@3"
+      },
+      {
+        "command": "doorstop.clear",
+        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "group": "1_requirement@4"
+      },
+      {
+        "command": "doorstop.link",
+        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "group": "1_requirement@5"
       }
     ]
   }

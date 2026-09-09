@@ -3,6 +3,7 @@
 out/**
 node_modules/**
 src/**
+server/**
 doc/**
 .venv/**
 .gitignore

@@ -1,7 +1,16 @@
 const esbuild = require("esbuild");
+const fs = require("fs");
+const path = require("path");
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
+
+function copyWebviewAssets() {
+	const src = path.join(__dirname, 'src', 'webview');
+	const dest = path.join(__dirname, 'dist', 'webview');
+	fs.rmSync(dest, { recursive: true, force: true });
+	fs.cpSync(src, dest, { recursive: true });
+}
 
 /**
  * @type {import('esbuild').Plugin}
@@ -18,6 +27,7 @@ const esbuildProblemMatcherPlugin = {
 				console.error(`✘ [ERROR] ${text}`);
 				console.error(`    ${location.file}:${location.line}:${location.column}:`);
 			});
+			copyWebviewAssets();
 			console.log('[watch] build finished');
 		});
 	},
