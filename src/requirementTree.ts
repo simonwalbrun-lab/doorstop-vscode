@@ -2,25 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 import { DoorstopServer } from './doorstopServer';
-
-interface ItemNode {
-  uid: string;
-  path: string;
-  level: string;
-  header?: string;
-  text?: string;
-}
-
-interface DocumentNode {
-  prefix: string;
-  markerPath: string;
-  parentPrefix?: string;
-  items: ItemNode[];
-}
-
-interface TreeResponse {
-  documents: DocumentNode[];
-}
+import { ItemNode, TreeResponse } from './doorstopTypes';
 
 /**
  * Resolves a display title from a server-provided item node: explicit header,

@@ -83,18 +83,32 @@ class PublishResponse(BaseModel):
     path: str
 
 
+class LinkInfo(BaseModel):
+    uid: str
+    suspect: bool
+
+
 class ItemNode(BaseModel):
     uid: str
     path: str
     level: str
     header: Optional[str] = None
     text: Optional[str] = None
+    active: bool
+    normative: bool
+    derived: bool
+    reviewed: bool
+    cleared: bool
+    links: List[LinkInfo]
 
 
 class DocumentNode(BaseModel):
     prefix: str
     markerPath: str
     parentPrefix: Optional[str] = None
+    digits: Optional[int] = None
+    separator: Optional[str] = None
+    itemFormat: Optional[str] = None
     items: List[ItemNode]
 
 

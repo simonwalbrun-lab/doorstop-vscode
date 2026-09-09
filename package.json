@@ -54,6 +54,11 @@
       "icon": "$(graph)"
     },
     {
+      "command": "doorstop.newDiagram",
+      "title": "Doorstop: New Traceability Graph",
+      "icon": "$(new-file)"
+    },
+    {
       "command": "doorstop.restartServer",
       "title": "Doorstop: Restart Server",
       "icon": "$(refresh)"
@@ -147,6 +152,11 @@
         "command": "doorstop.showDiagram",
         "when": "view == doorstop.treeView",
         "group": "navigation"
+      },
+      {
+        "command": "doorstop.newDiagram",
+        "when": "view == doorstop.treeView",
+        "group": "navigation"
       }
     ],
     "view/item/context": [
@@ -174,6 +184,31 @@
         "command": "doorstop.addToDiagram",
         "when": "view == doorstop.treeView && viewItem == doorstop.item",
         "group": "7_diagram@1"
+      },
+      {
+        "command": "doorstop.add",
+        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem == doorstop.item)",
+        "group": "1_requirement@1"
+      },
+      {
+        "command": "doorstop.deriveRequirement",
+        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "group": "1_requirement@2"
+      },
+      {
+        "command": "doorstop.review",
+        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem == doorstop.item)",
+        "group": "1_requirement@3"
+      },
+      {
+        "command": "doorstop.clear",
+        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "group": "1_requirement@4"
+      },
+      {
+        "command": "doorstop.link",
+        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "group": "1_requirement@5"
       }
     ]
   }

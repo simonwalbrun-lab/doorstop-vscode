@@ -3,10 +3,23 @@ import * as vscode from 'vscode';
 import * as yaml from 'js-yaml';
 
 import { DoorstopServer } from './doorstopServer';
+import { RequirementTreeItem } from './requirementTree';
 
 export interface DeriveCommandContext {
   sourceUid: string;
   sourceUri: vscode.Uri;
+}
+
+/** Accepts either a CodeLens-supplied DeriveCommandContext or a tree view item (right-click/context menu). */
+function resolveDeriveContext(arg: unknown): DeriveCommandContext | undefined {
+  if (arg instanceof RequirementTreeItem) {
+    if (arg.itemData.isDoorstopRoot || !arg.itemData.uid) {
+      return undefined;
+    }
+    return { sourceUid: String(arg.itemData.uid), sourceUri: arg.resourceUri };
+  }
+  const context = arg as DeriveCommandContext | undefined;
+  return context?.sourceUid ? context : undefined;
 }
 
 interface DeriveProviderOptions {
@@ -169,7 +182,8 @@ export function registerDeriveProvider(
 
   const command = vscode.commands.registerCommand(
     'doorstop.deriveRequirement',
-    async (deriveContext: DeriveCommandContext) => {
+    async (arg?: DeriveCommandContext | RequirementTreeItem) => {
+      const deriveContext = resolveDeriveContext(arg);
       if (!deriveContext?.sourceUid) {
         void vscode.window.showErrorMessage('The source requirement UID could not be determined.');
         return;
@@ -195,7 +209,7 @@ export function registerDeriveProvider(
       }
 
       try {
-        const addResult = await options.server.request<{ uid: string }>(
+        const addResult = await options.server.request<{ uid: string; path: string }>(
           'POST', `/documents/${encodeURIComponent(target)}/items`, {}
         );
         const childUid = addResult.uid;
@@ -206,6 +220,7 @@ export function registerDeriveProvider(
 
         options.onChanged?.();
         void vscode.window.showInformationMessage(`${childUid} was derived from ${deriveContext.sourceUid}.`);
+        await vscode.window.showTextDocument(vscode.Uri.file(addResult.path));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         void vscode.window.showErrorMessage(`Could not derive requirement: ${message}`);

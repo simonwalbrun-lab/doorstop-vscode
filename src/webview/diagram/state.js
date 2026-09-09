@@ -3,6 +3,9 @@
   const visNodes = new vis.DataSet([]);
   const visEdges = new vis.DataSet([]);
   const nodeMap = new Map();
+  const nodeMeta = new Map();
+  let manualPositions = null;
+  let hierarchical = false;
 
   function getDiagramData(network) {
     const positions = network.getPositions();
@@ -40,8 +43,13 @@
     visNodes,
     visEdges,
     nodeMap,
+    nodeMeta,
     getDiagramData,
     saveGraphState,
-    getPreviousState
+    getPreviousState,
+    get manualPositions() { return manualPositions; },
+    set manualPositions(value) { manualPositions = value; },
+    get hierarchical() { return hierarchical; },
+    set hierarchical(value) { hierarchical = value; }
   };
 })();

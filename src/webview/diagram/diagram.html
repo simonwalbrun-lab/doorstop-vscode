@@ -11,6 +11,27 @@
   <div id="drop-hint">Ziehe Requirements aus der TreeView oder dem Editor hierher</div>
   <div id="mynetwork"></div>
 
+  <div id="toolbar">
+    <button id="layout-toggle" type="button">Hierarchical Layout</button>
+  </div>
+
+  <div id="legend">
+    <div id="legend-toggle">Legend ▾</div>
+    <div id="legend-body">
+      <div class="legend-section">
+        <strong>Status</strong>
+        <div>✅ Reviewed &nbsp; ❓ Not reviewed</div>
+        <div>⚠️ Suspect link</div>
+        <div>🔹 Derived</div>
+        <div>🚫 Inactive &nbsp; 📄 Non-normative</div>
+      </div>
+      <div class="legend-section">
+        <strong>Documents</strong>
+        <div id="legend-documents"></div>
+      </div>
+    </div>
+  </div>
+
   <script nonce="{{nonce}}" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
   <script nonce="{{nonce}}" src="{{stateJsUri}}"></script>
   <script nonce="{{nonce}}" src="{{renderJsUri}}"></script>

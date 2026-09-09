@@ -100,8 +100,29 @@ export async function activate(context: vscode.ExtensionContext) {
       onChanged: () => treeProvider.refresh()
     });
   }
-  const openDiagramCmd = vscode.commands.registerCommand('doorstop.openDiagram', () => {
-    DoorstopDiagramPanel.createOrShow(context.extensionUri);
+  const newDiagramCmd = vscode.commands.registerCommand('doorstop.newDiagram', async () => {
+    const defaultUri = workspaceFolder
+      ? vscode.Uri.joinPath(workspaceFolder.uri, 'diagram.doorstop.json')
+      : undefined;
+    const target = await vscode.window.showSaveDialog({
+      defaultUri,
+      filters: { 'Doorstop Diagram': ['doorstop.json'] },
+      saveLabel: 'Create Diagram'
+    });
+    if (!target) {
+      return;
+    }
+    // showSaveDialog does not reliably append compound extensions; the CustomEditor
+    // only activates for files matching the "*.doorstop.json" filenamePattern.
+    const uri = target.fsPath.endsWith('.doorstop.json')
+      ? target
+      : vscode.Uri.file(target.fsPath.replace(/\.json$/i, '') + '.doorstop.json');
+    try {
+      await vscode.workspace.fs.writeFile(uri, DoorstopDiagramPanel.serializeDiagram({ nodes: [], edges: [] }));
+      await vscode.commands.executeCommand('vscode.openWith', uri, 'doorstop.diagram');
+    } catch (e) {
+      vscode.window.showErrorMessage(`Failed to create diagram: ${e instanceof Error ? e.message : String(e)}`);
+    }
   });
   const documentChangeEvent = new vscode.EventEmitter<vscode.CustomDocumentContentChangeEvent<DoorstopDiagramDocument>>();
   const diagramEditorProvider: vscode.CustomEditorProvider<DoorstopDiagramDocument> = {
@@ -121,7 +142,9 @@ export async function activate(context: vscode.ExtensionContext) {
         diagram => {
           document.diagram = diagram;
           documentChangeEvent.fire({ document });
-        }
+        },
+        doorstopServer,
+        treeProvider
       );
     },
     async saveCustomDocument(document) {
@@ -195,7 +218,7 @@ export async function activate(context: vscode.ExtensionContext) {
     DoorstopDiagramPanel.currentPanel.addRequirementToDiagram(item.resourceUri.fsPath);
   });
 
-  context.subscriptions.push(openDiagramCmd, customEditor, addToDiagramCmd);
+  context.subscriptions.push(newDiagramCmd, customEditor, addToDiagramCmd);
 
 
   const treeView = vscode.window.createTreeView('doorstop.treeView', {
@@ -242,9 +265,17 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  const showDiagramCommand = vscode.commands.registerCommand('doorstop.showDiagram', () => {
-    // Ruft das Diagramm-Panel auf und übergibt die Extension-URI
-    DoorstopDiagramPanel.createOrShow(context.extensionUri);
+  const showDiagramCommand = vscode.commands.registerCommand('doorstop.showDiagram', async () => {
+    const [uri] = (await vscode.window.showOpenDialog({
+      defaultUri: workspaceFolder?.uri,
+      filters: { 'Doorstop Diagram': ['json'] },
+      canSelectMany: false,
+      openLabel: 'Open Diagram'
+    })) ?? [];
+    if (!uri) {
+      return;
+    }
+    await vscode.commands.executeCommand('vscode.openWith', uri, 'doorstop.diagram');
   });
 
   context.subscriptions.push(

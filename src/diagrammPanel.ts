@@ -3,6 +3,26 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 
+import { DoorstopServer } from './doorstopServer';
+import { DoorstopTreeProvider } from './requirementTree';
+import { choosePrefix, AddedItem } from './doorstopCommands';
+import { LinkInfo, TreeResponse } from './doorstopTypes';
+
+interface NodeMeta {
+    documentPrefix: string;
+    active: boolean;
+    normative: boolean;
+    derived: boolean;
+    reviewed: boolean;
+    cleared: boolean;
+    links: LinkInfo[];
+}
+
+interface DocMeta {
+    prefix: string;
+    parentPrefix?: string;
+}
+
 function getNonce(): string {
     const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let text = '';
@@ -18,46 +38,37 @@ export class DoorstopDiagramPanel {
     private readonly _extensionUri: vscode.Uri;
     private readonly _initialDiagram?: any;
     private readonly _onDiagramChanged?: (diagram: any) => void;
+    private readonly _server?: DoorstopServer;
+    private readonly _treeProvider?: DoorstopTreeProvider;
+    private _itemMeta: Record<string, NodeMeta> = {};
+    private _metaWarningShown = false;
     private _disposables: vscode.Disposable[] = [];
-
-    public static createOrShow(extensionUri: vscode.Uri) {
-        if (DoorstopDiagramPanel.currentPanel) {
-            DoorstopDiagramPanel.currentPanel._panel.reveal(vscode.ViewColumn.One);
-            return;
-        }
-
-        const panel = vscode.window.createWebviewPanel(
-            'doorstopDiagram',
-            'Doorstop Traceability Graph',
-            vscode.ViewColumn.One,
-            {
-                enableScripts: true,
-                localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'dist', 'webview')],
-                retainContextWhenHidden: true
-            }
-        );
-        DoorstopDiagramPanel.currentPanel = new DoorstopDiagramPanel(panel, extensionUri);
-    }
 
       public static async createForCustomEditor(
         panel: vscode.WebviewPanel,
         extensionUri: vscode.Uri,
         diagram: any,
-        onDiagramChanged: (diagram: any) => void
+        onDiagramChanged: (diagram: any) => void,
+        server: DoorstopServer,
+        treeProvider: DoorstopTreeProvider
       ) {
-        DoorstopDiagramPanel.currentPanel = new DoorstopDiagramPanel(panel, extensionUri, diagram, onDiagramChanged);
+        DoorstopDiagramPanel.currentPanel = new DoorstopDiagramPanel(panel, extensionUri, diagram, onDiagramChanged, server, treeProvider);
       }
 
       private constructor(
         panel: vscode.WebviewPanel,
         extensionUri: vscode.Uri,
         initialDiagram?: any,
-        onDiagramChanged?: (diagram: any) => void
+        onDiagramChanged?: (diagram: any) => void,
+        server?: DoorstopServer,
+        treeProvider?: DoorstopTreeProvider
       ) {
         this._panel = panel;
         this._extensionUri = extensionUri;
         this._initialDiagram = initialDiagram;
         this._onDiagramChanged = onDiagramChanged;
+        this._server = server;
+        this._treeProvider = treeProvider;
         this._panel.webview.options = {
           enableScripts: true,
           localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'dist', 'webview')]
@@ -79,6 +90,12 @@ export class DoorstopDiagramPanel {
                         return this.handleDiagramChanged(message);
                     case 'ready':
                         return this.handleReady();
+                    case 'addLink':
+                        return this.handleAddLink(message);
+                    case 'removeLink':
+                        return this.handleRemoveLink(message);
+                    case 'createLinkedItem':
+                        return this.handleCreateLinkedItem(message);
                 }
             },
             null,
@@ -114,12 +131,186 @@ export class DoorstopDiagramPanel {
         this._onDiagramChanged?.(message.diagram);
     }
 
-    private handleReady(): void {
-        if (this._initialDiagram) {
+    private async handleReady(): Promise<void> {
+        if (!this._initialDiagram) {
+            return;
+        }
+        // Metadata enrichment (status/colors/authoritative edges) must never prevent the
+        // diagram from loading: if the server is unreachable, unhealthy, or running an
+        // older/mismatched response shape (e.g. not yet restarted after a server update),
+        // fall back to rendering exactly what is on disk rather than showing nothing.
+        let meta: Record<string, NodeMeta> = {};
+        let documents: Record<string, DocMeta> = {};
+        let diagram = this._initialDiagram;
+        try {
+            ({ meta, documents } = await this.fetchTreeMeta());
+            diagram = this.withAuthoritativeEdges(this._initialDiagram, meta);
+        } catch (e) {
+            console.warn('[Doorstop][diagram] Falling back to on-disk diagram without server metadata:', e);
+            if (!this._metaWarningShown) {
+                this._metaWarningShown = true;
+                vscode.window.showWarningMessage(
+                    'Doorstop diagram: could not load link/status data from the server (colors, badges and edges may be incomplete). ' +
+                    'If you recently updated the extension, try "Doorstop: Restart Server".'
+                );
+            }
+        }
+        this._panel.webview.postMessage({ command: 'loadDiagram', diagram, meta, documents });
+    }
+
+    /**
+     * Loads the live document/item hierarchy from the doorstop server (status flags,
+     * owning document, real links) and caches it for reuse by drag-and-drop and the
+     * canvas's add-link/create-item flows within this panel's lifetime.
+     */
+    private async fetchTreeMeta(): Promise<{ meta: Record<string, NodeMeta>; documents: Record<string, DocMeta> }> {
+        if (!this._server) {
+            return { meta: {}, documents: {} };
+        }
+        try {
+            const tree = await this._server.request<TreeResponse>('GET', '/tree');
+            const meta: Record<string, NodeMeta> = {};
+            const documents: Record<string, DocMeta> = {};
+            for (const document of tree.documents) {
+                documents[document.prefix] = { prefix: document.prefix, parentPrefix: document.parentPrefix };
+                for (const item of document.items) {
+                    meta[item.uid] = {
+                        documentPrefix: document.prefix,
+                        active: item.active,
+                        normative: item.normative,
+                        derived: item.derived,
+                        reviewed: item.reviewed,
+                        cleared: item.cleared,
+                        // Defensive default: an older/mismatched server response (e.g. before
+                        // a server restart picked up a schema change) may omit this field.
+                        links: Array.isArray(item.links) ? item.links : []
+                    };
+                }
+            }
+            this._itemMeta = meta;
+            return { meta, documents };
+        } catch (e) {
+            console.warn('[Doorstop][diagram] Failed to fetch /tree metadata:', e);
+            return { meta: {}, documents: {} };
+        }
+    }
+
+    /**
+     * Recomputes edges for every node the server knows about from its real `links`
+     * data (so canvas edges never drift from the actual doorstop traceability data),
+     * while preserving any persisted edge touching a node the server doesn't know
+     * about (e.g. an orphaned/malformed file) so drag-and-drop history isn't lost.
+     */
+    private withAuthoritativeEdges(diagram: any, meta: Record<string, NodeMeta>): any {
+        const nodes: any[] = Array.isArray(diagram?.nodes) ? diagram.nodes : [];
+        const nodeIds = new Set(nodes.map((n: any) => n.id ?? n.uid));
+        const edges: any[] = [];
+        const seen = new Set<string>();
+
+        for (const nodeId of nodeIds) {
+            const nodeMeta = meta[nodeId];
+            if (!nodeMeta || !Array.isArray(nodeMeta.links)) {
+                continue;
+            }
+            for (const link of nodeMeta.links) {
+                if (nodeIds.has(link.uid)) {
+                    const key = `${nodeId}->${link.uid}`;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        edges.push({ from: nodeId, to: link.uid, arrows: 'to', suspect: link.suspect });
+                    }
+                }
+            }
+        }
+
+        for (const edge of Array.isArray(diagram?.edges) ? diagram.edges : []) {
+            if (!meta[edge.from]) {
+                const key = `${edge.from}->${edge.to}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    edges.push(edge);
+                }
+            }
+        }
+
+        return { ...diagram, edges };
+    }
+
+    private async handleAddLink(message: any): Promise<void> {
+        const { from, to } = message;
+        if (!this._server || !from || !to) {
+            this._panel.webview.postMessage({ command: 'linkAddResult', from, to, success: false, error: 'Doorstop server is not available.' });
+            return;
+        }
+        try {
+            await this._server.request('POST', `/items/${encodeURIComponent(from)}/links`, { parentUid: to });
+            this._panel.webview.postMessage({ command: 'linkAddResult', from, to, success: true });
+            await vscode.commands.executeCommand('doorstop.refresh');
+        } catch (e) {
+            const error = e instanceof Error ? e.message : String(e);
+            vscode.window.showErrorMessage(`Could not add link: ${error}`);
+            this._panel.webview.postMessage({ command: 'linkAddResult', from, to, success: false, error });
+        }
+    }
+
+    private async handleRemoveLink(message: any): Promise<void> {
+        const { from, to } = message;
+        if (!this._server || !from || !to) {
+            this._panel.webview.postMessage({ command: 'linkRemoveResult', from, to, success: false, error: 'Doorstop server is not available.' });
+            return;
+        }
+        try {
+            await this._server.request('DELETE', `/items/${encodeURIComponent(from)}/links/${encodeURIComponent(to)}`);
+            this._panel.webview.postMessage({ command: 'linkRemoveResult', from, to, success: true });
+            await vscode.commands.executeCommand('doorstop.refresh');
+        } catch (e) {
+            const error = e instanceof Error ? e.message : String(e);
+            vscode.window.showErrorMessage(`Could not remove link: ${error}`);
+            this._panel.webview.postMessage({ command: 'linkRemoveResult', from, to, success: false, error });
+        }
+    }
+
+    /**
+     * Right-click-on-node "add linked item" flow: quickselect a target document,
+     * create a new item there, link it to the source item, place it on the canvas,
+     * and jump to it.
+     */
+    private async handleCreateLinkedItem(message: any): Promise<void> {
+        const { sourceUid, pointer } = message;
+        if (!this._server || !this._treeProvider || !sourceUid) {
+            return;
+        }
+        const prefix = await choosePrefix(this._treeProvider);
+        if (!prefix) {
+            return;
+        }
+        try {
+            const created = await this._server.request<AddedItem>('POST', `/documents/${encodeURIComponent(prefix)}/items`, {});
+            await this._server.request('POST', `/items/${encodeURIComponent(created.uid)}/links`, { parentUid: sourceUid });
+
             this._panel.webview.postMessage({
-                command: 'loadDiagram',
-                diagram: this._initialDiagram
+                command: 'addNode',
+                node: {
+                    uid: created.uid,
+                    fileUri: created.path,
+                    title: '',
+                    links: [sourceUid],
+                    pointer: pointer || { x: 0, y: 0 },
+                    documentPrefix: prefix,
+                    active: true,
+                    normative: true,
+                    derived: false,
+                    reviewed: false,
+                    cleared: true
+                }
             });
+
+            await vscode.commands.executeCommand('doorstop.refresh');
+            await vscode.commands.executeCommand('doorstop.activateRequirement', created.path);
+            await vscode.window.showTextDocument(vscode.Uri.file(created.path));
+        } catch (e) {
+            const error = e instanceof Error ? e.message : String(e);
+            vscode.window.showErrorMessage(`Could not create linked item: ${error}`);
         }
     }
 
@@ -237,25 +428,42 @@ export class DoorstopDiagramPanel {
             return;
         }
 
-        // Details & Links auslesen
+        // Details & Links auslesen: bevorzugt aus den vom Server geladenen Metadaten,
+        // sonst Fallback auf direktes Parsen der YAML/Markdown-Frontmatter.
+        const knownMeta = uid ? this._itemMeta[uid] : undefined;
         try {
-            const content = fs.readFileSync(targetFilePath, 'utf8');
-          console.log('[Doorstop][drop] Read requirement bytes:', content.length);
-            let yamlContent = content;
+            let title: string;
+            let links: string[];
 
-            if (content.startsWith('---')) {
-                const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-                if (match) {yamlContent = match[1];}
-            }
+            if (knownMeta) {
+                const content = fs.readFileSync(targetFilePath, 'utf8');
+                let yamlContent = content;
+                if (content.startsWith('---')) {
+                    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+                    if (match) {yamlContent = match[1];}
+                }
+                const data: any = yaml.load(yamlContent) || {};
+                title = data.header || data.title || '';
+                links = knownMeta.links.map(l => l.uid);
+            } else {
+                const content = fs.readFileSync(targetFilePath, 'utf8');
+              console.log('[Doorstop][drop] Read requirement bytes:', content.length);
+                let yamlContent = content;
 
-            const data: any = yaml.load(yamlContent) || {};
-            const title = data.header || data.title || '';
-            const links: string[] = [];
+                if (content.startsWith('---')) {
+                    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+                    if (match) {yamlContent = match[1];}
+                }
 
-            if (Array.isArray(data.links)) {
-                for (const l of data.links) {
-                    const targetId = typeof l === 'string' ? l : l.item;
-                    if (targetId) {links.push(String(targetId));}
+                const data: any = yaml.load(yamlContent) || {};
+                title = data.header || data.title || '';
+                links = [];
+
+                if (Array.isArray(data.links)) {
+                    for (const l of data.links) {
+                        const targetId = typeof l === 'string' ? l : l.item;
+                        if (targetId) {links.push(String(targetId));}
+                    }
                 }
             }
 
@@ -267,7 +475,13 @@ export class DoorstopDiagramPanel {
                     fileUri: targetFilePath,
                     title,
                     links,
-                    pointer
+                    pointer,
+                    documentPrefix: knownMeta?.documentPrefix,
+                    active: knownMeta?.active,
+                    normative: knownMeta?.normative,
+                    derived: knownMeta?.derived,
+                    reviewed: knownMeta?.reviewed,
+                    cleared: knownMeta?.cleared
                 }
             });
               console.log('[Doorstop][drop] addNode delivered:', delivered);

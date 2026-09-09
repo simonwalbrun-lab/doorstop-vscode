@@ -4,6 +4,12 @@ import * as vscode from 'vscode';
 import { DoorstopServer } from './doorstopServer';
 import { DoorstopTreeProvider, RequirementTreeItem } from './requirementTree';
 
+export interface AddedItem {
+  uid: string;
+  path: string;
+  level: string;
+}
+
 interface CommandOptions {
   context: vscode.ExtensionContext;
   server: DoorstopServer;
@@ -39,7 +45,7 @@ async function rootForItem(tree: DoorstopTreeProvider, item: RequirementTreeItem
   return undefined;
 }
 
-async function choosePrefix(tree: DoorstopTreeProvider): Promise<string | undefined> {
+export async function choosePrefix(tree: DoorstopTreeProvider): Promise<string | undefined> {
   const roots = await documentRoots(tree);
   const choice = await vscode.window.showQuickPick(
     roots
@@ -145,7 +151,10 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     } else if (!item) {
       level = await vscode.window.showInputBox({ prompt: 'Enter level (optional)', placeHolder: '1.2.3' });
     }
-    await run(() => options.server.request('POST', `/documents/${encodeURIComponent(prefix)}/items`, level ? { level } : {}));
+    const created = await run(() => options.server.request<AddedItem>('POST', `/documents/${encodeURIComponent(prefix)}/items`, level ? { level } : {}));
+    if (created) {
+      await vscode.window.showTextDocument(vscode.Uri.file(created.path));
+    }
   });
 
   const review = register('doorstop.review', async (value?: unknown) => {

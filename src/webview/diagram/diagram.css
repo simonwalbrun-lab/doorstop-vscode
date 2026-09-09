@@ -26,3 +26,97 @@ html, body {
   padding: 20px 40px;
   border-radius: 8px;
 }
+
+#toolbar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+}
+
+#toolbar button {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-family: var(--vscode-font-family);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+#toolbar button:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+#legend {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border));
+  border-radius: 4px;
+  font-size: 0.8rem;
+  max-width: 220px;
+}
+
+#legend-toggle {
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+}
+
+#legend-body {
+  padding: 0 10px 10px;
+}
+
+#legend.collapsed #legend-body {
+  display: none;
+}
+
+.legend-section {
+  margin-bottom: 8px;
+}
+
+.legend-section:last-child {
+  margin-bottom: 0;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+#doorstop-context-menu {
+  position: fixed;
+  z-index: 100;
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+  color: var(--vscode-menu-foreground, var(--vscode-editor-foreground));
+  border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border));
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-size: 0.85rem;
+  min-width: 120px;
+}
+
+.doorstop-context-menu-item {
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.doorstop-context-menu-item:hover {
+  background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-menu-selectionForeground, var(--vscode-editor-foreground));
+}
