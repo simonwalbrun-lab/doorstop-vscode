@@ -525,11 +525,11 @@ export class DoorstopDiagramPanel {
      */
     public async addRequirementToDiagram(fileUri: string): Promise<void> {
         this._panel.reveal();
-        const pointer = {
-            x: Math.round((Math.random() - 0.5) * 300),
-            y: Math.round((Math.random() - 0.5) * 300)
-        };
-        await this.handleDroppedData(fileUri, pointer);
+        // There is no real drop point on this path. Rather than scattering the node
+        // to a random position (which could land it on top of an existing one), the
+        // webview searches for a slot that overlaps nothing (spec 015 FR-015) -
+        // only it can, since node extents don't exist on this side.
+        await this.handleDroppedData(fileUri, { x: 0, y: 0 }, true);
     }
 
             public static async readDiagram(uri: vscode.Uri): Promise<any> {
@@ -596,7 +596,11 @@ export class DoorstopDiagramPanel {
     /**
      * Löst gedroppten Text/URI auf und schickt die vollständigen Node-Daten an den Webview
      */
-    private async handleDroppedData(droppedText: string, pointer: { x: number; y: number }) {
+    private async handleDroppedData(
+      droppedText: string,
+      pointer: { x: number; y: number },
+      autoPlace = false
+    ) {
       console.log('[Doorstop][drop] Received:', JSON.stringify(droppedText), 'at', pointer);
         let targetFilePath: string | undefined = undefined;
         let uid: string | undefined = undefined;
@@ -658,6 +662,7 @@ export class DoorstopDiagramPanel {
                     header: title,
                     links,
                     pointer,
+                    autoPlace,
                     documentPrefix: knownMeta?.documentPrefix,
                     active: knownMeta?.active,
                     normative: knownMeta?.normative,
@@ -686,6 +691,7 @@ export class DoorstopDiagramPanel {
             nonce: getNonce(),
             styleUri: assetUri('diagram.css'),
             stateJsUri: assetUri('state.js'),
+            layoutJsUri: assetUri('layout.js'),
             renderJsUri: assetUri('render.js'),
             interactionsJsUri: assetUri('interactions.js'),
             messagingJsUri: assetUri('messaging.js'),

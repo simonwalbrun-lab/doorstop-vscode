@@ -10,12 +10,12 @@
   const ghostMeta = new Map();
   const nodeMap = new Map();
   const nodeMeta = new Map();
-  let manualPositions = null;
-  let hierarchical = false;
-  let physicsEnabled = true;
   let ghostPreviewEnabled = false;
   let headingDisplayEnabled = false;
-  let physicsToggleSuspended = false;
+  // Set while a context-menu "Add Link to..." is waiting for the user to click a
+  // target node. Non-null means the canvas is in target-selection mode: the click
+  // handler consumes clicks as target picks instead of opening files (FR-006/FR-008).
+  let pendingLinkSource = null;
 
   // Title is read from cached metadata (unaffected by the heading-display toggle's
   // effect on the rendered label) rather than parsed out of `label`, so persistence
@@ -84,17 +84,11 @@
     nodeMeta,
     getDiagramData,
     saveGraphState,
-    get manualPositions() { return manualPositions; },
-    set manualPositions(value) { manualPositions = value; },
-    get hierarchical() { return hierarchical; },
-    set hierarchical(value) { hierarchical = value; },
-    get physicsEnabled() { return physicsEnabled; },
-    set physicsEnabled(value) { physicsEnabled = value; },
     get ghostPreviewEnabled() { return ghostPreviewEnabled; },
     set ghostPreviewEnabled(value) { ghostPreviewEnabled = value; },
     get headingDisplayEnabled() { return headingDisplayEnabled; },
     set headingDisplayEnabled(value) { headingDisplayEnabled = value; },
-    get physicsToggleSuspended() { return physicsToggleSuspended; },
-    set physicsToggleSuspended(value) { physicsToggleSuspended = value; }
+    get pendingLinkSource() { return pendingLinkSource; },
+    set pendingLinkSource(value) { pendingLinkSource = value; }
   };
 })();

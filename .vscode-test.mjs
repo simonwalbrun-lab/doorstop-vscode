@@ -1,9 +1,9 @@
 import { defineConfig } from '@vscode/test-cli';
 
-// Two labeled configs so the regression-fixture suite gets its own workspace
-// (testdata/regression) without the existing, workspace-less suite picking it
-// up too — each config's `files` glob must stay non-overlapping since
-// @vscode/test-cli runs both by default. `npm test` runs both sequentially.
+// Labeled configs so each suite gets the workspace it needs (or none) without the
+// others picking its files up too — each config's `files` glob must stay
+// non-overlapping since @vscode/test-cli runs them all by default.
+// `npm test` runs them sequentially.
 export default defineConfig([
 	{
 		label: 'unit',
@@ -13,6 +13,14 @@ export default defineConfig([
 		label: 'regressionFixture',
 		files: 'out/test/regressionFixture.test.js',
 		workspaceFolder: 'testdata/regression',
+	},
+	{
+		// Pure geometry + diagram-document persistence. No fixture workspace and no
+		// Doorstop server: src/webview/diagram/layout.js is written dual-mode so it
+		// loads under plain Node, which is what makes this suite CI-runnable
+		// (constitution principle VI).
+		label: 'diagramLayout',
+		files: 'out/test/diagramLayout.test.js',
 	},
 	{
 		// Needs the fixture workspace (so the extension activates and its CodeLens

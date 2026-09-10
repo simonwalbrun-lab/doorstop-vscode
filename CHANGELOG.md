@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Canvas: right-click an item for **Remove from Diagram** (takes it off the canvas
+  only — the requirement and all of its links are untouched) and **Add Link to…**,
+  which creates a real link to the next item you click, with no drag gesture needed
+- Canvas: items you place now stay exactly where you put them. Adding an item or
+  toggling any view option never rearranges the canvas. The **Auto-Arrange** toggle
+  is gone, since there is no longer anything for it to turn off; ghost items are
+  still positioned automatically, as before
+- Canvas: new **Grid Layout** arranges all items in a compact near-square box, and
+  **Hierarchical Layout** is now a one-shot arrangement rather than a mode — after
+  either, items stay put and remain freely draggable
+- Canvas: no toolbar button disables another any more. Ghost Preview and
+  Hierarchical Layout are no longer mutually exclusive
 - Problem reporting: Doorstop's own validation is shown inline in requirement
   files - errors as red squiggles, warnings as yellow ones, info in the Problems
   panel - anchored to the field each problem concerns (the individual link entry
@@ -23,7 +35,6 @@ All notable changes to this project will be documented in this file.
 - Diagrams reopen from their backup after a crash or reload
 - Canvas with Traces and Drag and Drop.
 - Jump to new files.
-- Canvas: toggle to enable/disable automatic physics-based layout (gravity)
 - Go to Definition (F12) and Find All References (Shift+F12) for requirement UIDs, including a usages view on `derived:` lines
 - codeLens: "Do Review" on the `reviewed:` field, "Clear All Suspicions" above `links:`, and "Clear the Suspicion" on each individual link entry
 - deriveProvider: candidate target documents now come from the server's `GET /tree` instead of a client-side `.doorstop.yml` scan, and a failed lookup is reported instead of silently shortening the list

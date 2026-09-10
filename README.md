@@ -82,6 +82,18 @@ Hover in editor over `derived`:
 Collect and organize requirements on a visual canvas for spatial planning (and some future release traceability mapping).
 ![alt text](media/promotion/03_canvas_basics.gif)
 
+Items you place on the canvas stay exactly where you put them — nothing rearranges
+them behind your back. Right-click an item for **Add Linked Item…**, **Add Link to…**
+(then click the item to link to), and **Remove from Diagram** — which takes the item
+off the canvas only and never touches the requirement or its links. Right-click a
+connection for **Remove Link**.
+
+The toolbar offers two one-shot arrangements — **Hierarchical Layout** (top-down,
+following link direction) and **Grid Layout** (a compact near-square box) — plus
+**Ghost Preview**, which shows every item linked to what's on the canvas as a smaller,
+lighter node, and **Show Headings**. All four are independent; none of them disables
+another, and after either arrangement your items remain freely draggable.
+
 ---
 
 ## Requirements
