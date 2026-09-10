@@ -67,6 +67,21 @@
       "icon": "$(add)"
     },
     {
+      "command": "doorstop.doReview",
+      "title": "Doorstop: Do Review",
+      "icon": "$(verified)"
+    },
+    {
+      "command": "doorstop.clearAllSuspicions",
+      "title": "Doorstop: Clear All Suspicions",
+      "icon": "$(call-incoming)"
+    },
+    {
+      "command": "doorstop.clearSuspicion",
+      "title": "Doorstop: Clear the Suspicion",
+      "icon": "$(call-incoming)"
+    },
+    {
       "command": "doorstop.createDoc",
       "title": "Doorstop: Create Document",
       "icon": "$(file-directory-create)"

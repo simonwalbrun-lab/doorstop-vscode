@@ -6,6 +6,7 @@ import { registerHoverProvider } from './hoverProvider';
 import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
 import { DoorstopServer } from './doorstopServer';
 import { registerDeriveProvider } from './deriveProvider';
+import { registerReviewLensProvider } from './reviewLensProvider';
 import { registerDefinitionProvider } from './definitionProvider';
 import { DoorstopCommandsProvider } from './commandsProvider';
 import { registerDoorstopCommands } from './doorstopCommands';
@@ -104,7 +105,10 @@ export async function activate(context: vscode.ExtensionContext) {
   if (workspaceFolder) {
     registerDeriveProvider(context, {
       server: doorstopServer,
-      workspaceFolder,
+      onChanged: () => treeProvider.refresh()
+    });
+    registerReviewLensProvider(context, {
+      server: doorstopServer,
       onChanged: () => treeProvider.refresh()
     });
     registerDefinitionProvider(context, {

@@ -30,6 +30,14 @@ This extension brings requirement lifecycle management into your developer workf
  **CodeLens Derivation:** Derive downstream requirements with a single click directly above your requirement definitions.
  ![alt text](media/promotion/04_derive_requirement.gif)
 
+ **CodeLens Review & Suspect Links:** Three more one-click actions, inline on the fields they belong to:
+
+* **Do Review** on the `reviewed:` field marks that requirement as reviewed.
+* **Clear All Suspicions** above the `links:` field clears every suspect link of the item at once (shown only when the item actually has links).
+* **Clear the Suspicion** on an individual link entry clears just that one link, leaving the item's other links suspect.
+
+ All three act through the Doorstop server, so the file on disk is written by Doorstop itself. If the file has unsaved edits you are asked to save first — nothing is discarded silently.
+
  **Smart Autocompletion (IntelliSense):** Autocomplete upstream links with history support showing recently opened items at first.
 ![alt text](media/promotion/05_autocomplete.gif)
 

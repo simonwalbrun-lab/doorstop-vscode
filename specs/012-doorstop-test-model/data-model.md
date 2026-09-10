@@ -19,7 +19,7 @@ automated suite (User Story 3) read from the same, agreed structure.
 | Diagram fixture | `testdata/regression/diagram.doorstop.json` | Persisted diagram referencing a mix of fixture items (FR-007) |
 | Checklist | `testdata/regression/CHECKLIST.md` | Human-readable regression checklist (FR-008) |
 
-## Item (`REQ-NNN.yml` / `ARCH-NNN.yml`)
+## Item (`REQ-NNN.yml` / `ARCH-NNN.yml` / `MD-NNN.md`)
 
 Standard Doorstop item fields (`header`, `text`, `links`, `derived`,
 `active`, `normative`, `reviewed`, `cleared`) are used as-is — Doorstop
@@ -38,9 +38,15 @@ each state FR-002–FR-006 requires. No new field is introduced.
 | `REQ-008` | `reviewed: true`, its suspect link has been run through `doorstop clear` once (`cleared: true` on the link) | Cleared-suspect case (FR-002) |
 | `REQ-009` | `links: [REQ-999]` where `REQ-999` does not exist anywhere in the fixture | Dangling-link case (FR-004) |
 | `ARCH-001` | `derived: true`, `links: [REQ-001]` | Derived-link case (FR-002); child-document population |
+| `REQ-010` | Two suspect links (`REQ-001`, `REQ-002`) | Selective suspect-clearing: distinguishes clearing one link from clearing all (feature 013) |
+| `MD-001` | `itemformat: markdown` item; metadata in YAML frontmatter, plus a deliberate `links:` decoy in the prose body | Markdown-format scan path: proves metadata scanning is confined to frontmatter (feature 013) |
 
 `EMPTY` document intentionally contains zero item files beyond its
 `.doorstop.yml` marker (FR-005).
+
+`MD` is a second populated child document of `REQ`, distinguished from
+`ARCH` only by `itemformat: markdown` — added by feature 013 so the
+Markdown item surface is covered by the fixture rather than assumed.
 
 ## Diagram Fixture (`diagram.doorstop.json`)
 

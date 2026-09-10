@@ -9,6 +9,8 @@ All notable changes to this project will be documented in this file.
 - Jump to new files.
 - Canvas: toggle to enable/disable automatic physics-based layout (gravity)
 - Go to Definition (F12) and Find All References (Shift+F12) for requirement UIDs, including a usages view on `derived:` lines
+- codeLens: "Do Review" on the `reviewed:` field, "Clear All Suspicions" above `links:`, and "Clear the Suspicion" on each individual link entry
+- deriveProvider: candidate target documents now come from the server's `GET /tree` instead of a client-side `.doorstop.yml` scan, and a failed lookup is reported instead of silently shortening the list
 
 ## [0.0.4] - 2026-09-06
 

@@ -21,10 +21,12 @@ relative to the compiled test file), never a machine-specific absolute path.
 | --- | --- | --- |
 | `testdata/regression/.doorstop.yml` | Yes | Root document marker, prefix `REQ` |
 | `testdata/regression/CHECKLIST.md` | Yes | The regression checklist (see data-model.md) |
-| `testdata/regression/REQ-*.yml` | Yes, ≥9 files | Root document items (see data-model.md's Item table) |
+| `testdata/regression/REQ-*.yml` | Yes, ≥10 files | Root document items (see data-model.md's Item table) |
 | `testdata/regression/children/ARCH/.doorstop.yml` | Yes | Populated child document marker, `parent: REQ` |
 | `testdata/regression/children/ARCH/ARCH-*.yml` | Yes, ≥1 file | Child document items |
 | `testdata/regression/children/EMPTY/.doorstop.yml` | Yes | Empty child document marker, `parent: REQ`, zero item files alongside it |
+| `testdata/regression/children/MD/.doorstop.yml` | Yes | Markdown-format child document marker, `parent: REQ`, `itemformat: markdown` |
+| `testdata/regression/children/MD/MD-*.md` | Yes, ≥1 file | Markdown-format items (metadata in YAML frontmatter) |
 | `testdata/regression/diagram.doorstop.json` | Yes | Persisted diagram fixture |
 
 ## Invariants a consumer may rely on

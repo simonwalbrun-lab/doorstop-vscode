@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 
 import * as vscode from 'vscode';
 
+import { getDeriveTargetPrefixes } from '../deriveProvider';
 import { DoorstopServer, DOORSTOP_SERVER_HOST, DOORSTOP_SERVER_PORT } from '../doorstopServer';
 import { TreeResponse } from '../doorstopTypes';
 import { DoorstopTreeProvider, RequirementTreeItem } from '../requirementTree';
@@ -70,7 +71,7 @@ async function fetchTreeIfListening(): Promise<TreeResponse | undefined> {
  * instead of silently asserting against the wrong project's data. */
 function isRegressionFixtureTree(tree: TreeResponse): boolean {
   const byPrefix = new Map(tree.documents.map(doc => [doc.prefix, doc]));
-  return byPrefix.get('REQ')?.items.length === 9
+  return byPrefix.get('REQ')?.items.length === 10
     && byPrefix.get('ARCH')?.items.length === 1
     && byPrefix.get('EMPTY')?.items.length === 0;
 }
@@ -154,7 +155,7 @@ suite('Regression Fixture Integration Suite', () => {
     assert.ok(byPrefix.has('REQ'), 'REQ document should be present');
     assert.ok(byPrefix.has('ARCH'), 'ARCH document should be present');
     assert.ok(byPrefix.has('EMPTY'), 'EMPTY document should be present');
-    assert.strictEqual(byPrefix.get('REQ')!.items.length, 9);
+    assert.strictEqual(byPrefix.get('REQ')!.items.length, 10);
     assert.strictEqual(byPrefix.get('ARCH')!.items.length, 1);
     assert.strictEqual(byPrefix.get('EMPTY')!.items.length, 0, 'EMPTY document should have zero items');
   });
@@ -221,5 +222,124 @@ suite('Regression Fixture Integration Suite', () => {
     const restored = await server.request<TreeResponse>('GET', '/tree');
     const restoredLink = restored.documents.find(doc => doc.prefix === 'REQ')!.items.find(i => i.uid === 'REQ-007')!.links[0];
     assert.strictEqual(restoredLink?.suspect, true, 'REQ-007 should be suspect again once the fixture file is restored');
+  });
+
+  /** The item node for `uid` as the server currently reports it. */
+  async function itemNode(uid: string) {
+    const tree = await server.request<TreeResponse>('GET', '/tree');
+    return tree.documents.flatMap(doc => doc.items).find(item => item.uid === uid);
+  }
+
+  test('CodeLens: Do Review marks only the target requirement as reviewed', async function () {
+    this.timeout(10000);
+    const filePath = path.join(FIXTURE_ROOT, 'REQ-007.yml');
+
+    await withRestoredFile(filePath, async () => {
+      assert.strictEqual((await itemNode('REQ-007'))?.reviewed, false, 'REQ-007 should start unreviewed');
+      const otherBefore = (await itemNode('REQ-008'))?.reviewed;
+
+      await vscode.commands.executeCommand('doorstop.doReview', {
+        uid: 'REQ-007',
+        documentUri: vscode.Uri.file(filePath).toString()
+      });
+
+      assert.strictEqual((await itemNode('REQ-007'))?.reviewed, true, 'REQ-007 should be reviewed');
+      assert.strictEqual(
+        (await itemNode('REQ-008'))?.reviewed,
+        otherBefore,
+        'no other requirement may be touched'
+      );
+    });
+  });
+
+  test("CodeLens: Clear All Suspicions clears the item's links", async function () {
+    this.timeout(10000);
+    const filePath = path.join(FIXTURE_ROOT, 'REQ-010.yml');
+
+    await withRestoredFile(filePath, async () => {
+      const before = await itemNode('REQ-010');
+      assert.deepStrictEqual(
+        before?.links.map(link => link.suspect),
+        [true, true],
+        'REQ-010 should start with both links suspect'
+      );
+
+      await vscode.commands.executeCommand('doorstop.clearAllSuspicions', {
+        uid: 'REQ-010',
+        documentUri: vscode.Uri.file(filePath).toString()
+      });
+
+      const after = await itemNode('REQ-010');
+      assert.deepStrictEqual(
+        after?.links.map(link => link.suspect),
+        [false, false],
+        'every link of REQ-010 should be cleared'
+      );
+      assert.strictEqual(after?.cleared, true);
+    });
+  });
+
+  test('CodeLens: Clear the Suspicion clears one link and leaves the other suspect', async function () {
+    this.timeout(10000);
+    const filePath = path.join(FIXTURE_ROOT, 'REQ-010.yml');
+
+    await withRestoredFile(filePath, async () => {
+      await vscode.commands.executeCommand('doorstop.clearSuspicion', {
+        uid: 'REQ-010',
+        parentUid: 'REQ-001',
+        documentUri: vscode.Uri.file(filePath).toString()
+      });
+
+      const after = await itemNode('REQ-010');
+      const byParent = new Map(after!.links.map(link => [link.uid, link.suspect]));
+      assert.strictEqual(byParent.get('REQ-001'), false, 'the named link should be cleared');
+      assert.strictEqual(byParent.get('REQ-002'), true, 'the other link must stay suspect');
+    });
+  });
+
+  test('Derive: target documents come from the server and match the fixture hierarchy', async function () {
+    this.timeout(10000);
+
+    // ARCH, EMPTY and MD are all children of REQ, so from ARCH-001 the
+    // same-level-or-below targets are the other two children - the same set the
+    // pre-remediation implementation derived by globbing .doorstop.yml itself.
+    assert.deepStrictEqual(await getDeriveTargetPrefixes(server, 'ARCH-001'), ['EMPTY', 'MD']);
+
+    // From a root item, every child document qualifies.
+    assert.deepStrictEqual(
+      await getDeriveTargetPrefixes(server, 'REQ-001'),
+      ['ARCH', 'EMPTY', 'MD']
+    );
+
+    assert.strictEqual(
+      await getDeriveTargetPrefixes(server, 'REQ-999'),
+      undefined,
+      'an item belonging to no document offers no targets'
+    );
+  });
+
+  test('CodeLens: Clear the Suspicion on a dangling link changes nothing', async function () {
+    this.timeout(10000);
+    const filePath = path.join(FIXTURE_ROOT, 'REQ-009.yml');
+    const before = await fs.readFile(filePath);
+
+    // REQ-999 does not exist, so the server rejects the request with a 400 before
+    // stamping anything; the command surfaces that and leaves the item alone.
+    await vscode.commands.executeCommand('doorstop.clearSuspicion', {
+      uid: 'REQ-009',
+      parentUid: 'REQ-999',
+      documentUri: vscode.Uri.file(filePath).toString()
+    });
+
+    assert.deepStrictEqual(
+      await fs.readFile(filePath),
+      before,
+      'a rejected clear must not rewrite the requirement file'
+    );
+    assert.strictEqual(
+      (await itemNode('REQ-009'))?.links[0].suspect,
+      true,
+      "REQ-009's dangling link must still be reported suspect"
+    );
   });
 });

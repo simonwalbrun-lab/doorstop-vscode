@@ -6,3 +6,5 @@ node_modules
 server/.venv/
 server/**/__pycache__/
 server/**/*.egg-info/
+*.log
+.env*
