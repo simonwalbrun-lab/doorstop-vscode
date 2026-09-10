@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 1.0
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  The system shall provide a baseline capability with no upstream or
+  downstream links. This item exists as a stable link target for other
+  fixture items and should never itself need to change.

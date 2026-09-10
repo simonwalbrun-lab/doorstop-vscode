@@ -1,0 +1,10 @@
+active: true
+derived: false
+header: ''
+level: 1.8
+links:
+- REQ-999: null
+normative: true
+ref: ''
+reviewed: null
+text: 'The system shall have a dangling link to REQ-999, which does not exist, to exercise broken-reference handling.'

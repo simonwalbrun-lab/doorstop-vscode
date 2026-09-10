@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 1.6
+links:
+- REQ-001: null
+normative: true
+ref: ''
+reviewed: null
+text: |
+  The system shall have a suspect link to REQ-001, to exercise suspect-link handling.

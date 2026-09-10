@@ -6,6 +6,7 @@ src/**
 server/**
 doc/**
 .venv/**
+testdata/**
 .gitignore
 .yarnrc
 esbuild.js

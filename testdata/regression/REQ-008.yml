@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 1.7
+links:
+- REQ-001: eturK1qVdbL6ht9C3KMy5yP2o2gi-Vt9k-y2b7NQGf4=
+normative: true
+ref: ''
+reviewed: u9k5Q8d8axQQKGaQigFE001YReL1tr_zQRWd6-exbcc=
+text: |
+  The system shall have a cleared, reviewed link to REQ-001, to exercise the cleared-suspect state.
