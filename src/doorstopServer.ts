@@ -17,6 +17,20 @@ export class DoorstopApiError extends Error {
   }
 }
 
+/**
+ * Matches how the OS reports a taken port across platforms: Python surfaces
+ * `[Errno 98] Address already in use` on Linux, `[Errno 48]` on macOS and
+ * `[WinError 10048]` on Windows.
+ */
+export const PORT_IN_USE_REGEX = /address already in use|EADDRINUSE|WinError 10048|Errno 48|Errno 98/i;
+
+/** Exported so a test can assert the exact wording the user is shown. */
+export function portInUseHint(port: number): string {
+  return `\n\nPort ${port} is already in use. Another Doorstop server (perhaps from a `
+    + 'second VS Code window, or a previous session that did not shut down) is still '
+    + 'bound to it. Close it, then run "Doorstop: Restart Server".';
+}
+
 interface ErrorPayload {
   error?: { code?: string; message?: string };
 }
@@ -90,10 +104,9 @@ export class DoorstopServer {
       });
       child.on('exit', (code, signal) => {
         if (!settled) {
-          const detail = this.recentStderr.trim();
-          const suffix = detail ? `\n${detail}` : '';
           settleReject(new Error(
-            `doorstop_server exited before becoming ready (code ${code ?? 'none'}, signal ${signal ?? 'none'}).${suffix}`
+            `doorstop_server exited before becoming ready (code ${code ?? 'none'}, `
+            + `signal ${signal ?? 'none'}).${this.outputSuffix()}`
           ));
         }
       });
@@ -163,7 +176,25 @@ export class DoorstopServer {
       }
       await new Promise(resolve => setTimeout(resolve, this.retryIntervalMs));
     }
-    throw new Error(`Timed out waiting for Doorstop server at ${this.host}:${this.port}.`);
+    // FR-006 applies to every startup failure, not just a process exit: without the
+    // captured stderr a timeout gave the user a bare message and nothing to act on.
+    throw new Error(
+      `Timed out waiting for Doorstop server at ${this.host}:${this.port}.${this.outputSuffix()}`
+    );
+  }
+
+  /**
+   * The recent server output appended to a startup error (FR-006), plus an explicit
+   * hint when that output shows the fixed port is already taken - the single most
+   * common startup failure, and unrecognisable from a raw OSError traceback.
+   */
+  private outputSuffix(): string {
+    const detail = this.recentStderr.trim();
+    if (!detail) {
+      return '';
+    }
+    const hint = PORT_IN_USE_REGEX.test(detail) ? portInUseHint(this.port) : '';
+    return `\n${detail}${hint}`;
   }
 
   private async isHealthy(): Promise<boolean> {

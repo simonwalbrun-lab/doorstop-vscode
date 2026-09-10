@@ -56,6 +56,32 @@ export async function choosePrefix(tree: DoorstopTreeProvider): Promise<string |
   return choice?.label;
 }
 
+/**
+ * The parent quick-select shown by "Create Document" (spec 002 FR-009/FR-010).
+ * Returns the chosen parent prefix, `null` for the explicit "no parent" entry,
+ * and `undefined` when the user dismissed the pick - which cancels the whole
+ * command (FR-011), so "dismissed" must stay distinguishable from "chose none".
+ */
+export async function chooseParentPrefix(
+  tree: DoorstopTreeProvider
+): Promise<string | null | undefined> {
+  const roots = await documentRoots(tree);
+  const noParent = { label: 'None (create as root document)', description: 'No parent document' };
+  const choices = [
+    noParent,
+    ...roots
+      .filter(root => typeof root.itemData.prefix === 'string' && root.itemData.prefix.trim())
+      .map(root => ({ label: root.itemData.prefix as string, description: root.resourceUri.fsPath }))
+  ];
+  const choice = await vscode.window.showQuickPick(choices, {
+    placeHolder: 'Select the parent document for the new document'
+  });
+  if (!choice) {
+    return undefined;
+  }
+  return choice === noParent || choice.label === noParent.label ? null : choice.label;
+}
+
 async function chooseDocumentOrAll(tree: DoorstopTreeProvider): Promise<string | undefined> {
   const roots = await documentRoots(tree);
   const choices = roots
@@ -84,6 +110,24 @@ function nextLevel(level: unknown): string | undefined {
   if (!Number.isFinite(last)) {return undefined;}
   parts[parts.length - 1] = String(last + 1);
   return parts.join('.');
+}
+
+/**
+ * Tells the user where the output actually landed (spec 004 FR-008). The server
+ * echoes the path its renderer really wrote, which is not always the requested
+ * one - Doorstop's HTML publisher, for instance, nests the output in a directory
+ * of its own - so the reported path is the server's, never the requested one.
+ */
+async function reportWrittenPath(action: string, requestedPath: string, writtenPath: string): Promise<void> {
+  const differs = path.normalize(requestedPath) !== path.normalize(writtenPath);
+  const message = differs
+    ? `${action} complete. Doorstop wrote to ${writtenPath} (instead of the requested ${requestedPath}).`
+    : `${action} complete: ${writtenPath}`;
+  const reveal = 'Reveal in Explorer';
+  const choice = await vscode.window.showInformationMessage(message, reveal);
+  if (choice === reveal) {
+    await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(writtenPath));
+  }
 }
 
 /** Builds a `{scope, target}` body matching the server's review/clear disambiguation. */
@@ -131,7 +175,15 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
       defaultUri: vscode.Uri.file(path.join(options.workspaceFolder.uri.fsPath, prefix))
     });
     if (!folders?.[0]) {return;}
-    await run(() => options.server.request('POST', '/documents', { prefix, path: folders[0].fsPath }));
+    // `undefined` means the pick was dismissed - cancel and create nothing (FR-011);
+    // `null` is the deliberate "root document" choice, which sends no parentPrefix.
+    const parentPrefix = await chooseParentPrefix(options.tree);
+    if (parentPrefix === undefined) {return;}
+    await run(() => options.server.request('POST', '/documents', {
+      prefix,
+      path: folders[0].fsPath,
+      ...(parentPrefix === null ? {} : { parentPrefix })
+    }));
   });
 
   const refresh = register('doorstop.refresh', () => {
@@ -265,10 +317,15 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
       }
     });
     if (destination) {
-      await run(() => options.server.request('POST', `/documents/${encodeURIComponent(prefix)}/export`, {
-        format: format.value,
-        destinationPath: destination.fsPath
-      }));
+      const result = await run(() => options.server.request<{ path: string }>(
+        'POST', `/documents/${encodeURIComponent(prefix)}/export`, {
+          format: format.value,
+          destinationPath: destination.fsPath
+        }
+      ));
+      if (result?.path) {
+        await reportWrittenPath('Export', destination.fsPath, result.path);
+      }
     }
   });
 
@@ -283,10 +340,15 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     if (!format) {return;}
     const destination = await vscode.window.showSaveDialog({ saveLabel: 'Publish' });
     if (destination) {
-      await run(() => options.server.request('POST', `/documents/${encodeURIComponent(prefix)}/publish`, {
-        format: format.value,
-        destinationPath: destination.fsPath
-      }));
+      const result = await run(() => options.server.request<{ path: string }>(
+        'POST', `/documents/${encodeURIComponent(prefix)}/publish`, {
+          format: format.value,
+          destinationPath: destination.fsPath
+        }
+      ));
+      if (result?.path) {
+        await reportWrittenPath('Publish', destination.fsPath, result.path);
+      }
     }
   });
 

@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as yaml from 'js-yaml';
 
 import { DoorstopServer } from './doorstopServer';
 import { DoorstopTreeProvider } from './requirementTree';
@@ -422,8 +421,11 @@ export class DoorstopDiagramPanel {
             }
         }
 
+        // FR-007: keep a persisted edge whenever *either* endpoint is unknown to the
+        // server (an orphaned or renamed file). Checking only `from` silently dropped
+        // edges whose `to` had gone missing - exactly the case the rule exists for.
         for (const edge of Array.isArray(diagram?.edges) ? diagram.edges : []) {
-            if (!meta[edge.from]) {
+            if (!meta[edge.from] || !meta[edge.to]) {
                 const key = `${edge.from}->${edge.to}`;
                 if (!seen.has(key)) {
                     seen.add(key);
@@ -630,44 +632,21 @@ export class DoorstopDiagramPanel {
             return;
         }
 
-        // Details & Links auslesen: bevorzugt aus den vom Server geladenen Metadaten,
-        // sonst Fallback auf direktes Parsen der YAML/Markdown-Frontmatter.
+        // Titel und Links stammen ausschliesslich aus den vom Server geladenen
+        // Metadaten (GET /tree). Die Datei wird hier bewusst nicht mehr selbst
+        // geparst - Item-Daten gehoeren Doorstop, siehe src/doorstopIndex.ts.
         const knownMeta = uid ? this._itemMeta[uid] : undefined;
+        if (!knownMeta) {
+            console.warn('[Doorstop][drop] No server metadata for UID:', JSON.stringify(uid));
+            vscode.window.showWarningMessage(
+                `Der Doorstop-Server kennt "${uid}" nicht. Bitte den Baum aktualisieren ` +
+                'oder "Doorstop: Restart Server" ausführen.'
+            );
+            return;
+        }
         try {
-            let title: string;
-            let links: string[];
-
-            if (knownMeta) {
-                const content = fs.readFileSync(targetFilePath, 'utf8');
-                let yamlContent = content;
-                if (content.startsWith('---')) {
-                    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-                    if (match) {yamlContent = match[1];}
-                }
-                const data: any = yaml.load(yamlContent) || {};
-                title = data.header || data.title || '';
-                links = knownMeta.links.map(l => l.uid);
-            } else {
-                const content = fs.readFileSync(targetFilePath, 'utf8');
-              console.log('[Doorstop][drop] Read requirement bytes:', content.length);
-                let yamlContent = content;
-
-                if (content.startsWith('---')) {
-                    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-                    if (match) {yamlContent = match[1];}
-                }
-
-                const data: any = yaml.load(yamlContent) || {};
-                title = data.header || data.title || '';
-                links = [];
-
-                if (Array.isArray(data.links)) {
-                    for (const l of data.links) {
-                        const targetId = typeof l === 'string' ? l : l.item;
-                        if (targetId) {links.push(String(targetId));}
-                    }
-                }
-            }
+            const title: string = knownMeta.header ?? '';
+            const links: string[] = knownMeta.links.map(l => l.uid);
 
             // Knotendaten zurück an Webview schicken
             const delivered = await this._panel.webview.postMessage({

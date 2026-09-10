@@ -1,11 +1,20 @@
+import * as path from 'node:path';
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as yaml from 'js-yaml';
 
-interface RequirementSuggestion {
-  uid: string;
-  title: string;
-  uri: vscode.Uri;
+import { getItemTitle, loadDoorstopIndex } from './doorstopIndex';
+import { DoorstopServer } from './doorstopServer';
+
+/**
+ * UID autocompletion inside a requirement's `links:` block.
+ *
+ * The candidate list comes from `GET /tree` via the shared DoorstopIndex, so the
+ * suggestions are exactly the items Doorstop itself knows about - a stray
+ * `notes.yml` sitting next to the requirements is no longer offered as a link
+ * target. See src/doorstopIndex.ts.
+ */
+
+export interface CompletionProviderOptions {
+  server: DoorstopServer;
 }
 
 const recentlyViewedUids: string[] = [];
@@ -21,32 +30,6 @@ export function recordViewedRequirement(uri: vscode.Uri | undefined): void {
     recentlyViewedUids.splice(existingIndex, 1);
   }
   recentlyViewedUids.unshift(uid);
-}
-
-function parseRequirement(rawContent: string): { title: string } {
-  const trimmed = rawContent.trimStart();
-  let yamlContent = rawContent;
-  let markdownBody = '';
-
-  if (trimmed.startsWith('---')) {
-    const match = trimmed.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-    if (match) {
-      yamlContent = match[1];
-      markdownBody = match[2];
-    }
-  }
-
-  const data = (yaml.load(yamlContent) as { header?: string } | null) || {};
-  if (data.header) {
-    return { title: data.header };
-  }
-
-  const heading = markdownBody.match(/^#\s+(.+)$/m);
-  if (heading) {
-    return { title: heading[1].trim() };
-  }
-
-  return { title: markdownBody.trim().split('\n')[0]?.trim() || 'Unnamed requirement' };
 }
 
 function isInsideFrontmatter(document: vscode.TextDocument, line: number): boolean {
@@ -87,7 +70,10 @@ function getReplacementRange(document: vscode.TextDocument, position: vscode.Pos
   return new vscode.Range(position.line, start, position.line, position.character);
 }
 
-export function registerCompletionProvider(context: vscode.ExtensionContext): void {
+export function registerCompletionProvider(
+  context: vscode.ExtensionContext,
+  options: CompletionProviderOptions
+): void {
   const provider: vscode.CompletionItemProvider = {
     async provideCompletionItems(document, position) {
       if (!isInLinksBlock(document, position)) {
@@ -99,46 +85,32 @@ export function registerCompletionProvider(context: vscode.ExtensionContext): vo
         return undefined;
       }
 
-      const files = await vscode.workspace.findFiles('**/*.{yml,md}', '**/{node_modules,.git,out,dist,.venv,venv}/**');
-      const suggestions: RequirementSuggestion[] = [];
-      const seen = new Set<string>();
-
-      for (const uri of files) {
-        const uid = path.basename(uri.fsPath).replace(/\.(yml|md)$/, '');
-        if (!uid || seen.has(uid)) {
-          continue;
-        }
-
-        try {
-          const content = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
-          const requirement = parseRequirement(content);
-          seen.add(uid);
-          suggestions.push({ uid, title: requirement.title, uri });
-        } catch {
-          // Ignore files that cannot be read or parsed.
-        }
+      const index = await loadDoorstopIndex(options.server);
+      if (!index) {
+        return undefined;
       }
 
       const recentIndex = (uid: string): number => {
-        const index = recentlyViewedUids.indexOf(uid);
-        return index >= 0 ? index : Number.MAX_SAFE_INTEGER;
+        const position = recentlyViewedUids.indexOf(uid);
+        return position >= 0 ? position : Number.MAX_SAFE_INTEGER;
       };
-      suggestions.sort((a, b) => recentIndex(a.uid) - recentIndex(b.uid)
+      const suggestions = index.items.sort((a, b) => recentIndex(a.uid) - recentIndex(b.uid)
         || a.uid.localeCompare(b.uid));
 
       return suggestions.map(suggestion => {
+        const title = getItemTitle(suggestion);
         const item = new vscode.CompletionItem(
-          `${suggestion.uid} - ${suggestion.title}`,
+          `${suggestion.uid} - ${title}`,
           vscode.CompletionItemKind.Reference
         );
-        item.detail = suggestion.uri.fsPath;
-        item.documentation = new vscode.MarkdownString(`**${suggestion.uid}**\n\n${suggestion.title}`);
+        item.detail = suggestion.path;
+        item.documentation = new vscode.MarkdownString(`**${suggestion.uid}**\n\n${title}`);
         item.insertText = `${suggestion.uid}: null`;
         item.range = range;
         const viewedIndex = recentlyViewedUids.indexOf(suggestion.uid);
         const sortRank = viewedIndex >= 0 ? viewedIndex : recentlyViewedUids.length + 1;
         item.sortText = `${String(sortRank).padStart(6, '0')}_${suggestion.uid}`;
-        item.filterText = `${suggestion.uid} ${suggestion.title}`;
+        item.filterText = `${suggestion.uid} ${title}`;
         return item;
       });
     }

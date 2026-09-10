@@ -10,6 +10,7 @@ import { registerReviewLensProvider } from './reviewLensProvider';
 import { registerDefinitionProvider } from './definitionProvider';
 import { DoorstopCommandsProvider } from './commandsProvider';
 import { registerDoorstopCommands } from './doorstopCommands';
+import { ProblemsProvider, registerProblemsProvider } from './problemsProvider';
 interface DoorstopDiagramDocument extends vscode.CustomDocument {
   diagram: unknown;
 }
@@ -61,6 +62,11 @@ export async function activate(context: vscode.ExtensionContext) {
     return environment.path;
   };
 
+  // Declared before every closure that uses it. It stays undefined until the
+  // workspaceFolder block below assigns it, so the optional calls on it are
+  // genuine no-ops during the first server start rather than a dead-zone error.
+  let problemsProvider: ProblemsProvider | undefined;
+
   const startDoorstopServer = async (restart = false): Promise<void> => {
     if (!workspaceFolder || !(await findDoorstopMarker())) {
       void vscode.window.showWarningMessage('No .doorstop.yml project was found in the workspace.');
@@ -76,6 +82,9 @@ export async function activate(context: vscode.ExtensionContext) {
       }
       console.log('[Doorstop][server] Server is ready at 127.0.0.1:7867');
       void vscode.window.showInformationMessage('Doorstop server is ready.');
+      // A restart means the tree may have changed underneath us; on the first
+      // start this is a no-op and the initial check runs at registration.
+      problemsProvider?.scheduleRefresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error('[Doorstop][server] Failed to start:', message);
@@ -99,18 +108,38 @@ export async function activate(context: vscode.ExtensionContext) {
     context,
     server: doorstopServer,
     tree: treeProvider,
-    utilities: commandsProvider,
+    utilities: {
+      refresh: () => {
+        commandsProvider.refresh();
+        problemsProvider?.scheduleRefresh();
+      }
+    },
     workspaceFolder: workspaceFolder || vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder
   }));
   if (workspaceFolder) {
-    registerDeriveProvider(context, {
+    // Registered first so the providers below can ask it to re-check after a
+    // mutation they caused.
+    problemsProvider = registerProblemsProvider(context, {
       server: doorstopServer,
-      onChanged: () => treeProvider.refresh()
+      workspaceFolder
     });
-    registerReviewLensProvider(context, {
-      server: doorstopServer,
-      onChanged: () => treeProvider.refresh()
-    });
+    // Only worth a first pass if a server actually came up; when it did not,
+    // startDoorstopServer has already told the user why, and a second warning
+    // about problems would just be noise.
+    if (doorstopServer.isRunning) {
+      void problemsProvider.refreshNow();
+    }
+    // Forces a full re-check, bypassing the debounce (FR-013).
+    context.subscriptions.push(vscode.commands.registerCommand(
+      'doorstop.recheckProblems',
+      () => problemsProvider?.refreshNow()
+    ));
+    const onChanged = (): void => {
+      treeProvider.refresh();
+      problemsProvider?.scheduleRefresh();
+    };
+    registerDeriveProvider(context, { server: doorstopServer, onChanged });
+    registerReviewLensProvider(context, { server: doorstopServer, onChanged });
     registerDefinitionProvider(context, {
       server: doorstopServer,
       workspaceFolder
@@ -143,10 +172,23 @@ export async function activate(context: vscode.ExtensionContext) {
   const documentChangeEvent = new vscode.EventEmitter<vscode.CustomDocumentContentChangeEvent<DoorstopDiagramDocument>>();
   const diagramEditorProvider: vscode.CustomEditorProvider<DoorstopDiagramDocument> = {
     onDidChangeCustomDocument: documentChangeEvent.event,
-    async openCustomDocument(uri) {
+    async openCustomDocument(uri, openContext) {
+      // After a crash or reload VS Code hands back the backup it last took, and the
+      // editor must reopen from that hot-exit copy rather than from the (stale)
+      // file on disk - otherwise every unsaved diagram edit is silently lost.
+      // backupCustomDocument returns the destination URI as the backup id.
+      const backupUri = openContext.backupId ? vscode.Uri.parse(openContext.backupId) : undefined;
+      let diagram;
+      if (backupUri) {
+        try {
+          diagram = await DoorstopDiagramPanel.readDiagram(backupUri);
+        } catch (e) {
+          console.warn('[Doorstop][diagram] Backup could not be read, falling back to the saved file:', e);
+        }
+      }
       return {
         uri,
-        diagram: await DoorstopDiagramPanel.readDiagram(uri),
+        diagram: diagram ?? await DoorstopDiagramPanel.readDiagram(uri),
         dispose() { }
       };
     },
@@ -382,13 +424,13 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  registerHoverProvider(context);
-  registerCompletionProvider(context);
+  registerHoverProvider(context, { server: doorstopServer });
+  registerCompletionProvider(context, { server: doorstopServer });
 
   // Exported purely for extension-host tests (src/test/extension.test.ts) to
   // observe internal state that has no other public surface; not used by the
   // extension itself or intended for other extensions to depend on.
-  return { treeProvider };
+  return { treeProvider, problemsProvider };
 }
 
 export function deactivate() {}

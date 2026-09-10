@@ -150,7 +150,14 @@ suite('Review Lens Scan Suite', () => {
     );
   });
 
-  test('a markdown item scans its frontmatter only, never its prose body', async () => {
+  test('a markdown item scans its frontmatter only, never its prose body', async function () {
+    // The only test here that opens a markdown document, so it also pays for the
+    // built-in markdown language service's first-open work. It runs in ~250ms but
+    // has been seen to exceed mocha's 2s default when the machine is loaded (three
+    // Electron launches plus a Python server, as in a full `npm test`). The
+    // assertion is about anchoring, not speed - so use the same explicit timeout
+    // the other suites' document-opening tests already set.
+    this.timeout(10000);
     // MD-001.md carries real metadata in frontmatter and a deliberate decoy
     // "links:/- REQ-002" pair further down in the prose.
     const name = path.join('children', 'MD', 'MD-001.md');

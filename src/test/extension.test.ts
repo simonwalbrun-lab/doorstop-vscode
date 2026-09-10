@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 // import * as myExtension from '../../extension';
 
 import { registerDefinitionProvider } from '../definitionProvider';
+import { buildDeriveTargets, DocumentHierarchyNode } from '../deriveProvider';
 import { DoorstopServer } from '../doorstopServer';
 import { TreeResponse } from '../doorstopTypes';
 
@@ -79,6 +80,98 @@ suite('Extension Test Suite', () => {
 			// into others.
 			await vscode.commands.executeCommand('doorstop.enableAutoReveal');
 		}
+	});
+});
+
+suite('Derive Target Kinship', () => {
+	// The regression fixture is only two levels deep, so grandchild / nephew /
+	// cousin cannot occur there. This pure, synthetic hierarchy is the only place
+	// the full taxonomy and its ordering are exercised:
+	//
+	//                REQ
+	//               /   \
+	//            SYS     TST
+	//           /   \       \
+	//        SWE     HWE     TC
+	//        /
+	//     UNIT
+	const HIERARCHY: DocumentHierarchyNode[] = [
+		{ prefix: 'REQ' },
+		{ prefix: 'SYS', parentPrefix: 'REQ' },
+		{ prefix: 'TST', parentPrefix: 'REQ' },
+		{ prefix: 'SWE', parentPrefix: 'SYS' },
+		{ prefix: 'HWE', parentPrefix: 'SYS' },
+		{ prefix: 'TC', parentPrefix: 'TST' },
+		{ prefix: 'UNIT', parentPrefix: 'SWE' }
+	];
+
+	test('a middle document sees children, grandchildren, siblings and nephews', () => {
+		assert.deepStrictEqual(buildDeriveTargets('SYS', HIERARCHY), [
+			{ prefix: 'HWE', relationship: 'child' },
+			{ prefix: 'SWE', relationship: 'child' },
+			{ prefix: 'UNIT', relationship: 'grandchild' },
+			{ prefix: 'TST', relationship: 'sibling' },
+			{ prefix: 'TC', relationship: 'nephew' }
+		]);
+	});
+
+	test('a leaf-level document sees its sibling and its cousin', () => {
+		assert.deepStrictEqual(buildDeriveTargets('SWE', HIERARCHY), [
+			{ prefix: 'UNIT', relationship: 'child' },
+			{ prefix: 'HWE', relationship: 'sibling' },
+			{ prefix: 'TC', relationship: 'cousin' }
+		]);
+	});
+
+	test('the root document sees only descendants', () => {
+		assert.deepStrictEqual(buildDeriveTargets('REQ', HIERARCHY), [
+			{ prefix: 'SYS', relationship: 'child' },
+			{ prefix: 'TST', relationship: 'child' },
+			{ prefix: 'HWE', relationship: 'grandchild' },
+			{ prefix: 'SWE', relationship: 'grandchild' },
+			{ prefix: 'TC', relationship: 'grandchild' },
+			// UNIT is three levels down: past the words that stay useful.
+			{ prefix: 'UNIT', relationship: 'related' }
+		]);
+	});
+
+	test('the offered set is unchanged - every document at the source depth or below', () => {
+		// Option A is deliberately kept: the kinship labels describe the list, they
+		// do not filter it. Only the source itself and shallower documents are out.
+		const offered = buildDeriveTargets('SWE', HIERARCHY).map(target => target.prefix).sort();
+		assert.deepStrictEqual(offered, ['HWE', 'TC', 'UNIT']);
+	});
+
+	test('a document in a separate root tree is reported as related, and sorts last', () => {
+		const twoRoots: DocumentHierarchyNode[] = [
+			...HIERARCHY,
+			{ prefix: 'OTHER' },
+			{ prefix: 'OTHERCHILD', parentPrefix: 'OTHER' }
+		];
+		const targets = buildDeriveTargets('SYS', twoRoots);
+
+		assert.deepStrictEqual(
+			targets.find(target => target.prefix === 'OTHERCHILD'),
+			{ prefix: 'OTHERCHILD', relationship: 'related' }
+		);
+		assert.strictEqual(
+			targets[targets.length - 1].relationship,
+			'related',
+			'unnamed relationships must sort to the bottom of the quick pick'
+		);
+	});
+
+	test('a parent cycle in the document config does not hang the quick pick', () => {
+		const cyclic: DocumentHierarchyNode[] = [
+			{ prefix: 'A', parentPrefix: 'B' },
+			{ prefix: 'B', parentPrefix: 'A' },
+			{ prefix: 'C', parentPrefix: 'A' }
+		];
+
+		const targets = buildDeriveTargets('A', cyclic);
+
+		assert.ok(targets.every(target => target.prefix !== 'A'), 'the source is never its own target');
+		assert.ok(targets.length > 0, 'a malformed hierarchy still yields a usable list');
 	});
 });
 

@@ -57,6 +57,11 @@
       "icon": "$(new-file)"
     },
     {
+      "command": "doorstop.recheckProblems",
+      "title": "Doorstop: Re-check Problems",
+      "icon": "$(checklist)"
+    },
+    {
       "command": "doorstop.restartServer",
       "title": "Doorstop: Restart Server",
       "icon": "$(refresh)"
@@ -275,8 +280,5 @@
   "overrides": {
     "diff": "^8.0.4",
     "serialize-javascript": "^7.0.6"
-  },
-  "dependencies": {
-    "js-yaml": "^5.4.1"
   }
 }

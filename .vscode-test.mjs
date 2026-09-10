@@ -14,4 +14,12 @@ export default defineConfig([
 		files: 'out/test/regressionFixture.test.js',
 		workspaceFolder: 'testdata/regression',
 	},
+	{
+		// Needs the fixture workspace (so the extension activates and its CodeLens
+		// providers register) but deliberately starts no Doorstop server — lens
+		// provision must be a pure text scan.
+		label: 'reviewLensScan',
+		files: 'out/test/reviewLensScan.test.js',
+		workspaceFolder: 'testdata/regression',
+	},
 ]);

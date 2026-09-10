@@ -44,6 +44,20 @@ local Doorstop server.
 | 12 | Suspect link | `REQ-007` | Hover `REQ-007`, or view it in a diagram with `REQ-001` added | Its link to `REQ-001` is shown as suspect; run Doorstop: Clear Suspect on `REQ-007` and confirm the suspect indicator clears (then re-run `doorstop link REQ-007 REQ-001` locally to restore the fixture, or discard the change) | Yes (clear-suspect only, not hover/diagram) — `regressionFixture.test.ts`: "Item lifecycle: the clear-suspect command resolves REQ-007's suspect link" (restores the fixture file automatically afterward) |
 | 13 | Dangling link | `REQ-009` | Hover `REQ-009`'s link to `REQ-999`, or press F12 on it | The broken reference is reported clearly (e.g. "not found") — no crash, no silent no-op | Yes (F12 only, not hover) — `regressionFixture.test.ts`: "Go to Definition reports REQ-009's dangling link as broken" |
 
+## Problem reporting (feature 014)
+
+The fixture carries three known Doorstop problems by design. All three are
+asserted automatically; the manual pass is to confirm they are *visible* where
+a user would look.
+
+| # | Problem | Fixture element | Expected outcome | Automated coverage |
+|---|---|---|---|---|
+| 14 | Broken link (error) | `REQ-009.yml` | A red squiggle on the `- REQ-999: null` line reading "linked to unknown item: REQ-999", and an Error row in the Problems panel. No other link line of that item is marked | Yes - `regressionFixture.test.ts`: "Problems: a dangling link is an error on that link entry only (US1)" |
+| 15 | Suspect link (warning) | `REQ-007.yml` | A yellow squiggle on the `- REQ-001:` link entry reading "suspect link: REQ-001" | Yes - `regressionFixture.test.ts`: "Problems: a suspect link is a warning on its link entry (US2)" |
+| 16 | Empty document (warning) | `children/EMPTY/.doorstop.yml` | A yellow squiggle at line 0 of the document config file reading "no items" | Yes - `regressionFixture.test.ts`: "Problems: an empty document is reported on its config file (US4)" |
+| 17 | Problems stay current | `REQ-009.yml` | Fix the dangling link (point it at `REQ-001`) and save: the error disappears without reloading the window. Undo and save: it comes back | Yes - `regressionFixture.test.ts`: "Problems: a fixed problem disappears on the next check (US5)" |
+| 18 | Expected noise, not a defect | `REQ` items | Most `REQ` items also carry "no links from child document: ARCH / EMPTY / MD" warnings. This is genuine Doorstop output for a fixture whose child documents are deliberately sparse, and is **not** suppressed | Covered indirectly - the fixture yields 43 issues in total; suppression would break "Problems: every diagnostic carries the doorstop source and its check id" |
+
 ## After the pass
 
 - [ ] `git status` shows no unintended changes under `testdata/regression/`

@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-10
 
-**Status**: Draft
+**Status**: In Implementation (scope reduction acknowledged 2026-09-10 - see "Scope decision" below)
 
 **Input**: User description: "I need additional problem reporting. The user needs to see all issues which are reported by doorstop to an item directly in the item. Therefore the extension shall fetch the issues from the server and the warning shall have yellow curls and the error shall be reported as errors. If a single validation is related to several items then it shall be shown in all related items. [Followed by the list of Doorstop WARNING-level and ERROR-level checks with the field each should be anchored to.]"
 
@@ -212,6 +212,32 @@ confirm it returns.
   the file is changed outside the editor?
 - What happens when the requirements source is unreachable at startup, before
   any problems have ever been retrieved?
+
+## Scope decision (acknowledged 2026-09-10)
+
+The user reviewed the reduction `plan.md` raised in its Complexity Tracking
+table and **accepted Option 1: report what Doorstop reports**.
+
+Of the fifteen checks this spec lists, twelve exist in Doorstop 3.2 and are
+implemented. Three do **not** exist in Doorstop 3.2 and are therefore *not*
+reported:
+
+| Check | Why Doorstop 3.2 never reports it |
+|---|---|
+| self-link | Rejected at link-creation time ("link would be self reference"); never re-checked during validation. |
+| link cycle | `check_for_cycle` runs only from `link_items()` at creation time, not from `get_issues()`. |
+| child link to an inactive item | Unreachable: `tree.find_item()` skips inactive items, so an inactive parent already surfaces as the ERROR `linked to unknown item`. |
+
+Implementing these three in our own code would duplicate Doorstop validation
+logic in a second place, which Constitution Principle II prohibits. Their
+anchor mappings are kept reserved in
+[contracts/validation-api.md](contracts/validation-api.md) §2d, so they route
+correctly without further work if a future Doorstop version emits them.
+
+The spec's fifteen-check anchor tables below are left intact and are the
+record of intent; the three reserved checks simply produce no output today.
+
+---
 
 ## Requirements *(mandatory)*
 

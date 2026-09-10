@@ -141,3 +141,23 @@ with a Doorstop-version coupling lives in a single named file.
 |-----------|------------|-------------------------------------|
 | A hand-written message→`check` classification table in `validation_rules.py` (string matching on Doorstop's own message templates) | Doorstop 3.2 yields issues as bare `DoorstopError`/`DoorstopWarning`/`DoorstopInfo` objects carrying **only a message string** — no check id, no item reference, no field ([item_validator.py:43-113](../../.venv/Lib/site-packages/doorstop/core/validators/item_validator.py)). FR-006/FR-007/FR-008 require anchoring each problem to a specific field, which is impossible without identifying the check. Some adapter is unavoidable. | Reading the issue's type alone gives severity but not the field, so anchoring would collapse to "first line of the item" and FR-007/FR-008 would be unmet. Re-deriving each condition ourselves is exactly the reinvention Principle II forbids and would drift from Doorstop's real output. Placing the table in the extension instead was rejected under Principle I: message parsing is Doorstop knowledge and belongs server-side, in one place. Unknown messages degrade to `check: "unknown"` rather than failing. |
 | Three spec'd checks (self-link, link cycle, child-link-inactive) are **not implemented** | They do not exist in Doorstop 3.2's validation. `check_for_cycle` runs only at link-creation time from `link_items()` ([tree.py:288-329](../../.venv/Lib/site-packages/doorstop/core/tree.py)); a self-link is rejected at creation ("link would be self reference") but never re-checked; and `linked to inactive item` is unreachable because `tree.find_item()` skips inactive items, so an inactive parent surfaces as the ERROR `linked to unknown item`. All three confirmed empirically — see [research.md §2](research.md). | Implementing them in our server or extension would duplicate Doorstop validation logic in a second place, which Principle II prohibits outright and which caused the very view/state divergence Principle I exists to prevent. The anchor mappings for all three are retained in the contract so they route correctly if Doorstop adds them. **This is a scope reduction against the spec and needs the user's acknowledgement** — see the Completion Report. |
+
+## Completion Report
+
+### Scope reduction - ACKNOWLEDGED 2026-09-10
+
+The Complexity Tracking row above asks for the user's acknowledgement of a
+fifteen-to-twelve check reduction. **The user acknowledged it on 2026-09-10 and
+chose Option 1: report what Doorstop reports.**
+
+Options that were on the table:
+
+| Option | Decision |
+|---|---|
+| 1. Build the twelve available checks; keep the other three reserved in the contract | **CHOSEN** |
+| 2. Re-implement the three missing checks in our server | Rejected - Constitution Principle II forbids duplicating Doorstop validation logic |
+| 3. Ship User Story 1 (the three error checks) only, defer the rest | Not needed; the full twelve are in scope |
+
+The reduction is recorded in [spec.md](spec.md) under "Scope decision", with
+the empirical reason for each of the three. Implementation of `tasks.md` is
+unblocked.

@@ -1,8 +1,8 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 
+import { DoorstopIndex, getDocumentUid, loadDoorstopIndex } from './doorstopIndex';
 import { DoorstopServer } from './doorstopServer';
-import { TreeResponse } from './doorstopTypes';
 
 const UID_REGEX = /\b[A-Z0-9_-]+-\d+\b/g;
 const DERIVED_LINE_REGEX = /^\s*derived\s*:/i;
@@ -12,47 +12,8 @@ const MARKDOWN_HEADING_LINE_REGEX = /^#{1,6}\s+/;
 interface DefinitionProviderOptions {
   server: DoorstopServer;
   workspaceFolder: vscode.WorkspaceFolder;
-}
-
-interface ItemIndex {
-  pathByUid: Map<string, string>;
-  linkersByUid: Map<string, string[]>;
-}
-
-function getCurrentUid(document: vscode.TextDocument): string | undefined {
-  const extension = path.extname(document.fileName).toLowerCase();
-  if (extension !== '.yml' && extension !== '.md') {
-    return undefined;
-  }
-  return path.basename(document.fileName, extension);
-}
-
-/** Sourced from GET /tree (the server's own computed truth) rather than re-parsing YAML client-side. */
-async function buildItemIndex(server: DoorstopServer): Promise<ItemIndex | undefined> {
-  let response: TreeResponse;
-  try {
-    response = await server.request<TreeResponse>('GET', '/tree');
-  } catch (error) {
-    console.error('[Doorstop][definition] Failed to load tree from server:', error instanceof Error ? error.message : String(error));
-    return undefined;
-  }
-
-  const pathByUid = new Map<string, string>();
-  const linkersByUid = new Map<string, string[]>();
-  for (const document of response.documents) {
-    for (const item of document.items) {
-      pathByUid.set(item.uid, item.path);
-      for (const link of item.links) {
-        const linkers = linkersByUid.get(link.uid);
-        if (linkers) {
-          linkers.push(item.uid);
-        } else {
-          linkersByUid.set(link.uid, [item.uid]);
-        }
-      }
-    }
-  }
-  return { pathByUid, linkersByUid };
+  /** Overridable so tests can observe the broken-reference report without a live UI. */
+  reportBrokenReference?: (message: string) => void;
 }
 
 async function findLineMatching(uri: vscode.Uri, lineRegex: RegExp): Promise<vscode.Location> {
@@ -80,63 +41,112 @@ function findReferenceLocation(uri: vscode.Uri, targetUid: string): Promise<vsco
   return findLineMatching(uri, new RegExp(`\\b${targetUid}\\b`));
 }
 
-async function findUsageLocations(document: vscode.TextDocument, server: DoorstopServer): Promise<vscode.Location[]> {
-  const currentUid = getCurrentUid(document);
+async function findUsageLocations(
+  document: vscode.TextDocument,
+  index: DoorstopIndex
+): Promise<vscode.Location[]> {
+  const currentUid = getDocumentUid(document, index);
   if (!currentUid) {
     return [];
   }
-  const index = await buildItemIndex(server);
-  const linkerUids = index?.linkersByUid.get(currentUid) ?? [];
 
   const locations: vscode.Location[] = [];
-  for (const linkerUid of linkerUids) {
-    const linkerPath = index?.pathByUid.get(linkerUid);
-    if (linkerPath) {
-      locations.push(await findReferenceLocation(vscode.Uri.file(linkerPath), currentUid));
+  for (const linkerUid of index.getLinkers(currentUid)) {
+    const linkerUri = index.getUri(linkerUid);
+    if (linkerUri) {
+      locations.push(await findReferenceLocation(linkerUri, currentUid));
     }
   }
   return locations;
 }
 
-async function findDefinitionLocation(
+/**
+ * The message shown when a UID in a link resolves to nothing. Exported so the
+ * exact wording is asserted by tests rather than only "no location returned" -
+ * silently returning `undefined` is indistinguishable from "not a UID at all"
+ * (spec 012, finding C7).
+ */
+export function brokenReferenceMessage(uid: string): string {
+  return `Doorstop: "${uid}" does not match any item known to the Doorstop server. `
+    + 'The link may be broken, or the server may need a refresh.';
+}
+
+/** True when the token really is a Doorstop link the user could expect to follow. */
+function isLinkReference(document: vscode.TextDocument, position: vscode.Position): boolean {
+  for (let line = position.line; line >= 0; line--) {
+    const text = document.lineAt(line).text;
+    if (/^\s*links\s*:/i.test(text)) {
+      return true;
+    }
+    if (/^\s*[A-Za-z][\w-]*\s*:/.test(text) && !/^\s*-/.test(text)) {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * The outcome of a go-to-definition request at one position. `brokenUid` is set
+ * when the token is a link the user could reasonably expect to follow but the
+ * server knows no such item - the case spec 012 requires to be "reported
+ * clearly", and which is indistinguishable from "not a UID" if all a caller can
+ * observe is an empty location list.
+ */
+export interface DefinitionResolution {
+  location?: vscode.Location;
+  brokenUid?: string;
+}
+
+/** Exported for tests: the resolution itself, with no UI side effects. */
+export async function resolveDefinitionAt(
   document: vscode.TextDocument,
   position: vscode.Position,
-  server: DoorstopServer
-): Promise<vscode.Location | undefined> {
+  index: DoorstopIndex
+): Promise<DefinitionResolution> {
   const range = document.getWordRangeAtPosition(position, UID_REGEX);
   if (!range) {
-    return undefined;
+    return {};
   }
   const hoveredUid = document.getText(range);
-  const index = await buildItemIndex(server);
-  const targetPath = index?.pathByUid.get(hoveredUid);
-  if (!targetPath) {
-    return undefined;
+  const targetUri = index.getUri(hoveredUid);
+  if (!targetUri) {
+    // Only complain about tokens that are actually meant to be links; a UID-shaped
+    // word in prose is not a broken reference.
+    return isLinkReference(document, position) ? { brokenUid: hoveredUid } : {};
   }
-  return findHeaderLocation(vscode.Uri.file(targetPath));
+  return { location: await findHeaderLocation(targetUri) };
 }
 
 export function registerDefinitionProvider(context: vscode.ExtensionContext, options: DefinitionProviderOptions): void {
   const { server } = options;
+  const reportBrokenReference = options.reportBrokenReference
+    ?? ((message: string) => void vscode.window.showWarningMessage(message));
   const selector: vscode.DocumentSelector = [{ language: 'yaml' }, { language: 'markdown' }];
 
   const definitionProvider = vscode.languages.registerDefinitionProvider(selector, {
     async provideDefinition(document, position) {
-      const lineText = document.lineAt(position.line).text;
-      if (DERIVED_LINE_REGEX.test(lineText)) {
-        return findUsageLocations(document, server);
+      const index = await loadDoorstopIndex(server);
+      if (!index) {
+        return undefined;
       }
-      return findDefinitionLocation(document, position, server);
+      if (DERIVED_LINE_REGEX.test(document.lineAt(position.line).text)) {
+        return findUsageLocations(document, index);
+      }
+      const resolution = await resolveDefinitionAt(document, position, index);
+      if (resolution.brokenUid) {
+        reportBrokenReference(brokenReferenceMessage(resolution.brokenUid));
+      }
+      return resolution.location;
     }
   });
 
   const referenceProvider = vscode.languages.registerReferenceProvider(selector, {
     async provideReferences(document, position) {
-      const lineText = document.lineAt(position.line).text;
-      if (DERIVED_LINE_REGEX.test(lineText)) {
-        return findUsageLocations(document, server);
+      if (!DERIVED_LINE_REGEX.test(document.lineAt(position.line).text)) {
+        return [];
       }
-      return [];
+      const index = await loadDoorstopIndex(server);
+      return index ? findUsageLocations(document, index) : [];
     }
   });
 
