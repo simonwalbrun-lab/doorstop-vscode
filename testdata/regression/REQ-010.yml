@@ -1,0 +1,14 @@
+active: true
+derived: false
+header: ''
+level: 1.9
+links:
+- REQ-001: null
+- REQ-002: null
+normative: true
+ref: ''
+reviewed: null
+text: |
+  The system shall have two suspect links, to REQ-001 and REQ-002, so that
+  clearing the suspicion on a single link can be distinguished from clearing
+  all of an item's links at once.

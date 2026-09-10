@@ -57,6 +57,11 @@
       "icon": "$(new-file)"
     },
     {
+      "command": "doorstop.recheckProblems",
+      "title": "Doorstop: Re-check Problems",
+      "icon": "$(checklist)"
+    },
+    {
       "command": "doorstop.restartServer",
       "title": "Doorstop: Restart Server",
       "icon": "$(refresh)"
@@ -65,6 +70,21 @@
       "command": "doorstop.deriveRequirement",
       "title": "Doorstop: Derive Requirement",
       "icon": "$(add)"
+    },
+    {
+      "command": "doorstop.doReview",
+      "title": "Doorstop: Do Review",
+      "icon": "$(verified)"
+    },
+    {
+      "command": "doorstop.clearAllSuspicions",
+      "title": "Doorstop: Clear All Suspicions",
+      "icon": "$(call-incoming)"
+    },
+    {
+      "command": "doorstop.clearSuspicion",
+      "title": "Doorstop: Clear the Suspicion",
+      "icon": "$(call-incoming)"
     },
     {
       "command": "doorstop.createDoc",
@@ -120,6 +140,16 @@
       "command": "doorstop.addToDiagram",
       "title": "Doorstop: Add to Diagram",
       "icon": "$(graph)"
+    },
+    {
+      "command": "doorstop.toggleAutoReveal",
+      "title": "Doorstop: Disable Auto-Reveal",
+      "icon": "$(sync)"
+    },
+    {
+      "command": "doorstop.enableAutoReveal",
+      "title": "Doorstop: Enable Auto-Reveal",
+      "icon": "$(sync-ignored)"
     }
   ],
   "customEditors": [
@@ -154,6 +184,16 @@
       {
         "command": "doorstop.newDiagram",
         "when": "view == doorstop.treeView",
+        "group": "navigation"
+      },
+      {
+        "command": "doorstop.toggleAutoReveal",
+        "when": "view == doorstop.treeView && doorstop.autoRevealEnabled",
+        "group": "navigation"
+      },
+      {
+        "command": "doorstop.enableAutoReveal",
+        "when": "view == doorstop.treeView && !doorstop.autoRevealEnabled",
         "group": "navigation"
       }
     ],
@@ -240,8 +280,5 @@
   "overrides": {
     "diff": "^8.0.4",
     "serialize-javascript": "^7.0.6"
-  },
-  "dependencies": {
-    "js-yaml": "^5.4.1"
   }
 }

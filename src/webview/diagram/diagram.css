@@ -51,6 +51,25 @@ html, body {
   background: var(--vscode-button-hoverBackground);
 }
 
+#toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#ghost-preview-status {
+  position: absolute;
+  bottom: 44px;
+  left: 12px;
+  z-index: 10;
+  background: var(--vscode-inputValidation-warningBackground, var(--vscode-editorWidget-background));
+  border: 1px solid var(--vscode-inputValidation-warningBorder, var(--vscode-widget-border));
+  color: var(--vscode-inputValidation-warningForeground, var(--vscode-editor-foreground));
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  max-width: 320px;
+}
+
 #legend {
   position: absolute;
   top: 12px;

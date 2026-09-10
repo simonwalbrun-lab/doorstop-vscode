@@ -1,122 +1,118 @@
 import * as vscode from 'vscode';
-import * as yaml from 'js-yaml';
-import * as path from 'path';
 
-interface DoorstopItem {
-  text?: string;
-  header?: string;
-  level?: string;
-  links?: (string | Record<string, string | null>)[];
-  ref?: string;
+import { DoorstopIndex, getDocumentUid, loadDoorstopIndex } from './doorstopIndex';
+import { DoorstopServer } from './doorstopServer';
+
+/**
+ * Hover previews for requirement UIDs.
+ *
+ * All item data comes from `GET /tree` via the shared DoorstopIndex - this
+ * provider never reads or parses a requirement file itself. See
+ * src/doorstopIndex.ts for why, and specs/013-review-suspect-codelenses/research.md
+ * section 5.
+ */
+
+const UID_REGEX = /\b[A-Z0-9_-]+-\d+\b/g;
+const DERIVED_LINE_REGEX = /^\s*derived\s*:/i;
+const LINK_ENTRY_LINE_REGEX = /^\s*(-|\s)\s*[A-Z0-9_-]+-\d+/i;
+const LINKS_FIELD_LINE_REGEX = /^\s*links\s*:/i;
+
+export interface HoverProviderOptions {
+  server: DoorstopServer;
 }
 
-function parseDoorstopFile(rawContent: string): DoorstopItem | undefined {
-  const trimmed = rawContent.trimStart();
-  if (trimmed.startsWith('---')) {
-    const match = trimmed.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-    if (match) {
-      const item = (yaml.load(match[1]) as DoorstopItem) || {};
-      if (!item.text && match[2].trim().length > 0) {
-        item.text = match[2].trim();
-      }
-      return item;
-    }
-  }
-  return yaml.load(rawContent) as DoorstopItem;
-}
-
-async function makeClickableLink(uid: string): Promise<string> {
-  const files = await vscode.workspace.findFiles(`**/${uid}.{yml,md}`, '**/node_modules/**', 1);
-  if (files.length === 0) {
+/** A UID rendered as a link to the file the *server* says it lives in. */
+function makeClickableLink(uid: string, index: DoorstopIndex): string {
+  const uri = index.getUri(uid);
+  if (!uri) {
     return `\`${uid}\``;
   }
-  const args = encodeURIComponent(JSON.stringify([files[0].toString()]));
+  const args = encodeURIComponent(JSON.stringify([uri.toString()]));
   return `[${uid}](command:vscode.open?${args})`;
 }
 
-async function formatLinksClickable(links: (string | Record<string, string | null>)[]): Promise<string> {
-  const formattedLinks: string[] = [];
-  for (const link of links) {
-    if (typeof link === 'string') {
-      formattedLinks.push(await makeClickableLink(link));
-    } else if (link !== null) {
-      for (const key of Object.keys(link)) {
-        formattedLinks.push(await makeClickableLink(key));
-      }
-    }
-  }
-  return formattedLinks.join(', ');
+function formatLinksClickable(uids: string[], index: DoorstopIndex): string {
+  return uids.map(uid => makeClickableLink(uid, index)).join(', ');
 }
 
-async function findReverseLinks(targetUid: string): Promise<string[]> {
-  const allFiles = await vscode.workspace.findFiles('**/*.{yml,md}', '**/node_modules/**');
-  const reverseLinkUids: string[] = [];
-  for (const file of allFiles) {
-    const itemUid = path.basename(file.fsPath).replace(/\.(yml|md)$/, '');
-    if (itemUid === targetUid) {continue;}
-    try {
-      const rawContent = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
-      const item = parseDoorstopFile(rawContent);
-      if (item?.links?.some(link => typeof link === 'string'
-        ? link === targetUid
-        : link !== null && Object.keys(link).includes(targetUid))) {
-        reverseLinkUids.push(itemUid);
-      }
-    } catch {
-      // Ignore unparseable files.
-    }
-  }
-  return reverseLinkUids;
+/** The markdown shown when hovering a `derived:` line: what links *to* this item. */
+function renderReverseLinks(currentUid: string, index: DoorstopIndex): vscode.MarkdownString {
+  const markdown = new vscode.MarkdownString();
+  markdown.isTrusted = true;
+  markdown.appendMarkdown(`### 🔗 **Downstream (Reverse) Links for ${currentUid}**\n\n---\n\n`);
+  const linkers = index.getLinkers(currentUid);
+  markdown.appendMarkdown(linkers.length > 0
+    ? formatLinksClickable(linkers, index)
+    : '*No items link to this requirement.*');
+  return markdown;
 }
 
-export function registerHoverProvider(context: vscode.ExtensionContext): void {
-  const uidRegex = /\b[A-Z0-9_-]+-\d+\b/g;
+function renderItemPreview(
+  hoveredUid: string,
+  index: DoorstopIndex,
+  showUpstreamLinks: boolean
+): vscode.MarkdownString | undefined {
+  const item = index.getItem(hoveredUid);
+  if (!item) {
+    return undefined;
+  }
+
+  const markdown = new vscode.MarkdownString();
+  markdown.isTrusted = true;
+  markdown.appendMarkdown(`### 📋 **Target Item:** ${makeClickableLink(hoveredUid, index)}\n\n`);
+  if (item.header) {
+    markdown.appendMarkdown(`**Header:** ${item.header}\n\n`);
+  }
+  if (item.level) {
+    markdown.appendMarkdown(`**Level:** ${item.level}\n\n`);
+  }
+  markdown.appendMarkdown('---\n\n');
+  markdown.appendMarkdown(item.text?.trim()
+    ? `${item.text.trim()}\n\n`
+    : '*No requirement text defined.*\n\n');
+  if (showUpstreamLinks && item.links.length > 0) {
+    markdown.appendMarkdown(`**Upstream Links:** ${formatLinksClickable(item.links.map(link => link.uid), index)}\n\n`);
+  }
+  if (item.ref) {
+    markdown.appendMarkdown(`**Ref:** \`${item.ref}\``);
+  }
+  return markdown;
+}
+
+export function registerHoverProvider(
+  context: vscode.ExtensionContext,
+  options: HoverProviderOptions
+): void {
   const hoverProvider = vscode.languages.registerHoverProvider({ scheme: 'file' }, {
     async provideHover(document, position) {
       const lineText = document.lineAt(position.line).text;
-      const currentFileUid = path.basename(document.fileName).replace(/\.(yml|md)$/, '');
-      if (/^\s*derived\s*:/i.test(lineText)) {
-        const range = document.lineAt(position.line).range;
-        const reverseLinkUids = await findReverseLinks(currentFileUid);
-        const markdown = new vscode.MarkdownString();
-        markdown.isTrusted = true;
-        markdown.appendMarkdown(`### 🔗 **Downstream (Reverse) Links for ${currentFileUid}**\n\n---\n\n`);
-        if (reverseLinkUids.length > 0) {
-          markdown.appendMarkdown((await Promise.all(reverseLinkUids.map(makeClickableLink))).join(', '));
-        } else {
-          markdown.appendMarkdown('*No items link to this requirement.*');
-        }
-        return new vscode.Hover(markdown, range);
-      }
-
-      const range = document.getWordRangeAtPosition(position, uidRegex);
-      if (!range) {return undefined;}
-      const hoveredUid = document.getText(range);
-      const isInsideLinksBlock = /^\s*(-|\s)\s*[A-Z0-9_-]+-\d+/i.test(lineText)
-        || /^\s*links\s*:/i.test(lineText);
-      const files = await vscode.workspace.findFiles(`**/${hoveredUid}.{yml,md}`, '**/node_modules/**', 1);
-      if (files.length === 0) {return undefined;}
-
-      try {
-        const rawContent = new TextDecoder().decode(await vscode.workspace.fs.readFile(files[0]));
-        const item = parseDoorstopFile(rawContent);
-        if (!item) {return undefined;}
-        const markdown = new vscode.MarkdownString();
-        markdown.isTrusted = true;
-        markdown.appendMarkdown(`### 📋 **Target Item:** ${await makeClickableLink(hoveredUid)}\n\n`);
-        if (item.header) {markdown.appendMarkdown(`**Header:** ${item.header}\n\n`);}
-        if (item.level) {markdown.appendMarkdown(`**Level:** ${item.level}\n\n`);}
-        markdown.appendMarkdown('---\n\n');
-        markdown.appendMarkdown(item.text ? `${item.text.trim()}\n\n` : '*No requirement text defined.*\n\n');
-        if (!isInsideLinksBlock && item.links?.length) {
-          markdown.appendMarkdown(`**Upstream Links:** ${await formatLinksClickable(item.links)}\n\n`);
-        }
-        if (item.ref) {markdown.appendMarkdown(`**Ref:** \`${item.ref}\``);}
-        return new vscode.Hover(markdown, range);
-      } catch (error) {
-        console.error(`[Doorstop][hover] Failed to parse ${hoveredUid}:`, error);
+      const isDerivedLine = DERIVED_LINE_REGEX.test(lineText);
+      const range = isDerivedLine
+        ? document.lineAt(position.line).range
+        : document.getWordRangeAtPosition(position, UID_REGEX);
+      if (!range) {
         return undefined;
       }
+
+      // Only pay for the tree request once the position is known to be hoverable.
+      const index = await loadDoorstopIndex(options.server);
+      if (!index) {
+        return undefined;
+      }
+
+      if (isDerivedLine) {
+        const currentUid = getDocumentUid(document, index);
+        return currentUid
+          ? new vscode.Hover(renderReverseLinks(currentUid, index), range)
+          : undefined;
+      }
+
+      // Inside a `links:` block the upstream list would just restate the
+      // surrounding lines, so it is left out there.
+      const isInsideLinksBlock = LINK_ENTRY_LINE_REGEX.test(lineText)
+        || LINKS_FIELD_LINE_REGEX.test(lineText);
+      const markdown = renderItemPreview(document.getText(range), index, !isInsideLinksBlock);
+      return markdown ? new vscode.Hover(markdown, range) : undefined;
     }
   });
   context.subscriptions.push(hoverProvider);

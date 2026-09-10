@@ -1,6 +1,36 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 1.0.1 → 1.1.0
+Rationale for 1.1.0: MINOR — a new principle (VI. Every Feature Ships With a
+CI-Runnable Test) was added and the Development Workflow section was materially
+expanded with a CI gate. No existing principle was removed or redefined in a
+backward-incompatible way.
+
+Added principles:
+  - VI. Every Feature Ships With a CI-Runnable Test (NON-NEGOTIABLE)
+
+Modified sections:
+  - Development Workflow: added the requirement that the per-feature test from
+    Principle VI runs in the GitHub Actions CI workflow, and that a change is
+    not merged while any CI job is failing.
+  - Principle V: unchanged in substance; a cross-reference to Principle VI was
+    appended to its rationale so the two testing rules read as one policy —
+    per-change quality gates in V, per-feature coverage floor in VI.
+
+Added sections: none
+Removed sections: none
+
+Deferred / TODO placeholders: none — the CI jobs referenced (server-tests,
+extension-build, extension-integration-tests) already exist in
+.github/workflows/ci.yml, and both suites referenced (server/tests via pytest,
+src/test via vscode-test) already exist in the repository.
+
+Templates requiring follow-up: none checked/updated by this command per the Scope Guard —
+downstream templates (plan/spec/tasks) read this file at runtime and are not modified here.
+
+---
+Prior report (1.0.1, superseded by the above):
 Version change: 1.0.0 → 1.0.1
 Rationale for 1.0.1: PATCH — trimmed the Development Workflow section; no
 principle was added, removed, or redefined.
@@ -15,9 +45,6 @@ Added sections: none
 Removed sections: none (Development Workflow retained, just narrowed)
 
 Deferred / TODO placeholders: none.
-
-Templates requiring follow-up: none checked/updated by this command per the Scope Guard —
-downstream templates (plan/spec/tasks) read this file at runtime and are not modified here.
 
 ---
 Prior report (1.0.0, superseded by the above):
@@ -120,7 +147,41 @@ II exist to prevent.
 
 Rationale: this codifies practice the project already follows — the build
 scripts already enforce type/lint gates, and the existing server suite
-already validates against real Doorstop projects instead of mocks.
+already validates against real Doorstop projects instead of mocks. This
+principle sets the per-change quality gate; Principle VI sets the per-feature
+coverage floor.
+
+### VI. Every Feature Ships With a CI-Runnable Test (NON-NEGOTIABLE)
+
+Every feature MUST land together with at least one automated test that
+exercises its primary success path end to end, and that test MUST run
+unattended in CI on every pull request. Concretely:
+
+- The test MUST live in a suite CI already executes — `server/tests` (pytest)
+  for server-side behavior, `src/test` (vscode-test) for extension-side
+  behavior — or in a new suite wired into `.github/workflows/ci.yml` as part
+  of the same change.
+- The test MUST be non-interactive, headless-safe, and independent of
+  developer-machine state: no reliance on a pre-existing Doorstop project on
+  disk, a manually started server, network access, or a fixed port being free.
+  Fixtures MUST create the state they need — as `server/tests` already does
+  with temporary Doorstop projects — and clean it up.
+- The test MUST be deterministic. A flaky test MUST be fixed or removed, never
+  left red or retried until green, and MUST NOT be silenced with a skip marker
+  to unblock a merge.
+- "Basic" is the floor, not the ceiling: one test proving the feature actually
+  works is required. Broader edge-case coverage is encouraged where the
+  feature's failure modes warrant it, and Principle III's error paths SHOULD
+  be covered whenever the failure behavior is user-visible.
+- A feature MAY ship without a new test only when an existing CI test already
+  covers its behavior; the PR/commit MUST name that test explicitly.
+
+Rationale: this project's regressions have consistently been integration-level
+disagreements between the extension, the server, and Doorstop's own state —
+exactly the class of bug only a test running the real stack catches. A test
+that runs solely on the author's machine does not prevent the next regression,
+so the CI-runnable property is part of the requirement rather than a separate
+concern.
 
 ## Additional Constraints
 
@@ -140,6 +201,13 @@ already validates against real Doorstop projects instead of mocks.
 - Before a change is considered done: extension changes MUST pass
   `npm run compile` (type-check + lint + build); server changes touching the
   areas listed in Principle V MUST pass the `server/tests` pytest suite.
+- Every feature branch MUST leave CI green. The CI workflow
+  (`.github/workflows/ci.yml`) runs the server pytest suite, the extension
+  build/package, and the extension integration tests on every pull request.
+  A change MUST NOT be merged while any of those jobs is failing, and CI jobs
+  MUST NOT be disabled or narrowed to make a change pass.
+- A feature is not complete until its Principle VI test exists and passes in
+  CI. Deferring that test to a follow-up change does not satisfy this.
 - Prefer the smallest change that satisfies Principles I–IV; new abstraction
   layers or dependencies must be justified against those principles, not
   added speculatively.
@@ -160,4 +228,4 @@ Unjustified complexity, or a deliberate deviation from a principle, MUST be
 called out explicitly (e.g. in the PR/commit description) rather than left
 implicit.
 
-**Version**: 1.0.1 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-09-09
+**Version**: 1.1.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-09-10

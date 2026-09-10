@@ -1,0 +1,33 @@
+{
+  "nodes": [
+    {
+      "id": "REQ-001",
+      "fileUri": "REQ-001.yml",
+      "title": "",
+      "x": -200,
+      "y": 0
+    },
+    {
+      "id": "REQ-004",
+      "fileUri": "REQ-004.yml",
+      "title": "Heading Display Coverage",
+      "x": -200,
+      "y": 150
+    },
+    {
+      "id": "ARCH-001",
+      "fileUri": "children/ARCH/ARCH-001.yml",
+      "title": "",
+      "x": 100,
+      "y": 0
+    }
+  ],
+  "edges": [
+    {
+      "from": "ARCH-001",
+      "to": "REQ-001",
+      "arrows": "to",
+      "suspect": false
+    }
+  ]
+}

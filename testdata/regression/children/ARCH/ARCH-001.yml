@@ -1,0 +1,11 @@
+active: true
+derived: true
+header: ''
+level: 1.0
+links:
+- REQ-001: eturK1qVdbL6ht9C3KMy5yP2o2gi-Vt9k-y2b7NQGf4=
+normative: true
+ref: ''
+reviewed: null
+text: |
+  The architecture shall satisfy REQ-001, derived from that requirement to exercise derived-link handling.

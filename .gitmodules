@@ -1,0 +1,4 @@
+[submodule "server"]
+	path = server
+	url = https://github.com/simonwalbrun-lab/doorstop-vscode-server.git
+	branch = main

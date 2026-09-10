@@ -1,0 +1,21 @@
+active: true
+derived: false
+header: ''
+level: 1.2
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  The system shall have long, multi-paragraph text so hover previews and
+  diagram content previews can be checked against a realistically sized
+  requirement rather than a single short line.
+
+  This second paragraph exists purely to add length. It describes no new
+  behavior on its own; it only pads the item's text so that any rendering
+  surface that truncates, scrolls, or wraps long content has something
+  substantial to be exercised against.
+
+  A third paragraph closes out the item, reiterating that this text block
+  is intentionally verbose for fixture purposes and is not meant to be read
+  as a real specification of behavior.

@@ -30,8 +30,39 @@ This extension brings requirement lifecycle management into your developer workf
  **CodeLens Derivation:** Derive downstream requirements with a single click directly above your requirement definitions.
  ![alt text](media/promotion/04_derive_requirement.gif)
 
+ **CodeLens Review & Suspect Links:** Three more one-click actions, inline on the fields they belong to:
+
+* **Do Review** on the `reviewed:` field marks that requirement as reviewed.
+* **Clear All Suspicions** above the `links:` field clears every suspect link of the item at once (shown only when the item actually has links).
+* **Clear the Suspicion** on an individual link entry clears just that one link, leaving the item's other links suspect.
+
+ All three act through the Doorstop server, so the file on disk is written by Doorstop itself. If the file has unsaved edits you are asked to save first — nothing is discarded silently.
+
  **Smart Autocompletion (IntelliSense):** Autocomplete upstream links with history support showing recently opened items at first.
 ![alt text](media/promotion/05_autocomplete.gif)
+
+### Problem Reporting
+
+**Doorstop validation, inline:** Every problem Doorstop reports appears in the
+file it concerns - errors with a red squiggle, warnings with a yellow one, and
+informational notes in the Problems panel. Each one is anchored to the field it
+is actually about: the individual link entry for a broken or suspect link,
+`reviewed:` for review state, `derived:` for missing parent/child links,
+`level:` for duplicate or skipped levels, `ref:` for an unresolvable external
+reference, and the document's own config file for document-level problems such
+as an empty document.
+
+The messages are Doorstop's own, so what you read here matches what
+`doorstop` prints on the command line. Problems refresh when you save a
+requirement, after any change this extension makes, and on demand via
+**Doorstop: Re-check Problems**. They describe the state on disk, so a file with
+unsaved edits may lag until you save it.
+
+Three checks the extension deliberately does **not** report - self-links, link
+cycles, and child links to inactive items - are not implemented as validation
+checks by Doorstop 3.2. Reporting them would mean reimplementing Doorstop's
+validation in a second place, which this extension avoids by design; an inactive
+parent link already surfaces as a "linked to unknown item" error.
 
 ### Hover Previews & Navigation
 
