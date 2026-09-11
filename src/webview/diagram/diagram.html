@@ -14,12 +14,14 @@
 
   <div id="toolbar">
     <button id="layout-toggle" type="button">Hierarchical Layout</button>
-    <button id="physics-toggle" type="button">Disable Auto-Arrange</button>
+    <button id="grid-layout" type="button">Grid Layout</button>
     <button id="ghost-preview-toggle" type="button">Ghost Preview</button>
     <button id="heading-toggle" type="button">Show Headings</button>
   </div>
 
   <div id="ghost-preview-status" hidden>Ghost preview is incomplete: related items could not be loaded from the server.</div>
+
+  <div id="diagram-status" hidden></div>
 
   <div id="legend">
     <div id="legend-toggle">Legend ▾</div>
@@ -40,6 +42,7 @@
 
   <script nonce="{{nonce}}" src="https://unpkg.com/vis-network@10.1.2/standalone/umd/vis-network.min.js"></script>
   <script nonce="{{nonce}}" src="{{stateJsUri}}"></script>
+  <script nonce="{{nonce}}" src="{{layoutJsUri}}"></script>
   <script nonce="{{nonce}}" src="{{renderJsUri}}"></script>
   <script nonce="{{nonce}}" src="{{interactionsJsUri}}"></script>
   <script nonce="{{nonce}}" src="{{messagingJsUri}}"></script>

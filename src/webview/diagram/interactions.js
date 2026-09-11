@@ -84,7 +84,7 @@
   }
 
   function init(network, container) {
-    const { state, messaging } = window.DoorstopDiagram;
+    const { state, messaging, commands } = window.DoorstopDiagram;
 
     // Capture the event before vis-network or its canvas can consume it.
     window.addEventListener('dragover', (e) => {
@@ -96,7 +96,7 @@
     window.addEventListener('drop', (e) => handleDrop(e, network, container), true);
 
     network.on('dragEnd', (params) => {
-      if (params.nodes.length > 0 && !state.hierarchical) {
+      if (params.nodes.length > 0) {
         state.saveGraphState(network);
         messaging.send('diagramChanged', { diagram: state.getDiagramData(network) });
       }
@@ -109,7 +109,65 @@
       return state.nodeMap.get(nodeId) ?? state.ghostMeta.get(nodeId)?.fileUri;
     }
 
+    function beginLinkSelection(sourceUid) {
+      state.pendingLinkSource = sourceUid;
+      commands.setDiagramStatus(`Adding a link from ${sourceUid}: click the item to link to. Esc to cancel.`);
+    }
+
+    function cancelLinkSelection() {
+      if (state.pendingLinkSource) {
+        state.pendingLinkSource = null;
+        commands.clearDiagramStatus();
+      }
+    }
+
+    /**
+     * Consumes a click as the target of a pending "Add Link to..." instead of the
+     * usual open-the-file behaviour. Returns true when it handled the click.
+     *
+     * Ghosts are rejected as targets even though they're on the canvas: a link to a
+     * ghost is a real Doorstop link whose edge is drawn `ephemeral` and vanishes the
+     * moment Ghost Preview is turned off, which is indistinguishable from the write
+     * having failed. Promoting it first makes the intent explicit.
+     */
+    function handleLinkTargetClick(params) {
+      const source = state.pendingLinkSource;
+      if (!source) {
+        return false;
+      }
+      const target = params.nodes.length > 0 ? params.nodes[0] : null;
+
+      if (!target) {
+        cancelLinkSelection();
+        return true;
+      }
+      state.pendingLinkSource = null;
+      if (target === source) {
+        commands.setDiagramStatus('An item cannot be linked to itself.', 4000);
+        return true;
+      }
+      if (state.ghostMeta.has(target)) {
+        commands.setDiagramStatus(
+          'Add that item to the diagram first, then link to it.', 5000
+        );
+        return true;
+      }
+      commands.requestLink(source, target);
+      return true;
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        cancelLinkSelection();
+      }
+    });
+
     network.on('click', (params) => {
+      // Must run before the open-file path below: jumping the editor to a file
+      // mid-gesture would steal focus in the middle of picking a link target.
+      if (handleLinkTargetClick(params)) {
+        return;
+      }
       if (params.nodes.length > 0) {
         const fileUri = fileUriFor(params.nodes[0]);
         if (fileUri) {
@@ -153,6 +211,16 @@
           {
             label: 'Add Linked Item...',
             onClick: () => messaging.send('createLinkedItem', { sourceUid: nodeId, pointer: params.pointer.canvas })
+          },
+          {
+            label: 'Add Link to...',
+            onClick: () => beginLinkSelection(nodeId)
+          },
+          // Last on purpose: a destructive action shouldn't sit where the pointer
+          // lands when the menu opens.
+          {
+            label: 'Remove from Diagram',
+            onClick: () => commands.removeBodyNode(nodeId)
           }
         ]);
         return;

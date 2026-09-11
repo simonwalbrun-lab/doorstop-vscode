@@ -246,26 +246,58 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
       return;
     }
 
+    // Applies the edited scratch index (spec 004 FR-002). The server reads the
+    // file from disk, so an index that is still dirty in an editor is saved
+    // first - otherwise the user's edits would be silently ignored.
+    const applyManualReorder = async (indexUri: vscode.Uri): Promise<void> => {
+      const open = vscode.workspace.textDocuments.find(document => document.uri.fsPath === indexUri.fsPath);
+      if (open?.isDirty && !(await open.save())) {
+        void vscode.window.showErrorMessage(`Doorstop: could not save ${path.basename(indexUri.fsPath)}; the reorder was not applied.`);
+        return;
+      }
+      const result = await run(() =>
+        options.server.request('POST', `/documents/${encodeURIComponent(prefix)}/reorder`, { mode: 'manual' })
+      );
+      if (!result) {return;}
+      // Doorstop deletes the scratch index once applied; drop its now-stale editor too.
+      const staleTabs = vscode.window.tabGroups.all
+        .flatMap(group => group.tabs)
+        .filter(tab => tab.input instanceof vscode.TabInputText && tab.input.uri.fsPath === indexUri.fsPath);
+      if (staleTabs.length > 0) {
+        await vscode.window.tabGroups.close(staleTabs, true);
+      }
+      void vscode.window.showInformationMessage(`Doorstop: ${prefix} reordered from ${path.basename(indexUri.fsPath)}.`);
+    };
+
+    // A scratch index left over from an earlier attempt is the normal second
+    // step of a manual reorder - edit, then run the command again - so applying
+    // it must be offered right here, not only on a notification the user may
+    // have dismissed long ago (spec 004 FR-003).
     const root = await rootForPrefix(options.tree, prefix);
-    let loadExisting = true;
     if (root) {
       const indexUri = vscode.Uri.file(path.join(path.dirname(root.resourceUri.fsPath), 'index.yml'));
-      try {
-        await vscode.workspace.fs.stat(indexUri);
+      const exists = await vscode.workspace.fs.stat(indexUri).then(() => true, () => false);
+      if (exists) {
         const choice = await vscode.window.showQuickPick(
           [
-            { label: 'Yes', value: true, description: 'Load the existing index.yml file' },
-            { label: 'No', value: false, description: 'Discard it and start a new one' }
+            { label: 'Apply index.yml', value: 'apply' as const, description: 'Renumber the document from the edited index now' },
+            { label: 'Keep editing index.yml', value: 'edit' as const, description: 'Open the existing index again' },
+            { label: 'Discard index.yml', value: 'discard' as const, description: 'Delete it and generate a fresh one' }
           ],
-          { placeHolder: `Load existing index.yml for ${prefix}?` }
+          { placeHolder: `An index.yml for ${prefix} already exists` }
         );
         if (!choice) {return;}
-        loadExisting = choice.value;
-        if (!loadExisting) {
-          await run(() => options.server.request('DELETE', `/documents/${encodeURIComponent(prefix)}/reorder/index`));
+        if (choice.value === 'apply') {
+          await applyManualReorder(indexUri);
+          return;
         }
-      } catch {
-        // No generated index exists yet.
+        if (choice.value === 'discard') {
+          // DELETE answers 204 (no body), so map success to `true` to tell it from run()'s failure `undefined`.
+          const discarded = await run(() =>
+            options.server.request('DELETE', `/documents/${encodeURIComponent(prefix)}/reorder/index`).then(() => true)
+          );
+          if (!discarded) {return;}
+        }
       }
     }
 
@@ -274,13 +306,14 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     );
     if (!indexResult) {return;}
 
-    await vscode.window.showTextDocument(vscode.Uri.file(indexResult.indexPath));
+    const indexUri = vscode.Uri.file(indexResult.indexPath);
+    await vscode.window.showTextDocument(indexUri);
     const apply = await vscode.window.showInformationMessage(
-      `Edit ${path.basename(indexResult.indexPath)}, save it, then apply the reorder.`,
+      `Edit ${path.basename(indexResult.indexPath)}, then apply the reorder - here, or by running "Reorder Document" again and choosing "Apply index.yml".`,
       'Apply Reorder'
     );
     if (apply) {
-      await run(() => options.server.request('POST', `/documents/${encodeURIComponent(prefix)}/reorder`, { mode: 'manual' }));
+      await applyManualReorder(indexUri);
     }
   });
 

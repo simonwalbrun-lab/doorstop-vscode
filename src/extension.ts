@@ -4,10 +4,12 @@ import { DoorstopTreeProvider,RequirementTreeItem } from './requirementTree';
 import { DoorstopDiagramPanel } from './diagrammPanel';
 import { registerHoverProvider } from './hoverProvider';
 import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
-import { DoorstopServer } from './doorstopServer';
+import { DoorstopServer, installServerPackage, isServerPackageInstalled, SERVER_PACKAGE_NAME } from './doorstopServer';
 import { registerDeriveProvider } from './deriveProvider';
-import { registerReviewLensProvider } from './reviewLensProvider';
+import { registerReviewCodeActionProvider } from './reviewCodeActionProvider';
+import { registerReviewCommands } from './reviewLensProvider';
 import { registerDefinitionProvider } from './definitionProvider';
+import { registerCallHierarchyProvider } from './callHierarchyProvider';
 import { DoorstopCommandsProvider } from './commandsProvider';
 import { registerDoorstopCommands } from './doorstopCommands';
 import { ProblemsProvider, registerProblemsProvider } from './problemsProvider';
@@ -67,18 +69,16 @@ export async function activate(context: vscode.ExtensionContext) {
   // genuine no-ops during the first server start rather than a dead-zone error.
   let problemsProvider: ProblemsProvider | undefined;
 
-  const startDoorstopServer = async (restart = false): Promise<void> => {
-    if (!workspaceFolder || !(await findDoorstopMarker())) {
-      void vscode.window.showWarningMessage('No .doorstop.yml project was found in the workspace.');
-      return;
-    }
-
+  // Spawns the server process and reports the outcome; split out of
+  // startDoorstopServer so the missing-package install flow below can call it
+  // again once the package has just been installed (FR-006), without
+  // duplicating the spawn/report logic.
+  const spawnServerProcess = async (pythonPath: string, restart: boolean): Promise<void> => {
     try {
-      const pythonPath = await getActivePythonPath();
       if (restart) {
-        await doorstopServer.restart(workspaceFolder.uri.fsPath, pythonPath);
+        await doorstopServer.restart(workspaceFolder!.uri.fsPath, pythonPath);
       } else {
-        await doorstopServer.start(workspaceFolder.uri.fsPath, pythonPath);
+        await doorstopServer.start(workspaceFolder!.uri.fsPath, pythonPath);
       }
       console.log('[Doorstop][server] Server is ready at 127.0.0.1:7867');
       void vscode.window.showInformationMessage('Doorstop server is ready.');
@@ -90,6 +90,70 @@ export async function activate(context: vscode.ExtensionContext) {
       console.error('[Doorstop][server] Failed to start:', message);
       void vscode.window.showWarningMessage(`Doorstop server unavailable: ${message}`);
     }
+  };
+
+  // Shown instead of the generic startup failure when the interpreter is
+  // resolved but doesn't have the server package (spec 016). Dismissing (or
+  // not choosing "Install") leaves the server stopped, same as today's
+  // failure state (FR-009) - no install is attempted and no retry loop spams
+  // further prompts.
+  const promptToInstallServerPackage = async (pythonPath: string, restart: boolean): Promise<void> => {
+    const selection = await vscode.window.showWarningMessage(
+      `The ${SERVER_PACKAGE_NAME} Python package is not installed in the selected interpreter. ` +
+      'Doorstop server features will not work until it is installed.',
+      'Install',
+      'Dismiss'
+    );
+    if (selection !== 'Install') {
+      return;
+    }
+
+    const outcome = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        cancellable: false,
+        title: `Installing ${SERVER_PACKAGE_NAME}...`
+      },
+      () => installServerPackage(pythonPath)
+    );
+
+    if (outcome.success) {
+      void vscode.window.showInformationMessage(`${SERVER_PACKAGE_NAME} installed successfully.`);
+      await spawnServerProcess(pythonPath, restart);
+    } else {
+      console.error('[Doorstop][server] Package install failed:', outcome.output);
+      // Nothing is recorded here beyond this call returning, so the next
+      // server-start or "Doorstop: Restart Server" attempt re-checks and
+      // re-prompts rather than remembering this as a permanent failure (FR-007).
+      void vscode.window.showErrorMessage(
+        `Failed to install ${SERVER_PACKAGE_NAME}: ${outcome.output.trim() || 'unknown error'}`
+      );
+    }
+  };
+
+  const startDoorstopServer = async (restart = false): Promise<void> => {
+    if (!workspaceFolder || !(await findDoorstopMarker())) {
+      void vscode.window.showWarningMessage('No .doorstop.yml project was found in the workspace.');
+      return;
+    }
+
+    let pythonPath: string;
+    try {
+      pythonPath = await getActivePythonPath();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      void vscode.window.showWarningMessage(`Doorstop server unavailable: ${message}`);
+      return;
+    }
+
+    // Re-checked on every attempt (initial activation and manual restart),
+    // never cached, so switching interpreters is always reflected (FR-010).
+    if (!(await isServerPackageInstalled(pythonPath))) {
+      await promptToInstallServerPackage(pythonPath, restart);
+      return;
+    }
+
+    await spawnServerProcess(pythonPath, restart);
   };
 
   const restartServerCommand = vscode.commands.registerCommand(
@@ -139,11 +203,14 @@ export async function activate(context: vscode.ExtensionContext) {
       problemsProvider?.scheduleRefresh();
     };
     registerDeriveProvider(context, { server: doorstopServer, onChanged });
-    registerReviewLensProvider(context, { server: doorstopServer, onChanged });
+    registerReviewCommands(context, { server: doorstopServer, onChanged });
+    // Offers those commands as Quick Fixes on the problems registered above.
+    registerReviewCodeActionProvider(context);
     registerDefinitionProvider(context, {
       server: doorstopServer,
       workspaceFolder
     });
+    registerCallHierarchyProvider(context, { server: doorstopServer });
   }
   const newDiagramCmd = vscode.commands.registerCommand('doorstop.newDiagram', async () => {
     const defaultUri = workspaceFolder

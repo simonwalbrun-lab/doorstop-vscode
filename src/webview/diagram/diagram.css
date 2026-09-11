@@ -70,6 +70,24 @@ html, body {
   max-width: 320px;
 }
 
+/* Transient canvas prompts (link-target selection, self-link rejection). Sits above
+   #ghost-preview-status so the two can be visible at once without overlapping, and
+   uses the neutral info styling rather than that one's warning colours - this banner
+   is usually an instruction, not a problem. */
+#diagram-status {
+  position: absolute;
+  bottom: 80px;
+  left: 12px;
+  z-index: 10;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border));
+  color: var(--vscode-editor-foreground);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  max-width: 320px;
+}
+
 #legend {
   position: absolute;
   top: 12px;

@@ -7,8 +7,14 @@ import { scanRequirementDocument } from '../reviewLensProvider';
 
 // Deliberately server-less: this suite starts no Doorstop server and makes no
 // request. That is the property under test as much as the anchoring itself -
-// lens provision is a pure text scan, so lenses keep rendering while the server
-// is down or still booting (spec SC-005, research.md section 2).
+// the document scan is pure text, so it keeps working while the server is down
+// or still booting (013 spec SC-005, 013 research.md section 2).
+//
+// The review / suspect-link actions are no longer CodeLenses; they are Quick
+// Fixes on Doorstop's own problems, which require a running server to exist at
+// all. Their availability is therefore asserted in regressionFixture.test.ts
+// (which runs a real server); what stays here is the pure scan those fixes
+// consume, plus proof that the retired lenses really are gone (017 FR-004).
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FIXTURE_ROOT = path.join(REPO_ROOT, 'testdata', 'regression');
@@ -89,65 +95,33 @@ suite('Review Lens Scan Suite', () => {
     assert.strictEqual(scan, undefined, '.doorstop.yml has no item metadata to anchor to');
   });
 
-  test('a reviewed: field yields exactly one Do Review lens', async () => {
-    const document = await openFixture('REQ-007.yml');
-    const scan = scanRequirementDocument(document)!;
-    const lenses = await lensesFor('REQ-007.yml');
+  test('the retired review and suspect-link lenses no longer render', async () => {
+    // 017 FR-004 / SC-003: each action now has exactly one entry point, the
+    // Quick Fix, so none of these titles may appear above a field any more -
+    // not on an unreviewed item with links (REQ-007), and not on the two-link
+    // item (REQ-010) that used to carry three of them at once.
+    for (const name of ['REQ-007.yml', 'REQ-010.yml']) {
+      const lenses = await lensesFor(name);
 
-    const doReview = titled(lenses, 'Do Review');
-    assert.strictEqual(doReview.length, 1, 'exactly one Do Review lens');
-    assert.strictEqual(doReview[0].line, scan.reviewedLine, 'anchored on the reviewed: line');
-    assert.deepStrictEqual(doReview[0].args[0], {
-      uid: 'REQ-007',
-      documentUri: document.uri.toString()
-    });
+      assert.strictEqual(titled(lenses, 'Do Review').length, 0, `${name}: Do Review lens must be gone`);
+      assert.strictEqual(
+        titled(lenses, 'Clear All Suspicions').length,
+        0,
+        `${name}: Clear All Suspicions lens must be gone`
+      );
+      assert.strictEqual(
+        titled(lenses, 'Clear the Suspicion').length,
+        0,
+        `${name}: Clear the Suspicion lens must be gone`
+      );
+    }
   });
 
   test('a document marker yields no Doorstop lenses at all', async () => {
     const lenses = await lensesFor('.doorstop.yml');
 
+    assert.strictEqual(titled(lenses, '+ Derive Requirement').length, 0);
     assert.strictEqual(titled(lenses, 'Do Review').length, 0);
-    assert.strictEqual(titled(lenses, 'Clear All Suspicions').length, 0);
-    assert.strictEqual(titled(lenses, 'Clear the Suspicion').length, 0);
-  });
-
-  test('Clear All Suspicions appears above links: only when links exist', async () => {
-    const withLinks = scanRequirementDocument(await openFixture('REQ-007.yml'))!;
-    const lenses = await lensesFor('REQ-007.yml');
-
-    const clearAll = titled(lenses, 'Clear All Suspicions');
-    assert.strictEqual(clearAll.length, 1, 'REQ-007 has one link, so the lens must appear');
-    assert.strictEqual(clearAll[0].line, withLinks.linksLine, 'anchored on the links: line');
-
-    const empty = await lensesFor('REQ-001.yml');
-    assert.strictEqual(
-      titled(empty, 'Clear All Suspicions').length,
-      0,
-      'REQ-001 has links: [] so no clear-all lens may appear'
-    );
-    assert.strictEqual(
-      titled(empty, 'Clear the Suspicion').length,
-      0,
-      'REQ-001 has no link entries so no per-link lens may appear'
-    );
-  });
-
-  test('each link entry of a two-link item gets its own Clear the Suspicion lens', async () => {
-    const document = await openFixture('REQ-010.yml');
-    const scan = scanRequirementDocument(document)!;
-    const lenses = await lensesFor('REQ-010.yml');
-
-    const clearOne = titled(lenses, 'Clear the Suspicion');
-    assert.strictEqual(clearOne.length, 2, 'one lens per link entry');
-    assert.deepStrictEqual(
-      clearOne.map(lens => (lens.args[0] as { parentUid: string }).parentUid),
-      ['REQ-001', 'REQ-002']
-    );
-    assert.deepStrictEqual(
-      clearOne.map(lens => lens.line),
-      scan.linkEntries.map(entry => entry.line),
-      'each lens must sit on its own entry line'
-    );
   });
 
   test('a markdown item scans its frontmatter only, never its prose body', async function () {
@@ -168,25 +142,18 @@ suite('Review Lens Scan Suite', () => {
       ['REQ-001'],
       'the prose decoy must not be picked up as a link entry'
     );
-
-    const lenses = await lensesFor(name);
-    assert.strictEqual(titled(lenses, 'Do Review').length, 1);
-    assert.strictEqual(titled(lenses, 'Clear All Suspicions').length, 1);
-
-    const clearOne = titled(lenses, 'Clear the Suspicion');
-    assert.strictEqual(clearOne.length, 1, 'exactly one lens, for the frontmatter link');
-    assert.strictEqual((clearOne[0].args[0] as { parentUid: string }).parentUid, 'REQ-001');
+    assert.notStrictEqual(scan.reviewedLine, undefined, 'the frontmatter reviewed: line is found');
   });
 
-  test('the existing Derive Requirement lens still renders alongside the new ones', async () => {
+  test('the Derive Requirement lens is unaffected by the move to Quick Fixes', async () => {
+    // 017 FR-005: derive keeps its CodeLens; only the three review/suspect
+    // actions moved. This is the guard against removing one lens too many.
     const lenses = await lensesFor('REQ-010.yml');
 
     assert.strictEqual(
       titled(lenses, '+ Derive Requirement').length,
       1,
-      'the derive lens must not be suppressed by the review/suspect provider'
+      'the derive lens must still render'
     );
-    assert.strictEqual(titled(lenses, 'Do Review').length, 1);
-    assert.strictEqual(titled(lenses, 'Clear All Suspicions').length, 1);
   });
 });

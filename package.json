@@ -4,7 +4,7 @@
   "description": "VS Code integration for Doorstop requirements management system.",
   "publisher": "SimonWalbrun",
   "icon": "media/Icons-marketplace.png",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "preview": true,
   "license": "MIT",
   "repository": {
@@ -117,6 +117,11 @@
       "icon": "$(link)"
     },
     {
+      "command": "doorstop.showCallHierarchy",
+      "title": "Doorstop: Show Call Hierarchy",
+      "icon": "$(type-hierarchy)"
+    },
+    {
       "command": "doorstop.reorder",
       "title": "Doorstop: Reorder Document",
       "icon": "$(list-ordered)"
@@ -204,12 +209,7 @@
         "group": "inline@1"
       },
       {
-        "command": "doorstop.review",
-        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem == doorstop.item)",
-        "group": "inline@2"
-      },
-      {
-        "command": "doorstop.clear",
+        "command": "doorstop.showCallHierarchy",
         "when": "view == doorstop.treeView && viewItem == doorstop.item",
         "group": "inline@3"
       },

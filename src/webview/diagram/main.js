@@ -1,14 +1,33 @@
 (function () {
-  const { state, render, interactions, messaging } = window.DoorstopDiagram;
+  const { state, render, interactions, messaging, layout } = window.DoorstopDiagram;
 
   const container = document.getElementById('mynetwork');
   const data = { nodes: state.visNodes, edges: state.visEdges };
+  // The solver exists solely to settle ghost items around the body items they're
+  // tethered to. Body items are never eligible for it (see BODY_NODE_DEFAULTS), so
+  // it stays off entirely unless Ghost Preview is on - running a solver over a graph
+  // in which no node participates is pure waste.
   const PHYSICS_ON = { enabled: true, barnesHut: { gravitationalConstant: -2000 } };
   const PHYSICS_OFF = { enabled: false };
   const pendingLinkOps = new Map();
 
+  // Every body item carries physics:false for its entire life (FR-013): nothing but
+  // a user drag or an explicit layout command may ever move it. Deliberately NOT
+  // `fixed: {x, y}` - that would also block the user's own drag, which FR-021
+  // requires to keep working.
+  const BODY_NODE_DEFAULTS = { physics: false };
+
+  // Fallback extent for a node vis-network can't measure yet (not drawn, or removed
+  // mid-flight). Returning a sane box beats letting undefined propagate into NaN
+  // coordinates that would place the node nowhere.
+  const DEFAULT_NODE_EXTENT = { width: 160, height: 60 };
+
   function currentPhysicsOptions() {
-    return state.physicsEnabled ? PHYSICS_ON : PHYSICS_OFF;
+    return state.ghostPreviewEnabled ? PHYSICS_ON : PHYSICS_OFF;
+  }
+
+  function bodyNodeIds() {
+    return state.visNodes.getIds().filter(id => !state.ghostMeta.has(id));
   }
 
   function mergeMeta(node, meta) {
@@ -28,9 +47,7 @@
     // newly-added body item happened to link to a currently-shown ghost, letting it
     // through here would create a persisted-looking edge pointing at a node that
     // disappears the moment Ghost Preview is turned off.
-    const currentIds = new Set(
-      state.visNodes.getIds().filter(id => !state.ghostMeta.has(id))
-    );
+    const currentIds = new Set(bodyNodeIds());
     currentIds.forEach(id => {
       const meta = state.nodeMeta.get(id);
       if (!meta || !Array.isArray(meta.links)) {
@@ -52,7 +69,7 @@
   }
 
   const options = {
-    physics: currentPhysicsOptions(),
+    physics: PHYSICS_OFF,
     interaction: { dragNodes: true, dragView: true, zoomView: true },
     manipulation: {
       enabled: true,
@@ -82,7 +99,152 @@
   };
   const network = new vis.Network(container, data, options);
 
-  interactions.init(network, container);
+  // ---------------------------------------------------------------------------
+  // Status banner
+  // ---------------------------------------------------------------------------
+
+  let statusTimer = null;
+
+  /** Shows a transient canvas prompt. `timeoutMs` auto-clears it; omit to keep it up. */
+  function setDiagramStatus(text, timeoutMs) {
+    const el = document.getElementById('diagram-status');
+    if (!el) {
+      return;
+    }
+    if (statusTimer) {
+      clearTimeout(statusTimer);
+      statusTimer = null;
+    }
+    el.textContent = text;
+    el.hidden = false;
+    if (timeoutMs) {
+      statusTimer = setTimeout(clearDiagramStatus, timeoutMs);
+    }
+  }
+
+  function clearDiagramStatus() {
+    const el = document.getElementById('diagram-status');
+    if (statusTimer) {
+      clearTimeout(statusTimer);
+      statusTimer = null;
+    }
+    if (el) {
+      el.hidden = true;
+      el.textContent = '';
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Geometry helpers (shared by the layout commands and by auto-placement)
+  // ---------------------------------------------------------------------------
+
+  /** Measured extents of the given nodes, falling back to a default when unmeasurable. */
+  function nodeExtents(ids) {
+    return ids.map(id => {
+      const box = network.getBoundingBox(id);
+      if (!box || !Number.isFinite(box.left) || !Number.isFinite(box.top)) {
+        return { id, ...DEFAULT_NODE_EXTENT };
+      }
+      const width = Math.abs(box.right - box.left);
+      const height = Math.abs(box.bottom - box.top);
+      return {
+        id,
+        width: width > 0 ? width : DEFAULT_NODE_EXTENT.width,
+        height: height > 0 ? height : DEFAULT_NODE_EXTENT.height
+      };
+    });
+  }
+
+  /** Center-based occupancy boxes for the given nodes, for findFreeSlot. */
+  function occupancyBoxes(ids) {
+    const positions = network.getPositions(ids);
+    return nodeExtents(ids).map(extent => ({
+      x: positions[extent.id]?.x ?? 0,
+      y: positions[extent.id]?.y ?? 0,
+      width: extent.width,
+      height: extent.height
+    }));
+  }
+
+  /**
+   * Writes computed coordinates onto nodes and persists them.
+   *
+   * `moveNode` as well as the DataSet update on purpose: the DataSet write is what
+   * getDiagramData falls back to, but only moveNode updates the live body so that
+   * `network.getPositions()` - which getDiagramData reads first - returns the new
+   * coordinates rather than the pre-layout ones.
+   */
+  function applyPositions(updates) {
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return;
+    }
+    state.visNodes.update(updates.map(({ id, x, y }) => ({ id, x, y })));
+    updates.forEach(({ id, x, y }) => network.moveNode(id, x, y));
+    network.redraw();
+    state.saveGraphState(network);
+    messaging.send('diagramChanged', { diagram: state.getDiagramData(network) });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Canvas commands driven from the context menu
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Removes a body item from the diagram - canvas and document only. The underlying
+   * requirement and every link it holds are deliberately untouched (FR-003), which
+   * is why this needs no round trip to the extension host and therefore has no
+   * failure mode to handle.
+   */
+  function removeBodyNode(uid) {
+    if (!uid || !state.visNodes.get(uid) || state.ghostMeta.has(uid)) {
+      return;
+    }
+
+    // A pending link that started from this node can no longer be completed.
+    if (state.pendingLinkSource === uid) {
+      state.pendingLinkSource = null;
+      clearDiagramStatus();
+    }
+
+    const touchingEdgeIds = state.visEdges
+      .get({ filter: edge => edge.from === uid || edge.to === uid })
+      .map(edge => edge.id);
+    if (touchingEdgeIds.length > 0) {
+      state.visEdges.remove(touchingEdgeIds);
+    }
+    state.visNodes.remove([uid]);
+    state.nodeMap.delete(uid);
+    state.nodeMeta.delete(uid);
+
+    render.setDropHintVisible(bodyNodeIds().length === 0);
+    state.saveGraphState(network);
+    messaging.send('diagramChanged', { diagram: state.getDiagramData(network) });
+
+    // FR-005: a ghost that was only on screen because of the removed item must go
+    // too. Same recompute the promotion path already does.
+    if (state.ghostPreviewEnabled) {
+      messaging.send('requestGhostPreview', { enabled: true, bodyUids: bodyNodeIds() });
+    }
+  }
+
+  /**
+   * Context-menu counterpart to the drag-to-link gesture. Registers into the same
+   * `pendingLinkOps` map so success and failure both flow through the one existing
+   * `linkAddResult` handler - one result path, not two.
+   */
+  function requestLink(from, to) {
+    pendingLinkOps.set(`${from}->${to}`, (edgeData) => {
+      if (edgeData) {
+        state.visEdges.add(edgeData);
+      }
+    });
+    setDiagramStatus(`Linking ${from} → ${to}…`);
+    messaging.send('addLink', { from, to });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Extension messages
+  // ---------------------------------------------------------------------------
 
   messaging.on('loadDiagram', (message) => {
     state.visNodes.clear();
@@ -97,7 +259,7 @@
       if (message.meta && message.meta[item.id]) {
         state.nodeMeta.set(item.id, message.meta[item.id]);
       }
-      state.visNodes.add(render.toVisNode(merged));
+      state.visNodes.add({ ...render.toVisNode(merged), ...BODY_NODE_DEFAULTS });
     });
 
     state.visEdges.add(message.diagram.edges);
@@ -108,11 +270,11 @@
   });
 
   messaging.on('addNode', (message) => {
-    const { uid, fileUri, title, pointer } = message.node;
+    const { uid, fileUri, title, pointer, autoPlace } = message.node;
     render.setDropHintVisible(false);
 
-    // A ghost being promoted (FR-013): drop its ghost representation first so the
-    // real body node added below is the only one left - no leftover ghost duplicate.
+    // A ghost being promoted (spec 011 FR-013): drop its ghost representation first
+    // so the real body node added below is the only one left - no leftover duplicate.
     if (state.ghostMeta.has(uid)) {
       state.visNodes.remove([uid]);
       // Either end: a ghost tethered to one of its children is the `from` of its edge,
@@ -128,16 +290,31 @@
       return;
     }
 
+    // FR-015: an item added without a drop point (the tree's "Add to Diagram") lands
+    // somewhere free rather than potentially on top of an existing node. Only the
+    // webview knows node extents, so the search has to happen here.
+    let position = pointer || { x: 0, y: 0 };
+    if (autoPlace) {
+      const existing = bodyNodeIds();
+      const extents = nodeExtents(existing);
+      position = layout.findFreeSlot({
+        occupied: occupancyBoxes(existing),
+        width: extents.length > 0
+          ? Math.max(...extents.map(e => e.width))
+          : DEFAULT_NODE_EXTENT.width,
+        height: extents.length > 0
+          ? Math.max(...extents.map(e => e.height))
+          : DEFAULT_NODE_EXTENT.height,
+        center: network.getViewPosition()
+      });
+    }
+
     state.nodeMap.set(uid, fileUri);
     state.nodeMeta.set(uid, message.node);
-    state.visNodes.add(render.toVisNode({ id: uid, title, x: pointer.x, y: pointer.y, ...message.node }));
-
-    // Every body item present while Ghost Preview is on must stay fixed (FR-004),
-    // not only the ones that were already there when it was turned on - covers both
-    // ghost promotion and a fresh drag-and-drop while Ghost Preview stays active.
-    if (state.ghostPreviewEnabled) {
-      state.visNodes.update({ id: uid, physics: false });
-    }
+    state.visNodes.add({
+      ...render.toVisNode({ id: uid, title, x: position.x, y: position.y, ...message.node }),
+      ...BODY_NODE_DEFAULTS
+    });
 
     syncEdgesFromMeta();
 
@@ -145,14 +322,11 @@
     state.saveGraphState(network);
     messaging.send('diagramChanged', { diagram: state.getDiagramData(network) });
 
-    // FR-016: promoting a ghost keeps Ghost Preview on and immediately recomputes
-    // the ghost set, so anything newly linked to the promoted item shows up right
-    // away instead of only after the user toggles Ghost Preview off and back on.
+    // spec 011 FR-016: promoting a ghost keeps Ghost Preview on and immediately
+    // recomputes the ghost set, so anything newly linked to the promoted item shows
+    // up right away instead of only after toggling Ghost Preview off and back on.
     if (state.ghostPreviewEnabled) {
-      messaging.send('requestGhostPreview', {
-        enabled: true,
-        bodyUids: state.visNodes.getIds().filter(id => !state.ghostMeta.has(id))
-      });
+      messaging.send('requestGhostPreview', { enabled: true, bodyUids: bodyNodeIds() });
     }
   });
 
@@ -162,9 +336,9 @@
       if (statusEl) { statusEl.hidden = false; }
       // Only roll the toggle all the way back if this was the initial "turning it
       // on" attempt (no ghosts shown yet). A failed *refresh* of an already-active
-      // preview (e.g. the recompute after a promotion, FR-016) should leave the
+      // preview (e.g. the recompute after a promotion) should leave the
       // still-displayed ghosts alone rather than tearing down a working preview
-      // over one bad request (FR-012).
+      // over one bad request (spec 011 FR-012).
       if (state.ghostPreviewEnabled && state.ghostMeta.size === 0) {
         exitGhostPreview({ notifyExtension: false });
       }
@@ -181,13 +355,9 @@
       state.visEdges.add({ from: edge.from, to: edge.to, arrows: 'to', dashes: true, ephemeral: true });
     });
 
-    // Body items stay fixed while Ghost Preview is on; ghost items are physics-driven
-    // and tethered to them, so a dragged body item pulls its ghosts along (FR-004).
-    state.visNodes.update(
-      state.visNodes.getIds()
-        .filter(id => !state.ghostMeta.has(id))
-        .map(id => ({ id, physics: false }))
-    );
+    // Body items need no pinning here - they carry physics:false from insertion
+    // onward (FR-013). Only the engine itself has to come on, so the ghosts just
+    // added can settle around them and follow a dragged body item.
     network.setOptions({ physics: PHYSICS_ON });
     network.redraw();
   });
@@ -201,10 +371,14 @@
     }
     if (message.success) {
       callback({ from: message.from, to: message.to, arrows: 'to' });
+      clearDiagramStatus();
       state.saveGraphState(network);
       messaging.send('diagramChanged', { diagram: state.getDiagramData(network) });
     } else {
       callback(null);
+      // The extension host has already shown the error notification with the real
+      // reason (FR-011); this just clears the "Linking..." prompt off the canvas.
+      setDiagramStatus('Link could not be created.', 4000);
     }
   });
 
@@ -240,77 +414,100 @@
     });
   }
 
-  function setupLayoutToggle() {
+  // ---------------------------------------------------------------------------
+  // Layout commands
+  //
+  // Both are one-shot: they compute coordinates, write them onto the body items,
+  // and return. Neither is a mode, nothing is left running, and nothing re-applies
+  // on a later event - so the canvas afterwards is exactly as static and draggable
+  // as it was before (FR-021), and neither command has any bearing on what the
+  // other toolbar controls are allowed to do (FR-024).
+  // ---------------------------------------------------------------------------
+
+  function setupHierarchicalLayout() {
     const button = document.getElementById('layout-toggle');
-    const physicsButton = document.getElementById('physics-toggle');
-    const ghostButton = document.getElementById('ghost-preview-toggle');
     if (!button) {
       return;
     }
     button.addEventListener('click', () => {
-      if (!state.hierarchical) {
-        state.manualPositions = network.getPositions();
-        network.setOptions({
-          physics: { enabled: false },
-          layout: { hierarchical: { enabled: true, direction: 'UD', sortMethod: 'directed' } }
-        });
-        state.hierarchical = true;
-        button.textContent = 'Manual Layout';
-        // Auto-arrange only applies to the free-form layout; hierarchical positions
-        // are always computed directly, so the physics toggle is moot while active.
-        if (physicsButton) { physicsButton.disabled = true; }
-        // Ghost Preview and Hierarchical Layout are mutually exclusive (FR-014):
-        // Hierarchical Layout already takes over positioning/physics entirely, which
-        // directly conflicts with Ghost Preview's fixed-body/physics-driven-ghost model.
-        if (ghostButton) { ghostButton.disabled = true; }
-      } else {
-        network.setOptions({
-          layout: { hierarchical: { enabled: false } },
-          physics: currentPhysicsOptions()
-        });
-        if (state.manualPositions) {
-          state.visNodes.update(
-            Object.entries(state.manualPositions).map(([id, pos]) => ({ id, x: pos.x, y: pos.y }))
-          );
-        }
-        network.redraw();
-        state.hierarchical = false;
-        button.textContent = 'Hierarchical Layout';
-        if (physicsButton) { physicsButton.disabled = false; }
-        if (ghostButton) { ghostButton.disabled = false; }
+      const ids = bodyNodeIds();
+      if (ids.length === 0) {
+        return;
       }
+
+      // vis-network's hierarchical layout is a persistent mode that owns positioning
+      // and overrides dragging while it's on. Turn it on only long enough to read the
+      // coordinates it computes, then turn it off and bake those coordinates in as
+      // ordinary node positions.
+      network.setOptions({
+        layout: { hierarchical: { enabled: true, direction: 'UD', sortMethod: 'directed' } }
+      });
+      const positions = network.getPositions(ids);
+      network.setOptions({ layout: { hierarchical: { enabled: false } } });
+      // Enabling hierarchical layout swaps vis-network's solver; put ours back.
+      network.setOptions({ physics: currentPhysicsOptions() });
+
+      const updates = ids
+        .map(id => ({ id, x: positions[id]?.x, y: positions[id]?.y }))
+        .filter(u => Number.isFinite(u.x) && Number.isFinite(u.y));
+
+      // Guard against a degenerate result (nothing measurable, or everything stacked
+      // on one point) rather than writing a collapsed layout over positions the user
+      // arranged by hand.
+      const collapsed = updates.length > 1 &&
+        updates.every(u => u.x === updates[0].x && u.y === updates[0].y);
+      if (updates.length !== ids.length || collapsed) {
+        setDiagramStatus('Could not compute a hierarchical layout; positions left unchanged.', 5000);
+        network.redraw();
+        return;
+      }
+
+      applyPositions(updates);
+    });
+  }
+
+  function setupGridLayout() {
+    const button = document.getElementById('grid-layout');
+    if (!button) {
+      return;
+    }
+    button.addEventListener('click', () => {
+      const ids = bodyNodeIds();
+      // FR-023: nothing to arrange is a silent no-op, not an error.
+      if (ids.length === 0) {
+        return;
+      }
+      const extents = nodeExtents(ids);
+      // Pitch comes from the *largest* node, which is what keeps the no-overlap
+      // guarantee true once the heading toggle widens every label (FR-018).
+      const cellWidth = Math.max(...extents.map(e => e.width)) + layout.GAP;
+      const cellHeight = Math.max(...extents.map(e => e.height)) + layout.GAP;
+      applyPositions(layout.gridPositions({
+        ids,
+        cellWidth,
+        cellHeight,
+        center: network.getViewPosition()
+      }));
     });
   }
 
   /**
-   * Reverts every side effect Ghost Preview's "on" state has on the toolbar/canvas:
-   * button label, the mutual-exclusion locks on Hierarchical Layout/Auto-Arrange,
-   * and the fixed-in-place override on body items. Shared by the toggle's own
-   * "turn off" click and by the `ghostPreviewData` handler's rollback when turning
-   * it on failed outright (see the `incomplete` branch above) - callers decide
-   * separately whether to touch `#ghost-preview-status` and whether the extension
-   * needs telling (`notifyExtension`; the rollback case is reacting to a message
-   * the extension already sent, so it does not need an answer).
+   * Reverts what Ghost Preview's "on" state does: the button label, the displayed
+   * ghosts, and the running solver. Body items are NOT un-pinned - they are static
+   * for their entire life now (FR-013), Ghost Preview or not. Shared by the toggle's
+   * own "turn off" click and by the `ghostPreviewData` rollback when turning it on
+   * failed outright - callers decide separately whether to touch
+   * `#ghost-preview-status` and whether the extension needs telling
+   * (`notifyExtension`; the rollback case is reacting to a message the extension
+   * already sent, so it does not need an answer).
    */
   function exitGhostPreview({ notifyExtension }) {
     const button = document.getElementById('ghost-preview-toggle');
-    const layoutButton = document.getElementById('layout-toggle');
-    const physicsButton = document.getElementById('physics-toggle');
 
     state.ghostPreviewEnabled = false;
     if (button) { button.textContent = 'Ghost Preview'; }
     state.clearGhosts();
-    // Release the fixed-in-place override so remaining nodes follow the network's
-    // own physics setting again (restored just below).
-    state.visNodes.update(state.visNodes.getIds().map(id => ({ id, physics: true })));
-    if (layoutButton) { layoutButton.disabled = false; }
-    if (physicsButton && state.physicsToggleSuspended) {
-      physicsButton.disabled = false;
-      state.physicsToggleSuspended = false;
-    }
-    if (!state.hierarchical) {
-      network.setOptions({ physics: currentPhysicsOptions() });
-    }
+    network.setOptions({ physics: PHYSICS_OFF });
     network.redraw();
     if (notifyExtension) {
       messaging.send('requestGhostPreview', { enabled: false });
@@ -319,8 +516,6 @@
 
   function setupGhostPreviewToggle() {
     const button = document.getElementById('ghost-preview-toggle');
-    const layoutButton = document.getElementById('layout-toggle');
-    const physicsButton = document.getElementById('physics-toggle');
     const statusEl = document.getElementById('ghost-preview-status');
     if (!button) {
       return;
@@ -329,41 +524,14 @@
       if (!state.ghostPreviewEnabled) {
         state.ghostPreviewEnabled = true;
         button.textContent = 'Exit Ghost Preview';
-        // Mutually exclusive with Hierarchical Layout (FR-014, see setupLayoutToggle).
-        if (layoutButton) { layoutButton.disabled = true; }
-        // Ghost positioning has no meaning without a running simulation, so force it
-        // on for the duration regardless of the user's Auto-Arrange preference, and
-        // make that button inert so it can't fight the forced-on state.
-        if (physicsButton && !physicsButton.disabled) {
-          state.physicsToggleSuspended = true;
-          physicsButton.disabled = true;
-        }
-        // Pin every current body item BEFORE the physics engine is forced on and
-        // BEFORE the (async) request is even sent - otherwise there's a window,
-        // however short, where the engine is running with no per-node override yet
-        // and body items visibly drift/jump until the `ghostPreviewData` reply
-        // arrives and pins them. Order matters: pin first, then flip physics on.
-        const bodyUids = state.visNodes.getIds().filter(id => !state.ghostMeta.has(id));
-        state.visNodes.update(bodyUids.map(id => ({ id, physics: false })));
+        // Ghost positioning has no meaning without a running simulation. Body items
+        // are already pinned from insertion, so there's no window in which the
+        // engine can nudge them before the reply arrives.
         network.setOptions({ physics: PHYSICS_ON });
-        messaging.send('requestGhostPreview', { enabled: true, bodyUids });
+        messaging.send('requestGhostPreview', { enabled: true, bodyUids: bodyNodeIds() });
       } else {
         if (statusEl) { statusEl.hidden = true; }
         exitGhostPreview({ notifyExtension: true });
-      }
-    });
-  }
-
-  function setupPhysicsToggle() {
-    const button = document.getElementById('physics-toggle');
-    if (!button) {
-      return;
-    }
-    button.addEventListener('click', () => {
-      state.physicsEnabled = !state.physicsEnabled;
-      button.textContent = state.physicsEnabled ? 'Disable Auto-Arrange' : 'Enable Auto-Arrange';
-      if (!state.hierarchical) {
-        network.setOptions({ physics: currentPhysicsOptions() });
       }
     });
   }
@@ -378,12 +546,12 @@
 
   /**
    * Re-renders every current body and ghost node's label in place, respecting the
-   * just-flipped heading-display toggle (FR-009/FR-010 - same rule for both kinds).
+   * just-flipped heading-display toggle (spec 011 FR-009/FR-010 - same rule for both).
    */
   function relabelAllNodes() {
     // Only `label` is recomputed here - position/color/font are untouched, since
-    // vis-network's DataSet doesn't track live drag/physics positions, and passing
-    // stale x/y through an update would snap nodes back to their original spot.
+    // vis-network's DataSet doesn't track live drag positions, and passing stale
+    // x/y through an update would snap nodes back to their original spot.
     const bodyUpdates = state.visNodes.get()
       .filter(node => !state.ghostMeta.has(node.id))
       .map(node => {
@@ -411,11 +579,22 @@
     });
   }
 
-  setupLayoutToggle();
-  setupPhysicsToggle();
+  setupHierarchicalLayout();
+  setupGridLayout();
   setupGhostPreviewToggle();
   setupHeadingToggle();
   setupLegendToggle();
+
+  // What the context menu in interactions.js is allowed to drive. Assigned before
+  // interactions.init so it can capture them.
+  window.DoorstopDiagram.commands = {
+    removeBodyNode,
+    requestLink,
+    setDiagramStatus,
+    clearDiagramStatus
+  };
+
+  interactions.init(network, container);
 
   messaging.init(network);
   // `ready` is the single restore path: the extension answers it with `loadDiagram`

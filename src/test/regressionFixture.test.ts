@@ -238,7 +238,7 @@ suite('Regression Fixture Integration Suite', () => {
     return tree.documents.flatMap(doc => doc.items).find(item => item.uid === uid);
   }
 
-  test('CodeLens: Do Review marks only the target requirement as reviewed', async function () {
+  test('Action: Do Review marks only the target requirement as reviewed', async function () {
     this.timeout(10000);
     const filePath = path.join(FIXTURE_ROOT, 'REQ-007.yml');
 
@@ -260,7 +260,7 @@ suite('Regression Fixture Integration Suite', () => {
     });
   });
 
-  test("CodeLens: Clear All Suspicions clears the item's links", async function () {
+  test("Action: Clear All Suspicions clears the item's links", async function () {
     this.timeout(10000);
     const filePath = path.join(FIXTURE_ROOT, 'REQ-010.yml');
 
@@ -287,7 +287,7 @@ suite('Regression Fixture Integration Suite', () => {
     });
   });
 
-  test('CodeLens: Clear the Suspicion clears one link and leaves the other suspect', async function () {
+  test('Action: Clear the Suspicion clears one link and leaves the other suspect', async function () {
     this.timeout(10000);
     const filePath = path.join(FIXTURE_ROOT, 'REQ-010.yml');
 
@@ -331,7 +331,7 @@ suite('Regression Fixture Integration Suite', () => {
     );
   });
 
-  test('CodeLens: Clear the Suspicion on a dangling link changes nothing', async function () {
+  test('Action: Clear the Suspicion on a dangling link changes nothing', async function () {
     this.timeout(10000);
     const filePath = path.join(FIXTURE_ROOT, 'REQ-009.yml');
     const before = await fs.readFile(filePath);
@@ -511,19 +511,23 @@ suite('Regression Fixture Integration Suite', () => {
       inputBox?: string;
       openDialog?: vscode.Uri[];
       quickPick?: (items: readonly unknown[]) => unknown;
+      /** What a notification's action button "returns"; undefined = the toast was dismissed. */
+      infoMessage?: string;
     },
     fn: () => Promise<T>
   ): Promise<T> {
     const original = {
       showInputBox: vscode.window.showInputBox,
       showOpenDialog: vscode.window.showOpenDialog,
-      showQuickPick: vscode.window.showQuickPick
+      showQuickPick: vscode.window.showQuickPick,
+      showInformationMessage: vscode.window.showInformationMessage
     };
     const patched = vscode.window as unknown as Record<string, unknown>;
     patched.showInputBox = async () => stubs.inputBox;
     patched.showOpenDialog = async () => stubs.openDialog;
     patched.showQuickPick = async (items: readonly unknown[] | Thenable<readonly unknown[]>) =>
       stubs.quickPick ? stubs.quickPick(await items) : undefined;
+    patched.showInformationMessage = async () => stubs.infoMessage;
     try {
       return await fn();
     } finally {
@@ -554,6 +558,67 @@ suite('Regression Fixture Integration Suite', () => {
   }
 
   const labelOf = (item: unknown): string => String((item as { label?: unknown }).label ?? '');
+
+  test('Manual reorder: an edited index is applied on the second run of the command', async function () {
+    this.timeout(30000);
+    // Reproduces the reported bug: generate the index, edit it, run "Reorder
+    // Document" again - the reorder must actually happen, and it must not
+    // depend on a notification button the user may have dismissed. The edit is
+    // deliberately left unsaved in the editor, since the server reads the file
+    // from disk and the command must save it first.
+    const prefix = 'TMPREORD';
+    await createDocumentInto(
+      prefix,
+      items => items.find(item => labelOf(item) === 'REQ'),
+      async (created, folder) => {
+        assert.ok(created, 'throwaway document should exist');
+        for (let i = 0; i < 3; i++) {
+          await server.request('POST', `/documents/${prefix}/items`, {});
+        }
+        treeProvider.refresh();
+        await treeProvider.getChildren();
+        const uidsInOrder = async () => {
+          const tree = await server.request<TreeResponse>('GET', '/tree');
+          return tree.documents.find(doc => doc.prefix === prefix)!.items
+            .slice()
+            .sort((a, b) => a.level.localeCompare(b.level, undefined, { numeric: true }))
+            .map(item => `${item.uid}@${item.level}`);
+        };
+        const [first, second, third] = (await uidsInOrder()).map(entry => entry.split('@')[0]);
+
+        const pick = (...labels: string[]) => (items: readonly unknown[]) =>
+          items.find(item => labels.includes(labelOf(item)));
+
+        // First run: Manual generates the index; the toast is dismissed (undefined).
+        await withStubbedDialogs(
+          { quickPick: pick(prefix, 'Manual') },
+          () => vscode.commands.executeCommand('doorstop.reorder') as Promise<void>
+        );
+        const indexUri = vscode.Uri.file(path.join(folder, 'index.yml'));
+        const indexDocument = await vscode.workspace.openTextDocument(indexUri);
+        const text = indexDocument.getText();
+        assert.ok(text.includes('outline:'), 'index.yml should have been generated');
+
+        // Move the last item to the top, as a sibling - unsaved, in the editor.
+        const outline = `outline:\n    - ${third}: # \n    - ${first}: # \n        - ${second}: # \n`;
+        const edited = text.slice(0, text.indexOf('outline:')) + outline;
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(indexUri, new vscode.Range(0, 0, indexDocument.lineCount, 0), edited);
+        assert.ok(await vscode.workspace.applyEdit(edit));
+        assert.ok(indexDocument.isDirty, 'the edit is intentionally unsaved');
+
+        // Second run: the existing index is offered for applying right away.
+        await withStubbedDialogs(
+          { quickPick: pick(prefix, 'Manual', 'Apply index.yml') },
+          () => vscode.commands.executeCommand('doorstop.reorder') as Promise<void>
+        );
+
+        assert.deepStrictEqual(await uidsInOrder(), [`${third}@1`, `${first}@2.0`, `${second}@2.1`]);
+        const indexStillExists = await fs.stat(indexUri.fsPath).then(() => true, () => false);
+        assert.strictEqual(indexStillExists, false, 'Doorstop removes the applied scratch index');
+      }
+    );
+  });
 
   test('Create Document creates the new document under the chosen parent', async function () {
     this.timeout(20000);
@@ -814,5 +879,320 @@ suite('Regression Fixture Integration Suite', () => {
     // The real provider's own diagnostics are untouched by the failing one,
     // which owns a separate collection.
     await problems.refreshNow();
+  });
+
+  // ---------------------------------------------------------------------
+  // Feature 017: the review / suspect-link actions are offered as Quick Fixes
+  // on those same diagnostics, instead of as CodeLenses above the field. They
+  // live here rather than in reviewLensScan.test.ts because a Quick Fix only
+  // exists where a problem does, and problems need a running server.
+  // ---------------------------------------------------------------------
+
+  /** Quick Fix titles offered at `line` of `filePath`, after a full problem check. */
+  async function quickFixTitlesAt(filePath: string, line: number): Promise<string[]> {
+    await problems.refreshNow();
+    const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+      'vscode.executeCodeActionProvider',
+      vscode.Uri.file(filePath),
+      new vscode.Range(line, 0, line, 0),
+      vscode.CodeActionKind.QuickFix.value
+    );
+    return (actions ?? [])
+      .filter(action => action.command?.command.startsWith('doorstop.'))
+      .map(action => action.title);
+  }
+
+  test('QuickFix: an unreviewed item offers Do Review on its reviewed: line (US1)', async function () {
+    this.timeout(30000);
+    // REQ-005 exists in the fixture precisely to hold the unreviewed state.
+    const filePath = path.join(FIXTURE_ROOT, 'REQ-005.yml');
+
+    const titles = await quickFixTitlesAt(filePath, await lineContaining(filePath, 'reviewed:'));
+
+    assert.deepStrictEqual(titles, ['Do Review'], 'exactly the review fix, on the reviewed: line');
+  });
+
+  test('QuickFix: one suspect link offers only the single-link clear (US1)', async function () {
+    this.timeout(30000);
+    const filePath = path.join(FIXTURE_ROOT, 'REQ-007.yml');
+
+    const titles = await quickFixTitlesAt(filePath, await lineContaining(filePath, '- REQ-001'));
+
+    // REQ-007 has exactly one suspect link, so the bulk action must not appear -
+    // "clear all" would be indistinguishable from "clear this one" (FR-003).
+    assert.deepStrictEqual(titles, ['Clear Suspect Link']);
+  });
+
+  test('QuickFix: two suspect links offer both the single and the bulk clear (US1)', async function () {
+    this.timeout(30000);
+    const filePath = path.join(FIXTURE_ROOT, 'REQ-010.yml');
+
+    // Offered from either entry, since the bulk fix has no anchor of its own.
+    for (const parentUid of ['REQ-001', 'REQ-002']) {
+      const titles = await quickFixTitlesAt(filePath, await lineContaining(filePath, `- ${parentUid}`));
+
+      assert.deepStrictEqual(
+        titles,
+        ['Clear Suspect Link', 'Clear All Suspect Links'],
+        `both fixes must be offered on the ${parentUid} entry`
+      );
+    }
+
+    // Scenario 9: REQ-010 is also unreviewed, so the same item carries both
+    // kinds of problem. Each line offers only the fixes that belong to it.
+    assert.deepStrictEqual(
+      await quickFixTitlesAt(filePath, await lineContaining(filePath, 'reviewed:')),
+      ['Do Review'],
+      'the reviewed: line offers the review fix and nothing else'
+    );
+  });
+
+  test('QuickFix: the single-link fix clears only its own link (US1)', async function () {
+    this.timeout(30000);
+    const filePath = path.join(FIXTURE_ROOT, 'REQ-010.yml');
+
+    await withRestoredFile(filePath, async () => {
+      const line = await lineContaining(filePath, '- REQ-001');
+      await problems.refreshNow();
+      const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+        'vscode.executeCodeActionProvider',
+        vscode.Uri.file(filePath),
+        new vscode.Range(line, 0, line, 0),
+        vscode.CodeActionKind.QuickFix.value
+      );
+      const fix = (actions ?? []).find(action => action.title === 'Clear Suspect Link');
+      assert.ok(fix?.command, 'the single-link fix carries a command to run');
+
+      // Run it exactly as selecting it in the lightbulb would.
+      await vscode.commands.executeCommand(fix.command.command, ...(fix.command.arguments ?? []));
+
+      const after = await itemNode('REQ-010');
+      const byParent = new Map(after!.links.map(link => [link.uid, link.suspect]));
+      assert.strictEqual(byParent.get('REQ-001'), false, 'the fixed link is cleared');
+      assert.strictEqual(byParent.get('REQ-002'), true, 'its sibling stays suspect');
+
+      // FR-008 / scenario 8: the fix leaves together with the problem it resolved.
+      // quickFixTitlesAt re-runs the check first, so this is the "next check".
+      assert.deepStrictEqual(
+        await quickFixTitlesAt(filePath, line),
+        [],
+        'a resolved problem no longer offers its fix'
+      );
+      // And with one suspect link left, the bulk fix has nothing to add either.
+      assert.deepStrictEqual(
+        await quickFixTitlesAt(filePath, await lineContaining(filePath, '- REQ-002')),
+        ['Clear Suspect Link'],
+        'the remaining suspect link offers only the single-link fix'
+      );
+    });
+  });
+
+  test('QuickFix: nothing is offered where Doorstop reports no problem (US1)', async function () {
+    this.timeout(30000);
+    // REQ-006 is already reviewed; REQ-008's single link is already cleared.
+    const reviewed = path.join(FIXTURE_ROOT, 'REQ-006.yml');
+    const cleared = path.join(FIXTURE_ROOT, 'REQ-008.yml');
+
+    assert.deepStrictEqual(
+      await quickFixTitlesAt(reviewed, await lineContaining(reviewed, 'reviewed:')),
+      [],
+      'an already-reviewed item offers no review fix'
+    );
+    assert.deepStrictEqual(
+      await quickFixTitlesAt(cleared, await lineContaining(cleared, '- REQ-001')),
+      [],
+      'a cleared link offers no clear fix'
+    );
+  });
+
+  test('QuickFix: an unrelated diagnostic gets no review or clear fix (US1)', async function () {
+    this.timeout(30000);
+    // REQ-009's dangling link is an error this feature deliberately has no fix
+    // for - the provider must not attach itself to every doorstop diagnostic.
+    const filePath = path.join(FIXTURE_ROOT, 'REQ-009.yml');
+
+    const titles = await quickFixTitlesAt(filePath, await lineContaining(filePath, 'REQ-999'));
+
+    assert.deepStrictEqual(titles, []);
+  });
+
+  suite('Call Hierarchy (018)', () => {
+    // Drives the provider through VS Code's own test commands
+    // (vscode.prepareCallHierarchy / provideIncomingCalls / provideOutgoingCalls),
+    // which is how the peek widget itself talks to it. The widget is not
+    // observable through the API; its behaviour is VS Code's, checked manually
+    // per specs/018-call-hierarchy-provider/quickstart.md.
+
+    const ARCH_001 = path.join(FIXTURE_ROOT, 'children', 'ARCH', 'ARCH-001.yml');
+    const MD_001 = path.join(FIXTURE_ROOT, 'children', 'MD', 'MD-001.md');
+
+    /** `header:` for .yml, first `#` heading for .md - or line 0 when there is none,
+     * which is the fallback findHeaderLocation documents (MD-001 has no heading). */
+    async function headerLineOf(filePath: string): Promise<number> {
+      const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+      const regex = path.extname(filePath) === '.md' ? /^#{1,6}\s+/ : /^\s*header\s*:/i;
+      return Math.max(0, document.getText().split(/\r?\n/).findIndex(text => regex.test(text)));
+    }
+
+    async function prepare(filePath: string, line?: number, character = 0): Promise<vscode.CallHierarchyItem[]> {
+      const uri = vscode.Uri.file(filePath);
+      await vscode.workspace.openTextDocument(uri);
+      const items = await vscode.commands.executeCommand<vscode.CallHierarchyItem[] | undefined>(
+        'vscode.prepareCallHierarchy',
+        uri,
+        new vscode.Position(line ?? await headerLineOf(filePath), character)
+      );
+      return items ?? [];
+    }
+
+    function incoming(item: vscode.CallHierarchyItem): Thenable<vscode.CallHierarchyIncomingCall[]> {
+      return vscode.commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', item);
+    }
+
+    function outgoing(item: vscode.CallHierarchyItem): Thenable<vscode.CallHierarchyOutgoingCall[]> {
+      return vscode.commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', item);
+    }
+
+    async function prepareOne(filePath: string, line?: number, character = 0): Promise<vscode.CallHierarchyItem> {
+      const items = await prepare(filePath, line, character);
+      assert.strictEqual(items.length, 1, `${path.basename(filePath)} should prepare exactly one root item`);
+      return items[0];
+    }
+
+    test('root item reads "UID: Heading" with the document prefix as detail (US1)', async function () {
+      this.timeout(30000);
+      const item = await prepareOne(path.join(FIXTURE_ROOT, 'REQ-004.yml'));
+      assert.strictEqual(item.name, 'REQ-004: Heading Display Coverage');
+      assert.strictEqual(item.detail, 'REQ');
+    });
+
+    test('an item without a header is labelled by UID alone (US1)', async function () {
+      this.timeout(30000);
+      const item = await prepareOne(path.join(FIXTURE_ROOT, 'REQ-001.yml'));
+      assert.strictEqual(item.name, 'REQ-001');
+      assert.strictEqual(item.detail, 'REQ');
+    });
+
+    /** Every fixture item whose links name `uid`, straight from the server - the
+     * same source hover reads (SC-005), so the test cannot drift from the fixture. */
+    async function linkersOf(uid: string): Promise<string[]> {
+      const tree = await server.request<TreeResponse>('GET', '/tree');
+      return tree.documents
+        .flatMap(doc => doc.items)
+        .filter(item => item.links.some(link => link.uid === uid))
+        .map(item => item.uid)
+        .sort();
+    }
+
+    test('incoming calls are the items that link to the root (downstream) (US1)', async function () {
+      this.timeout(30000);
+      const calls = await incoming(await prepareOne(path.join(FIXTURE_ROOT, 'REQ-001.yml')));
+      const byName = new Map(calls.map(call => [call.from.name, call.from.detail]));
+      const expected = await linkersOf('REQ-001');
+      assert.ok(expected.includes('ARCH-001') && expected.includes('MD-001'), 'fixture contract: child documents link to REQ-001');
+      assert.deepStrictEqual([...byName.keys()].sort(), expected);
+      assert.strictEqual(byName.get('ARCH-001'), 'ARCH');
+      assert.strictEqual(byName.get('MD-001'), 'MD');
+      assert.strictEqual(byName.get('REQ-007'), 'REQ');
+    });
+
+    test('a dangling link is an unresolved entry that expands to nothing (US1)', async function () {
+      this.timeout(30000);
+      const filePath = path.join(FIXTURE_ROOT, 'REQ-009.yml');
+      const calls = await outgoing(await prepareOne(filePath));
+      assert.strictEqual(calls.length, 1, 'REQ-009 has exactly one (dangling) link');
+      const { to } = calls[0];
+      assert.strictEqual(to.name, 'REQ-999');
+      assert.strictEqual(to.detail, 'unresolved');
+      assert.strictEqual(to.uri.fsPath, vscode.Uri.file(filePath).fsPath, 'points at the referencing file');
+      assert.strictEqual(to.range.start.line, await lineContaining(filePath, 'REQ-999'), 'on the dangling links: line');
+      assert.deepStrictEqual(await outgoing(to), [], 'unresolved entry has no outgoing calls');
+      assert.deepStrictEqual(await incoming(to), [], 'unresolved entry has no incoming calls');
+    });
+
+    test('an item with no links has no outgoing calls (US1)', async function () {
+      this.timeout(30000);
+      assert.deepStrictEqual(await outgoing(await prepareOne(path.join(FIXTURE_ROOT, 'REQ-001.yml'))), []);
+    });
+
+    test('the tree command opens the item at its header line (US1)', async function () {
+      this.timeout(30000);
+      const filePath = path.join(FIXTURE_ROOT, 'REQ-001.yml');
+      const item = await findTreeItem(
+        treeProvider,
+        candidate => !candidate.itemData.isDoorstopRoot && candidate.itemData.uid === 'REQ-001'
+      );
+      assert.ok(item, 'REQ-001 should be present in the tree');
+      try {
+        await vscode.commands.executeCommand('doorstop.showCallHierarchy', item);
+        const editor = vscode.window.activeTextEditor;
+        assert.ok(editor, 'an editor should be active');
+        assert.strictEqual(editor.document.uri.fsPath, vscode.Uri.file(filePath).fsPath);
+        assert.strictEqual(editor.selection.start.line, await headerLineOf(filePath));
+      } finally {
+        // No-op when no peek is open; keeps later tests from starting inside one.
+        await vscode.commands.executeCommand('editor.closeCallHierarchy').then(undefined, () => undefined);
+      }
+    });
+
+    test('expansion works through widget-created items to any depth (US2)', async function () {
+      this.timeout(30000);
+      const root = await prepareOne(path.join(FIXTURE_ROOT, 'REQ-001.yml'));
+      const arch = (await incoming(root)).find(call => call.from.name === 'ARCH-001')?.from;
+      assert.ok(arch, 'ARCH-001 should be an incoming call of REQ-001');
+
+      const archOutgoing = await outgoing(arch);
+      assert.strictEqual(archOutgoing.length, 1);
+      assert.strictEqual(archOutgoing[0].to.name, 'REQ-001');
+      assert.strictEqual(archOutgoing[0].to.detail, 'REQ');
+      assert.deepStrictEqual(await incoming(arch), [], 'nothing links to ARCH-001');
+
+      // Third level, through the object the previous expansion produced.
+      const names = (await incoming(archOutgoing[0].to)).map(call => call.from.name).sort();
+      assert.deepStrictEqual(names, await linkersOf('REQ-001'));
+    });
+
+    test('entries point at their header line so selecting one opens the item there (US3)', async function () {
+      this.timeout(30000);
+      const calls = await incoming(await prepareOne(path.join(FIXTURE_ROOT, 'REQ-001.yml')));
+      for (const [name, filePath] of [['ARCH-001', ARCH_001], ['MD-001', MD_001]] as const) {
+        const item = calls.find(call => call.from.name === name)?.from;
+        assert.ok(item, `${name} should be listed`);
+        assert.strictEqual(item.uri.fsPath, vscode.Uri.file(filePath).fsPath);
+        assert.strictEqual(item.selectionRange.start.line, await headerLineOf(filePath), `${name} selects its header line`);
+        assert.deepStrictEqual(item.range, item.selectionRange);
+      }
+    });
+
+    test('navigating to an entry leaves a history entry for Go Back (US3)', async function () {
+      this.timeout(30000);
+      const origin = vscode.Uri.file(path.join(FIXTURE_ROOT, 'REQ-001.yml'));
+      await vscode.window.showTextDocument(origin);
+      const md = (await incoming(await prepareOne(origin.fsPath))).find(call => call.from.name === 'MD-001')?.from;
+      assert.ok(md, 'MD-001 should be listed');
+
+      await vscode.window.showTextDocument(md.uri, { selection: md.selectionRange });
+      assert.strictEqual(vscode.window.activeTextEditor?.document.uri.fsPath, vscode.Uri.file(MD_001).fsPath);
+
+      await vscode.commands.executeCommand('workbench.action.navigateBack');
+      assert.strictEqual(vscode.window.activeTextEditor?.document.uri.fsPath, origin.fsPath, 'Go Back returns to the origin');
+    });
+
+    test('from the editor: a known UID token roots on that item, anything else on the file (US4)', async function () {
+      this.timeout(30000);
+      const onLink = await prepareOne(ARCH_001, await lineContaining(ARCH_001, 'REQ-001'), 4);
+      assert.strictEqual(onLink.name, 'REQ-001');
+      assert.strictEqual(onLink.detail, 'REQ');
+
+      const onText = await prepareOne(ARCH_001, await lineContaining(ARCH_001, 'text:'));
+      assert.strictEqual(onText.name, 'ARCH-001');
+      assert.strictEqual(onText.detail, 'ARCH');
+
+      const req009 = path.join(FIXTURE_ROOT, 'REQ-009.yml');
+      const onDangling = await prepareOne(req009, await lineContaining(req009, 'REQ-999'), 4);
+      assert.strictEqual(onDangling.name, 'REQ-009', 'an unknown UID falls back to the file itself');
+
+      assert.deepStrictEqual(await prepare(path.join(FIXTURE_ROOT, 'CHECKLIST.md'), 0), [], 'not a requirement');
+    });
   });
 });
