@@ -1,120 +1,81 @@
 # Doorstop Requirements for VS Code
 
-Seamlessly manage, view, and navigate [Doorstop](https://doorstop.readthedocs.io/) requirement items directly inside VS Code.
+Manage, view and navigate [Doorstop](https://doorstop.readthedocs.io/) requirements without leaving VS Code.
+Every Doorstop command is available where you need it: in the explorer, in the editor and on a visual canvas.
 
-This extension brings requirement lifecycle management into your developer workflow—from interactive tree views and inline editor actions to smart autocompletion and hover previews.
-
----
+<img src="media/promotion/01_overview.png" alt="Overview: explorer, canvas, editor and problems panel" width="960">
 
 ## Features
 
-### Doorstop Explorer & Commands
+### Canvas
 
-**Requirement Tree View:** Browse all your Doorstop documents and items directly in the SideBar ordered by level of the items.
+Place requirements on a canvas and work with them visually.
 
-![alt text](media/promotion/06-treeview-navigation.gif)
+<img src="media/promotion/00_canvas_with_ghost.gif" alt="Canvas with ghost preview" width="374">
 
-**Inline Node Actions:** Quickly **Add**
-![alt text](media/promotion/07-new_requirement.gif)
-or **Link** items via inline action buttons on hover.
-![alt text](media/promotion/09_link_items.gif)
+- Items: add, create linked, remove from canvas
+- Links: create, remove
+- Ghost preview: every item linked to the canvas is shown as a smaller node
+- Auto layout: hierarchical or grid
 
-**Review** and **Clear Suspect Status** are on the item's right-click menu. They are also offered as Quick Fixes in the editor, on the problems Doorstop reports for them (see below).
-![alt text](<media/promotion/08-review and clear links.gif>)
+Create a new canvas from the explorer title bar:
 
-**Global Utilities:** Access frequent operations (Reorder, Import, Export, Publish) from the dedicated panel or the VS Code Command Palette.
+<img src="media/promotion/07_explorer_commands.png" alt="Explorer title bar commands" width="191">
 
-![alt text](media/promotion/11_some_more_commands.png)
+### Explorer
 
-### Editor Integration (CodeLens & IntelliSense)
+All documents and items in the side bar.
 
- **CodeLens Derivation:** Derive downstream requirements with a single click directly above your requirement definitions.
- ![alt text](media/promotion/04_derive_requirement.gif)
+<img src="media/promotion/08_explorer_view.png" alt="Doorstop explorer" width="250">
 
- **Quick Fixes for Review & Suspect Links:** Where Doorstop reports a problem, it also offers the fix. Put the cursor on the reported line and press `Ctrl+.` (or click the lightbulb in the margin):
+- One flat list per document, items ordered by level
+- Context menu: Add, Derive, Review, Clear Suspect, Link, Add to Diagram
+- Inline on hover: Add, Call Hierarchy, Link
+- Global commands in the **Commands** view: Reorder, Import, Export, Publish
 
-* **Do Review** on an item Doorstop reports as needing review marks that requirement as reviewed.
-* **Clear Suspect Link** on a reported suspect link clears just that one link, leaving the item's other links suspect.
-* **Clear All Suspect Links** appears alongside it when the item has more than one suspect link, and clears all of them at once.
+<img src="media/promotion/06-treeview-navigation.gif" alt="Explorer navigation" width="914">
 
- Because these are attached to Doorstop's own validation, they only appear when there is genuinely something to fix — an already-reviewed item or an already-cleared link offers nothing. All three act through the Doorstop server, so the file on disk is written by Doorstop itself. If the file has unsaved edits you are asked to save first — nothing is discarded silently.
+### Problems & Quick Fixes
 
- **Smart Autocompletion (IntelliSense):** Autocomplete upstream links with history support showing recently opened items at first.
-![alt text](media/promotion/05_autocomplete.gif)
+Every issue Doorstop reports appears in the Problems panel and inline in the file it concerns, anchored to the field it is about (`links`, `reviewed`, `derived`, `level`, `ref`, or the document config).
 
-### Problem Reporting
+<img src="media/promotion/09_problem_report.png" alt="Doorstop problems in the Problems panel" width="311">
 
-**Doorstop validation, inline:** Every problem Doorstop reports appears in the
-file it concerns - errors with a red squiggle, warnings with a yellow one, and
-informational notes in the Problems panel. Each one is anchored to the field it
-is actually about: the individual link entry for a broken or suspect link,
-`reviewed:` for review state, `derived:` for missing parent/child links,
-`level:` for duplicate or skipped levels, `ref:` for an unresolvable external
-reference, and the document's own config file for document-level problems such
-as an empty document.
+Quick fixes (`Ctrl+.`) resolve them in place:
 
-The messages are Doorstop's own, so what you read here matches what
-`doorstop` prints on the command line. Problems refresh when you save a
-requirement, after any change this extension makes, and on demand via
-**Doorstop: Re-check Problems**. They describe the state on disk, so a file with
-unsaved edits may lag until you save it.
+<img src="media/promotion/08_review_and_clear.gif" alt="Quick fix: Do Review and Clear Suspect Link" width="307">
 
-Three checks the extension deliberately does **not** report - self-links, link
-cycles, and child links to inactive items - are not implemented as validation
-checks by Doorstop 3.2. Reporting them would mean reimplementing Doorstop's
-validation in a second place, which this extension avoids by design; an inactive
-parent link already surfaces as a "linked to unknown item" error.
+- **Do Review** marks the item as reviewed
+- **Clear Suspect Link** clears one link, **Clear All Suspect Links** clears all of them
 
-### Hover Previews & Navigation
+Problems refresh on save, after every change the extension makes, and on demand via **Doorstop: Re-check Problems**. The messages are Doorstop's own, so they match the `doorstop` command line.
 
-Hover in editor over `links` e.g. (`REQ-0001`, `SYS-0002`):
+### Go to Definition & References
 
-* **Requirement Title & Level:** Header and hierarchy level.
-* **Requirement Text:** Fully rendered specification description.
-* **Traceability Links:** clickable parent requirement IDs.
-![alt text](media/promotion/01_upstream-links.gif)
-Hover in editor over `derived`:
+Press `F12` on a link or a `derived` entry to jump to the item; `Shift+F12` lists all references.
 
-**Traceability Links:** clickable list of linked child requirement IDs.
-![alt text](media/promotion/02_downstream-links.gif)
+<img src="media/promotion/10_editor_in_editor_references.png" alt="Peek references of a requirement" width="472">
 
-**Call Hierarchy:** click the hierarchy icon on a requirement row in the tree
-(or press `Shift+Alt+H` inside a requirement file) to open VS Code's peek call
-hierarchy for that item. **Outgoing** lists the items it links to (upstream),
-**incoming** the items that link to it (downstream); the single icon on the
-peek's top line switches between the two. Entries read `UID: Heading` with the
-document prefix alongside, and every entry expands further, so a whole chain
-can be traced without leaving the editor.
+### Traceability (Call Hierarchy)
 
-### 🎨 Requirements Canvas
+Trace an item up- and downstream as a call hierarchy: **outgoing** shows the items it links to, **incoming** the items that link to it. Every entry expands further.
 
-Collect and organize requirements on a visual canvas for spatial planning (and some future release traceability mapping).
-![alt text](media/promotion/03_canvas_basics.gif)
+<img src="media/promotion/11_reference_call_entry_point.png" alt="Call hierarchy entry point in the explorer" width="228">
 
-Items you place on the canvas stay exactly where you put them — nothing rearranges
-them behind your back. Right-click an item for **Add Linked Item…**, **Add Link to…**
-(then click the item to link to), and **Remove from Diagram** — which takes the item
-off the canvas only and never touches the requirement or its links. Right-click a
-connection for **Remove Link**.
+<img src="media/promotion/12_refence_call.png" alt="Call hierarchy of a requirement" width="474">
 
-The toolbar offers two one-shot arrangements — **Hierarchical Layout** (top-down,
-following link direction) and **Grid Layout** (a compact near-square box) — plus
-**Ghost Preview**, which shows every item linked to what's on the canvas as a smaller,
-lighter node, and **Show Headings**. All four are independent; none of them disables
-another, and after either arrangement your items remain freely draggable.
+### Editor Integration
 
----
+- **CodeLens:** derive a downstream requirement with one click above the item
+- **IntelliSense:** autocomplete link targets, recently opened items first
+- **Hover:** preview title, level and text of any linked or derived item
+
+<img src="media/promotion/05_autocomplete.gif" alt="Autocompletion of links" width="914">
 
 ## Requirements
 
-For full requirement lifecycle management (creating documents, linking items, running validations), this extension launches a small local server that wraps the [Doorstop](https://pypi.org/project/doorstop/) Python API directly. Install it into the Python environment selected for your workspace (the interpreter chosen via the Python extension) — this single command also pulls in `doorstop`, `fastapi`, and `uvicorn` as dependencies:
+The extension talks to a small local server that wraps the Doorstop Python API. Install it into the Python environment of your workspace (the extension will offer to do this for you):
 
 ```bash
-pip install <path-to-this-extension-repo>/server
-```
-
-For local development of the server itself, use an editable install so source edits take effect without reinstalling:
-
-```bash
-pip install -e <path-to-this-extension-repo>/server
+pip install doorstop-vscode-server
 ```

@@ -16,3 +16,22 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+
+# development / tooling
+.claude/**
+.specify/**
+.github/**
+.pytest_cache/**
+specs/**
+.gitmodules
+.vscodeignore
+setup-helper.md
+findings.md
+package-lock.json
+*.vsix
+
+# build leftovers
+dist/deprecated_server/**
+
+# README images are served from the GitHub repository, not from the package
+media/promotion/**

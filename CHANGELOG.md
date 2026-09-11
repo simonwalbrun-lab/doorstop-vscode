@@ -4,63 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-- Fixed: **Reorder Document → Manual** no longer depends on the "Apply Reorder"
-  notification button. Running the command again while an `index.yml` exists now
-  offers **Apply index.yml** (as well as keep editing / discard), an index that is
-  still unsaved in the editor is saved before it is applied, and the stale
-  `index.yml` editor is closed once Doorstop has consumed the file
-- Requirements tree: a new **Show Call Hierarchy** icon on each item row opens the
-  item and VS Code's peek call hierarchy — **outgoing** lists the items it links to
-  (upstream), **incoming** the items that link to it (downstream); the peek's
-  single direction icon switches between the two, and it opens on outgoing.
-  Entries read `UID: Heading` with the document prefix alongside; a link to a
-  UID the server does not know is listed as `unresolved`. Also available in any
-  requirement file via *Peek Call Hierarchy* (`Shift+Alt+H`)
-- Review and suspect links: **Do Review**, **Clear Suspect Link** and **Clear All
-  Suspect Links** are no longer CodeLenses floating above the field. They are now
-  Quick Fixes on the problems Doorstop already reports for them — put the cursor
-  on the reported line and press `Ctrl+.`, or click the lightbulb in the margin.
-  Because they hang off Doorstop's own validation, they only appear when there is
-  something to fix: an already-reviewed item or an already-cleared link offers
-  nothing, and **Clear All Suspect Links** shows up only once an item has more
-  than one suspect link. **+ Derive Requirement** is unchanged and still a CodeLens
-- Requirements tree: the **Review** and **Clear Suspect** icon buttons are gone from
-  the item rows, which now carry only **Add** and **Link**. Both actions are still
-  on the right-click menu, unchanged
-- Canvas: right-click an item for **Remove from Diagram** (takes it off the canvas
-  only — the requirement and all of its links are untouched) and **Add Link to…**,
-  which creates a real link to the next item you click, with no drag gesture needed
-- Canvas: items you place now stay exactly where you put them. Adding an item or
-  toggling any view option never rearranges the canvas. The **Auto-Arrange** toggle
-  is gone, since there is no longer anything for it to turn off; ghost items are
-  still positioned automatically, as before
-- Canvas: new **Grid Layout** arranges all items in a compact near-square box, and
-  **Hierarchical Layout** is now a one-shot arrangement rather than a mode — after
-  either, items stay put and remain freely draggable
-- Canvas: no toolbar button disables another any more. Ghost Preview and
-  Hierarchical Layout are no longer mutually exclusive
-- Problem reporting: Doorstop's own validation is shown inline in requirement
-  files - errors as red squiggles, warnings as yellow ones, info in the Problems
-  panel - anchored to the field each problem concerns (the individual link entry
-  for link checks, `reviewed:`, `derived:`, `level:`, `ref:`, or the document's
-  config file for document-level problems). Refreshes on save, after any
-  extension-initiated change, and via "Doorstop: Re-check Problems".
-  Self-link, link-cycle and child-link-inactive checks are **not** reported,
-  because Doorstop 3.2 does not implement them as validation checks.
-- deriveProvider: the target quick pick now names each candidate document's
-  relationship to the source (child, grandchild, sibling, nephew, cousin) and
-  lists them in that order
-- hover, autocompletion and go-to-definition now resolve items through the
-  server's `GET /tree` instead of scanning and parsing files client-side; the
-  `js-yaml` dependency is gone
-- Create Document now asks which document should be the parent
-- Export/Publish now report where Doorstop actually wrote the output
-- Diagrams reopen from their backup after a crash or reload
-- Canvas with Traces and Drag and Drop.
-- Jump to new files.
-- Go to Definition (F12) and Find All References (Shift+F12) for requirement UIDs, including a usages view on `derived:` lines
-- codeLens: "Do Review" on the `reviewed:` field, "Clear All Suspicions" above `links:`, and "Clear the Suspicion" on each individual link entry
-- deriveProvider: candidate target documents now come from the server's `GET /tree` instead of a client-side `.doorstop.yml` scan, and a failed lookup is reported instead of silently shortening the list
+## [0.1.0] - 2026-09-11
+
+### Added
+
+- Canvas: collect items on a diagram with traces, drag and drop, and a ghost
+  preview of linked items; **Grid** and **Hierarchical** one-shot layouts; items
+  stay where you put them; right-click for **Remove from Diagram** and
+  **Add Link to…**; diagrams are restored from backup after a reload
+- Problems: Doorstop's own validation is shown inline in requirement files
+  (errors, warnings, info) anchored to the affected field; refreshes on save
+  and via "Doorstop: Re-check Problems"
+- Review and suspect links: **Do Review**, **Clear Suspect Link** and
+  **Clear All Suspect Links** are Quick Fixes (`Ctrl+.`) on the reported problems
+- Requirements tree: **Show Call Hierarchy** shows upstream (outgoing) and
+  downstream (incoming) links of an item; also via *Peek Call Hierarchy*
+  (`Shift+Alt+H`) in any requirement file
+- Go to Definition (`F12`) and Find All References (`Shift+F12`) for UIDs
+- Derive Requirement: target documents are named by their relationship to the
+  source (child, sibling, …) and ordered accordingly
+- Create Document asks for the parent document; Export/Publish report the
+  output location
+
+### Changed
+
+- Hover, autocompletion and go-to-definition resolve items via the server
+  (`GET /tree`) instead of parsing files client-side
+- Requirements tree item rows carry only **Add** and **Link**; review and
+  clear-suspect actions moved to the right-click menu
+- Simplified icons and a more user-friendly startup
+
+### Fixed
+
+- **Reorder Document → Manual**: re-running the command with an existing
+  `index.yml` offers **Apply index.yml**; unsaved index is saved before applying
 
 ## [0.0.4] - 2026-09-06
 

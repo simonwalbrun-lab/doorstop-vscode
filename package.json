@@ -4,7 +4,7 @@
   "description": "VS Code integration for Doorstop requirements management system.",
   "publisher": "SimonWalbrun",
   "icon": "media/Icons-marketplace.png",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "preview": true,
   "license": "MIT",
   "repository": {
