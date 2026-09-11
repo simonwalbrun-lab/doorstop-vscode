@@ -4,16 +4,22 @@ import * as vscode from 'vscode';
 import { DoorstopServer } from './doorstopServer';
 
 /**
- * CodeLenses for Doorstop's review / suspect-link workflow, rendered inline on a
- * requirement's own metadata fields.
+ * The commands and document scan behind Doorstop's review / suspect-link
+ * workflow.
  *
  * Every state change here goes through the server (POST /review, POST /clear) -
- * this provider never writes requirement files itself. What it computes locally
- * is only *editor geometry*: which line to hang a clickable label on. A parent
- * UID lifted off a link line is treated as untrusted input and validated by the
- * server, exactly like a UID typed into the `doorstop.link` input box.
+ * nothing in this file ever writes requirement files itself. What it computes
+ * locally is only *editor geometry*: which line a given metadata field is on. A
+ * parent UID lifted off a link line is treated as untrusted input and validated
+ * by the server, exactly like a UID typed into the `doorstop.link` input box.
  *
- * See specs/013-review-suspect-codelenses/research.md sections 2 and 6.
+ * These three commands used to be offered as CodeLenses above their own fields.
+ * They are now offered as Quick Fixes on the problems Doorstop's validation
+ * already reports for them - see reviewCodeActionProvider.ts, which consumes the
+ * scan below. The scan itself is unchanged.
+ *
+ * See specs/013-review-suspect-codelenses/research.md sections 2 and 6, and
+ * specs/017-gutter-icon-actions/research.md section 1.
  */
 
 export interface LinkEntryAnchor {
@@ -50,7 +56,7 @@ export interface ClearOneLensContext {
   documentUri: string;
 }
 
-export interface ReviewLensProviderOptions {
+export interface ReviewCommandOptions {
   server: DoorstopServer;
   onChanged?: () => void;
 }
@@ -178,9 +184,9 @@ async function ensureSavedOrConfirm(documentUri: string, actionLabel: string): P
   return true;
 }
 
-/** The single request path shared by all three lens commands. */
+/** The single request path shared by all three commands. */
 async function runLensAction(
-  options: ReviewLensProviderOptions,
+  options: ReviewCommandOptions,
   successMessage: string,
   send: () => Promise<unknown>
 ): Promise<void> {
@@ -195,61 +201,10 @@ async function runLensAction(
   void vscode.window.showInformationMessage(successMessage);
 }
 
-export function registerReviewLensProvider(
+export function registerReviewCommands(
   context: vscode.ExtensionContext,
-  options: ReviewLensProviderOptions
+  options: ReviewCommandOptions
 ): void {
-  const provider: vscode.CodeLensProvider = {
-    provideCodeLenses(document): vscode.CodeLens[] {
-      const scan = scanRequirementDocument(document);
-      if (!scan) {
-        return [];
-      }
-      const documentUri = document.uri.toString();
-      const lenses: vscode.CodeLens[] = [];
-
-      if (scan.reviewedLine !== undefined) {
-        lenses.push(new vscode.CodeLens(
-          new vscode.Range(scan.reviewedLine, 0, scan.reviewedLine, 0),
-          {
-            command: 'doorstop.doReview',
-            title: 'Do Review',
-            arguments: [{ uid: scan.uid, documentUri } satisfies ReviewLensContext]
-          }
-        ));
-      }
-
-      // Only when the item actually has links - an empty `links: []` gets nothing.
-      if (scan.linksLine !== undefined && scan.linkEntries.length > 0) {
-        lenses.push(new vscode.CodeLens(
-          new vscode.Range(scan.linksLine, 0, scan.linksLine, 0),
-          {
-            command: 'doorstop.clearAllSuspicions',
-            title: 'Clear All Suspicions',
-            arguments: [{ uid: scan.uid, documentUri } satisfies ClearAllLensContext]
-          }
-        ));
-      }
-
-      for (const entry of scan.linkEntries) {
-        lenses.push(new vscode.CodeLens(
-          new vscode.Range(entry.line, 0, entry.line, 0),
-          {
-            command: 'doorstop.clearSuspicion',
-            title: 'Clear the Suspicion',
-            arguments: [{
-              uid: scan.uid,
-              parentUid: entry.parentUid,
-              documentUri
-            } satisfies ClearOneLensContext]
-          }
-        ));
-      }
-
-      return lenses;
-    }
-  };
-
   const doReview = vscode.commands.registerCommand(
     'doorstop.doReview',
     async (arg?: ReviewLensContext) => {
@@ -306,13 +261,5 @@ export function registerReviewLensProvider(
     }
   );
 
-  context.subscriptions.push(
-    vscode.languages.registerCodeLensProvider(
-      [{ language: 'yaml' }, { language: 'markdown' }],
-      provider
-    ),
-    doReview,
-    clearAllSuspicions,
-    clearSuspicion
-  );
+  context.subscriptions.push(doReview, clearAllSuspicions, clearSuspicion);
 }

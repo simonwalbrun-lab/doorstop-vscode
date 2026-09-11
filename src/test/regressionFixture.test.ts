@@ -238,7 +238,7 @@ suite('Regression Fixture Integration Suite', () => {
     return tree.documents.flatMap(doc => doc.items).find(item => item.uid === uid);
   }
 
-  test('CodeLens: Do Review marks only the target requirement as reviewed', async function () {
+  test('Action: Do Review marks only the target requirement as reviewed', async function () {
     this.timeout(10000);
     const filePath = path.join(FIXTURE_ROOT, 'REQ-007.yml');
 
@@ -260,7 +260,7 @@ suite('Regression Fixture Integration Suite', () => {
     });
   });
 
-  test("CodeLens: Clear All Suspicions clears the item's links", async function () {
+  test("Action: Clear All Suspicions clears the item's links", async function () {
     this.timeout(10000);
     const filePath = path.join(FIXTURE_ROOT, 'REQ-010.yml');
 
@@ -287,7 +287,7 @@ suite('Regression Fixture Integration Suite', () => {
     });
   });
 
-  test('CodeLens: Clear the Suspicion clears one link and leaves the other suspect', async function () {
+  test('Action: Clear the Suspicion clears one link and leaves the other suspect', async function () {
     this.timeout(10000);
     const filePath = path.join(FIXTURE_ROOT, 'REQ-010.yml');
 
@@ -331,7 +331,7 @@ suite('Regression Fixture Integration Suite', () => {
     );
   });
 
-  test('CodeLens: Clear the Suspicion on a dangling link changes nothing', async function () {
+  test('Action: Clear the Suspicion on a dangling link changes nothing', async function () {
     this.timeout(10000);
     const filePath = path.join(FIXTURE_ROOT, 'REQ-009.yml');
     const before = await fs.readFile(filePath);
@@ -814,5 +814,140 @@ suite('Regression Fixture Integration Suite', () => {
     // The real provider's own diagnostics are untouched by the failing one,
     // which owns a separate collection.
     await problems.refreshNow();
+  });
+
+  // ---------------------------------------------------------------------
+  // Feature 017: the review / suspect-link actions are offered as Quick Fixes
+  // on those same diagnostics, instead of as CodeLenses above the field. They
+  // live here rather than in reviewLensScan.test.ts because a Quick Fix only
+  // exists where a problem does, and problems need a running server.
+  // ---------------------------------------------------------------------
+
+  /** Quick Fix titles offered at `line` of `filePath`, after a full problem check. */
+  async function quickFixTitlesAt(filePath: string, line: number): Promise<string[]> {
+    await problems.refreshNow();
+    const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+      'vscode.executeCodeActionProvider',
+      vscode.Uri.file(filePath),
+      new vscode.Range(line, 0, line, 0),
+      vscode.CodeActionKind.QuickFix.value
+    );
+    return (actions ?? [])
+      .filter(action => action.command?.command.startsWith('doorstop.'))
+      .map(action => action.title);
+  }
+
+  test('QuickFix: an unreviewed item offers Do Review on its reviewed: line (US1)', async function () {
+    this.timeout(30000);
+    // REQ-005 exists in the fixture precisely to hold the unreviewed state.
+    const filePath = path.join(FIXTURE_ROOT, 'REQ-005.yml');
+
+    const titles = await quickFixTitlesAt(filePath, await lineContaining(filePath, 'reviewed:'));
+
+    assert.deepStrictEqual(titles, ['Do Review'], 'exactly the review fix, on the reviewed: line');
+  });
+
+  test('QuickFix: one suspect link offers only the single-link clear (US1)', async function () {
+    this.timeout(30000);
+    const filePath = path.join(FIXTURE_ROOT, 'REQ-007.yml');
+
+    const titles = await quickFixTitlesAt(filePath, await lineContaining(filePath, '- REQ-001'));
+
+    // REQ-007 has exactly one suspect link, so the bulk action must not appear -
+    // "clear all" would be indistinguishable from "clear this one" (FR-003).
+    assert.deepStrictEqual(titles, ['Clear Suspect Link']);
+  });
+
+  test('QuickFix: two suspect links offer both the single and the bulk clear (US1)', async function () {
+    this.timeout(30000);
+    const filePath = path.join(FIXTURE_ROOT, 'REQ-010.yml');
+
+    // Offered from either entry, since the bulk fix has no anchor of its own.
+    for (const parentUid of ['REQ-001', 'REQ-002']) {
+      const titles = await quickFixTitlesAt(filePath, await lineContaining(filePath, `- ${parentUid}`));
+
+      assert.deepStrictEqual(
+        titles,
+        ['Clear Suspect Link', 'Clear All Suspect Links'],
+        `both fixes must be offered on the ${parentUid} entry`
+      );
+    }
+
+    // Scenario 9: REQ-010 is also unreviewed, so the same item carries both
+    // kinds of problem. Each line offers only the fixes that belong to it.
+    assert.deepStrictEqual(
+      await quickFixTitlesAt(filePath, await lineContaining(filePath, 'reviewed:')),
+      ['Do Review'],
+      'the reviewed: line offers the review fix and nothing else'
+    );
+  });
+
+  test('QuickFix: the single-link fix clears only its own link (US1)', async function () {
+    this.timeout(30000);
+    const filePath = path.join(FIXTURE_ROOT, 'REQ-010.yml');
+
+    await withRestoredFile(filePath, async () => {
+      const line = await lineContaining(filePath, '- REQ-001');
+      await problems.refreshNow();
+      const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+        'vscode.executeCodeActionProvider',
+        vscode.Uri.file(filePath),
+        new vscode.Range(line, 0, line, 0),
+        vscode.CodeActionKind.QuickFix.value
+      );
+      const fix = (actions ?? []).find(action => action.title === 'Clear Suspect Link');
+      assert.ok(fix?.command, 'the single-link fix carries a command to run');
+
+      // Run it exactly as selecting it in the lightbulb would.
+      await vscode.commands.executeCommand(fix.command.command, ...(fix.command.arguments ?? []));
+
+      const after = await itemNode('REQ-010');
+      const byParent = new Map(after!.links.map(link => [link.uid, link.suspect]));
+      assert.strictEqual(byParent.get('REQ-001'), false, 'the fixed link is cleared');
+      assert.strictEqual(byParent.get('REQ-002'), true, 'its sibling stays suspect');
+
+      // FR-008 / scenario 8: the fix leaves together with the problem it resolved.
+      // quickFixTitlesAt re-runs the check first, so this is the "next check".
+      assert.deepStrictEqual(
+        await quickFixTitlesAt(filePath, line),
+        [],
+        'a resolved problem no longer offers its fix'
+      );
+      // And with one suspect link left, the bulk fix has nothing to add either.
+      assert.deepStrictEqual(
+        await quickFixTitlesAt(filePath, await lineContaining(filePath, '- REQ-002')),
+        ['Clear Suspect Link'],
+        'the remaining suspect link offers only the single-link fix'
+      );
+    });
+  });
+
+  test('QuickFix: nothing is offered where Doorstop reports no problem (US1)', async function () {
+    this.timeout(30000);
+    // REQ-006 is already reviewed; REQ-008's single link is already cleared.
+    const reviewed = path.join(FIXTURE_ROOT, 'REQ-006.yml');
+    const cleared = path.join(FIXTURE_ROOT, 'REQ-008.yml');
+
+    assert.deepStrictEqual(
+      await quickFixTitlesAt(reviewed, await lineContaining(reviewed, 'reviewed:')),
+      [],
+      'an already-reviewed item offers no review fix'
+    );
+    assert.deepStrictEqual(
+      await quickFixTitlesAt(cleared, await lineContaining(cleared, '- REQ-001')),
+      [],
+      'a cleared link offers no clear fix'
+    );
+  });
+
+  test('QuickFix: an unrelated diagnostic gets no review or clear fix (US1)', async function () {
+    this.timeout(30000);
+    // REQ-009's dangling link is an error this feature deliberately has no fix
+    // for - the provider must not attach itself to every doorstop diagnostic.
+    const filePath = path.join(FIXTURE_ROOT, 'REQ-009.yml');
+
+    const titles = await quickFixTitlesAt(filePath, await lineContaining(filePath, 'REQ-999'));
+
+    assert.deepStrictEqual(titles, []);
   });
 });

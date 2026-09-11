@@ -14,12 +14,13 @@ This extension brings requirement lifecycle management into your developer workf
 
 ![alt text](media/promotion/06-treeview-navigation.gif)
 
-**Inline Node Actions:** Quickly **Add**,
+**Inline Node Actions:** Quickly **Add**
 ![alt text](media/promotion/07-new_requirement.gif)
-**Review**, **Clear Suspect Status**, or
-![alt text](<media/promotion/08-review and clear links.gif>)
-**Link** items via inline action buttons on hover.
+or **Link** items via inline action buttons on hover.
 ![alt text](media/promotion/09_link_items.gif)
+
+**Review** and **Clear Suspect Status** are on the item's right-click menu. They are also offered as Quick Fixes in the editor, on the problems Doorstop reports for them (see below).
+![alt text](<media/promotion/08-review and clear links.gif>)
 
 **Global Utilities:** Access frequent operations (Reorder, Import, Export, Publish) from the dedicated panel or the VS Code Command Palette.
 
@@ -30,13 +31,13 @@ This extension brings requirement lifecycle management into your developer workf
  **CodeLens Derivation:** Derive downstream requirements with a single click directly above your requirement definitions.
  ![alt text](media/promotion/04_derive_requirement.gif)
 
- **CodeLens Review & Suspect Links:** Three more one-click actions, inline on the fields they belong to:
+ **Quick Fixes for Review & Suspect Links:** Where Doorstop reports a problem, it also offers the fix. Put the cursor on the reported line and press `Ctrl+.` (or click the lightbulb in the margin):
 
-* **Do Review** on the `reviewed:` field marks that requirement as reviewed.
-* **Clear All Suspicions** above the `links:` field clears every suspect link of the item at once (shown only when the item actually has links).
-* **Clear the Suspicion** on an individual link entry clears just that one link, leaving the item's other links suspect.
+* **Do Review** on an item Doorstop reports as needing review marks that requirement as reviewed.
+* **Clear Suspect Link** on a reported suspect link clears just that one link, leaving the item's other links suspect.
+* **Clear All Suspect Links** appears alongside it when the item has more than one suspect link, and clears all of them at once.
 
- All three act through the Doorstop server, so the file on disk is written by Doorstop itself. If the file has unsaved edits you are asked to save first — nothing is discarded silently.
+ Because these are attached to Doorstop's own validation, they only appear when there is genuinely something to fix — an already-reviewed item or an already-cleared link offers nothing. All three act through the Doorstop server, so the file on disk is written by Doorstop itself. If the file has unsaved edits you are asked to save first — nothing is discarded silently.
 
  **Smart Autocompletion (IntelliSense):** Autocomplete upstream links with history support showing recently opened items at first.
 ![alt text](media/promotion/05_autocomplete.gif)

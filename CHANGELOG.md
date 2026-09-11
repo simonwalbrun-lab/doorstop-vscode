@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Review and suspect links: **Do Review**, **Clear Suspect Link** and **Clear All
+  Suspect Links** are no longer CodeLenses floating above the field. They are now
+  Quick Fixes on the problems Doorstop already reports for them — put the cursor
+  on the reported line and press `Ctrl+.`, or click the lightbulb in the margin.
+  Because they hang off Doorstop's own validation, they only appear when there is
+  something to fix: an already-reviewed item or an already-cleared link offers
+  nothing, and **Clear All Suspect Links** shows up only once an item has more
+  than one suspect link. **+ Derive Requirement** is unchanged and still a CodeLens
+- Requirements tree: the **Review** and **Clear Suspect** icon buttons are gone from
+  the item rows, which now carry only **Add** and **Link**. Both actions are still
+  on the right-click menu, unchanged
 - Canvas: right-click an item for **Remove from Diagram** (takes it off the canvas
   only — the requirement and all of its links are untouched) and **Add Link to…**,
   which creates a real link to the next item you click, with no drag gesture needed

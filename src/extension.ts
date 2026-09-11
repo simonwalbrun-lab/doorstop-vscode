@@ -6,7 +6,8 @@ import { registerHoverProvider } from './hoverProvider';
 import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
 import { DoorstopServer, installServerPackage, isServerPackageInstalled, SERVER_PACKAGE_NAME } from './doorstopServer';
 import { registerDeriveProvider } from './deriveProvider';
-import { registerReviewLensProvider } from './reviewLensProvider';
+import { registerReviewCodeActionProvider } from './reviewCodeActionProvider';
+import { registerReviewCommands } from './reviewLensProvider';
 import { registerDefinitionProvider } from './definitionProvider';
 import { DoorstopCommandsProvider } from './commandsProvider';
 import { registerDoorstopCommands } from './doorstopCommands';
@@ -201,7 +202,9 @@ export async function activate(context: vscode.ExtensionContext) {
       problemsProvider?.scheduleRefresh();
     };
     registerDeriveProvider(context, { server: doorstopServer, onChanged });
-    registerReviewLensProvider(context, { server: doorstopServer, onChanged });
+    registerReviewCommands(context, { server: doorstopServer, onChanged });
+    // Offers those commands as Quick Fixes on the problems registered above.
+    registerReviewCodeActionProvider(context);
     registerDefinitionProvider(context, {
       server: doorstopServer,
       workspaceFolder
