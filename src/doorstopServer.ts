@@ -206,3 +206,133 @@ export class DoorstopServer {
     }
   }
 }
+
+/** The PyPI distribution this repo publishes (server/pyproject.toml, server/.github/workflows/publish.yml). */
+export const SERVER_PACKAGE_NAME = 'doorstop-vscode-server';
+
+/** The importable module name `-m doorstop_server` (DoorstopServer.start) actually needs. */
+const SERVER_MODULE_NAME = 'doorstop_server';
+
+/**
+ * The subset of node:child_process's ChildProcess this file relies on, kept
+ * narrow so tests can hand in a fake process without constructing a real one.
+ */
+export interface MinimalChildProcess {
+  stdout?: { on(event: 'data', listener: (chunk: unknown) => void): void } | null;
+  stderr?: { on(event: 'data', listener: (chunk: unknown) => void): void } | null;
+  on(event: 'error', listener: (error: Error) => void): void;
+  on(event: 'exit', listener: (code: number | null, signal: NodeJS.Signals | null) => void): void;
+}
+
+export type SpawnFn = (command: string, args: string[], options?: Record<string, unknown>) => MinimalChildProcess;
+
+/**
+ * Checks whether `doorstop_server` is importable in the given interpreter,
+ * without actually importing it (find_spec has no import-time side effects)
+ * and without the cost of starting the FastAPI app just to find out
+ * (spec 016, research.md §1).
+ *
+ * Resolves `false` — never rejects — for every "not installed" reason (wrong
+ * exit code or a spawn failure), so callers have exactly one boolean branch.
+ */
+export function isServerPackageInstalled(pythonPath: string, spawnFn: SpawnFn = spawn): Promise<boolean> {
+  return new Promise<boolean>(resolve => {
+    let settled = false;
+    const settle = (value: boolean): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(value);
+    };
+
+    let child: MinimalChildProcess;
+    try {
+      child = spawnFn(pythonPath, [
+        '-c',
+        `import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('${SERVER_MODULE_NAME}') else 1)`
+      ], { shell: false, windowsHide: true, stdio: ['ignore', 'ignore', 'ignore'] });
+    } catch {
+      settle(false);
+      return;
+    }
+
+    child.on('error', () => settle(false));
+    child.on('exit', code => settle(code === 0));
+  });
+}
+
+export interface InstallOutcome {
+  success: boolean;
+  /** Captured stdout+stderr, tail-truncated to the same 2000 characters as DoorstopServer.recentStderr. */
+  output: string;
+}
+
+export interface InstallOptions {
+  onOutput?: (chunk: string) => void;
+  spawnFn?: SpawnFn;
+}
+
+/** At most one install per interpreter at a time (FR-008); cleared once that install settles. */
+const inFlightInstalls = new Map<string, Promise<InstallOutcome>>();
+
+/**
+ * Installs the server package from PyPI into the given interpreter
+ * (spec 016, research.md §2). Resolves `{ success: false, output }` on
+ * failure rather than rejecting, so callers have one place to branch on the
+ * outcome. A second call for the same `pythonPath` while one is already
+ * running returns the same in-flight promise instead of spawning again.
+ */
+export function installServerPackage(pythonPath: string, options: InstallOptions = {}): Promise<InstallOutcome> {
+  const existing = inFlightInstalls.get(pythonPath);
+  if (existing) {
+    return existing;
+  }
+
+  const spawnFn = options.spawnFn ?? spawn;
+  const onOutput = options.onOutput;
+
+  const promise = new Promise<InstallOutcome>(resolve => {
+    let settled = false;
+    let output = '';
+    const appendOutput = (chunk: string): void => {
+      output = (output + chunk).slice(-2000);
+      onOutput?.(chunk);
+    };
+    const settle = (success: boolean): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve({ success, output });
+    };
+
+    let child: MinimalChildProcess;
+    try {
+      child = spawnFn(pythonPath, ['-m', 'pip', 'install', SERVER_PACKAGE_NAME], {
+        shell: false,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+    } catch (error) {
+      appendOutput(error instanceof Error ? error.message : String(error));
+      settle(false);
+      return;
+    }
+
+    child.stdout?.on('data', data => appendOutput(String(data)));
+    child.stderr?.on('data', data => appendOutput(String(data)));
+    child.on('error', error => {
+      appendOutput(error.message);
+      settle(false);
+    });
+    child.on('exit', code => settle(code === 0));
+  });
+
+  inFlightInstalls.set(pythonPath, promise);
+  void promise.finally(() => {
+    inFlightInstalls.delete(pythonPath);
+  });
+
+  return promise;
+}

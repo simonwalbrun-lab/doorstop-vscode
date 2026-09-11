@@ -120,3 +120,293 @@ sequenceDiagram
 - **Custom editor for `*.doorstop.json`:** Diagram files open directly as diagrams and participate in standard VS Code Save, Save As, Revert, and backup flows.
 - **Workspace-relative diagram paths:** Saved diagrams remain portable across machines and workspace locations.
 - **Provider-based TreeView:** Requirement discovery and hierarchy remain encapsulated in `DoorstopTreeProvider`, while commands coordinate navigation and activation.
+
+## 6. Class Diagrams
+
+### 6.1 Core Data Model
+
+The foundation of the extension: requirement and document data structures exchanged with the Doorstop server.
+
+```mermaid
+classDiagram
+    class LinkInfo {
+        +string uid
+        +boolean suspect
+    }
+
+    class ItemNode {
+        +string uid
+        +string path
+        +string level
+        +string header*
+        +string text*
+        +string ref*
+        +boolean active
+        +boolean normative
+        +boolean derived
+        +boolean reviewed
+        +boolean cleared
+        +LinkInfo[] links
+    }
+
+    class DocumentNode {
+        +string prefix
+        +string markerPath
+        +string parentPrefix*
+        +number digits*
+        +string separator*
+        +string itemFormat*
+        +ItemNode[] items
+    }
+
+    class TreeResponse {
+        +DocumentNode[] documents
+    }
+
+    class ValidationIssue {
+        +string severity
+        +string check
+        +string message
+        +string documentPrefix
+        +string[] uids
+        +string relatedUid*
+        +FieldAnchor field*
+    }
+
+    class ValidationResponse {
+        +ValidationIssue[] issues
+    }
+
+    TreeResponse "1" --o "many" DocumentNode
+    DocumentNode "1" --o "many" ItemNode
+    ItemNode "1" --o "many" LinkInfo
+    ValidationResponse "1" --o "many" ValidationIssue
+```
+
+### 6.2 TreeView Provider and Items
+
+Hierarchical organization and rendering of requirements in the VS Code TreeView.
+
+```mermaid
+classDiagram
+    class RequirementTreeItem {
+        -string baseLabel
+        +string label
+        +TreeItemCollapsibleState collapsibleState
+        +Uri resourceUri
+        +any itemData
+        +string title
+        +void setActive(boolean)
+        +void setTreeIcon(icon)
+    }
+
+    class DoorstopTreeProvider {
+        -DoorstopServer server
+        -Map items
+        -Map childrenByItem
+        -Map childrenById
+        -Map parentByItem
+        -Map parentById
+        -RequirementTreeItem[] roots
+        -boolean loaded
+        -EventEmitter onDidChangeTreeData
+        +void refresh()
+        +Promise getChildren(element)*
+        +Promise getParent(element)*
+        +TreeItem getTreeItem(element)
+        +Promise setActiveResource(uri)
+    }
+
+    class DoorstopServer {
+        +boolean isRunning
+        +Promise start(wsPath, pythonPath)
+        +Promise restart(wsPath, pythonPath)
+        +Promise stop()
+        +Promise query(method, params)
+    }
+
+    class TreeItem {
+        <<vscode api>>
+    }
+
+    class TreeDataProvider {
+        <<vscode api>>
+    }
+
+    RequirementTreeItem --|> TreeItem
+    DoorstopTreeProvider --|> TreeDataProvider
+    DoorstopTreeProvider "1" --o "many" RequirementTreeItem
+    DoorstopTreeProvider --> DoorstopServer
+```
+
+### 6.3 Diagram Panel and Graph Data
+
+Canvas-side graph representation and diagram persistence structures.
+
+```mermaid
+classDiagram
+    class NodeMeta {
+        +string path
+        +string documentPrefix
+        +boolean active
+        +boolean normative
+        +boolean derived
+        +boolean reviewed
+        +boolean cleared
+        +LinkInfo[] links
+        +string header*
+    }
+
+    class GhostTether {
+        +string bodyUid
+        +boolean ghostIsParent
+    }
+
+    class GhostNode {
+        +string uid
+        +string fileUri
+        +string header*
+        +string documentPrefix
+        +GhostTether[] tethers
+        +boolean active
+        +boolean normative
+        +boolean derived
+        +boolean reviewed
+        +boolean cleared
+    }
+
+    class DocMeta {
+        +string prefix
+        +string parentPrefix*
+    }
+
+    class DoorstopDiagramPanel {
+        -WebviewPanel panel
+        -Uri extensionUri
+        -Function getDiagram
+        -Function onDiagramChanged
+        -DoorstopServer server*
+        -DoorstopTreeProvider treeProvider*
+        -Record itemMeta
+        -Disposable[] disposables
+        +static DoorstopDiagramPanel currentPanel*
+        +void addRequirementToDiagram(filePath)
+        +Promise resolveDroppedItem(path, pointer)
+        +static Promise readDiagram(uri)
+        +static Uint8Array serializeDiagram(diagram)
+    }
+
+    class CustomEditorProvider {
+        <<vscode api>>
+        +Promise openCustomDocument(uri, context)
+        +Promise resolveCustomEditor(document, webview)
+        +Promise saveCustomDocument(document)
+        +Promise revertCustomDocument(document)
+        +Promise backupCustomDocument(document, context)
+    }
+
+    NodeMeta "1" --o "many" GhostTether
+    GhostNode "1" --o "many" GhostTether
+    DoorstopDiagramPanel "1" --o "many" NodeMeta
+    DoorstopDiagramPanel --> DoorstopServer
+    DoorstopDiagramPanel --> DoorstopTreeProvider
+    DoorstopDiagramPanel --|> CustomEditorProvider
+```
+
+### 6.4 Language Support Providers
+
+Provider interfaces for editor features (hover, completion, diagnostics).
+
+```mermaid
+classDiagram
+    class HoverProvider {
+        +Promise provideHover(document, position, token)
+    }
+
+    class CompletionProvider {
+        +Promise provideCompletionItems(document, position, token)
+        +Promise resolveCompletionItem(item, token)*
+    }
+
+    class DefinitionProvider {
+        +Promise provideDefinition(document, position, token)
+    }
+
+    class ProblemsProvider {
+        -DoorstopServer server
+        -WorkspaceFolder workspaceFolder
+        -DiagnosticCollection diagnostics
+        -Timer debounceTimer
+        +void scheduleRefresh()
+        +Promise refreshNow()
+        +void dispose()
+    }
+
+    class ReviewLensProvider {
+        +Promise provideCodeLenses(document, token)
+        +Promise resolveCodeLens(lens, token)*
+    }
+
+    class DeriveProvider {
+        -DoorstopServer server
+        -Function onChanged
+        +Promise handle(params)
+    }
+
+    class VSCodeHoverProvider {
+        <<vscode api>>
+    }
+
+    class VSCodeCompletionProvider {
+        <<vscode api>>
+    }
+
+    class VSCodeDefinitionProvider {
+        <<vscode api>>
+    }
+
+    class VSCodeCodeLensProvider {
+        <<vscode api>>
+    }
+
+    HoverProvider --|> VSCodeHoverProvider
+    CompletionProvider --|> VSCodeCompletionProvider
+    DefinitionProvider --|> VSCodeDefinitionProvider
+    ReviewLensProvider --|> VSCodeCodeLensProvider
+```
+
+### 6.5 Component Dependencies
+
+High-level overview of how major components depend on and communicate with each other.
+
+```mermaid
+classDiagram
+    class Extension {
+        +void activate(context)
+        +void deactivate()
+    }
+
+    class TreeViewCommand {
+        +void registerCommand(name, handler)
+    }
+
+    class CustomEditorCommand {
+        +void registerCommand(name, handler)
+    }
+
+    Extension --> DoorstopServer
+    Extension --> DoorstopTreeProvider
+    Extension --> DoorstopDiagramPanel
+    Extension --> ProblemsProvider
+    Extension --> HoverProvider
+    Extension --> CompletionProvider
+    Extension --> ReviewLensProvider
+    Extension --> DeriveProvider
+    Extension --> DefinitionProvider
+    Extension "1" --o "many" TreeViewCommand
+    Extension "1" --o "many" CustomEditorCommand
+    DoorstopTreeProvider --> DoorstopServer
+    DoorstopDiagramPanel --> DoorstopServer
+    DoorstopDiagramPanel --> DoorstopTreeProvider
+    ProblemsProvider --> DoorstopServer
+```
