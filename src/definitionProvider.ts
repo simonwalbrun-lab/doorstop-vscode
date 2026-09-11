@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { DoorstopIndex, getDocumentUid, loadDoorstopIndex } from './doorstopIndex';
 import { DoorstopServer } from './doorstopServer';
 
-const UID_REGEX = /\b[A-Z0-9_-]+-\d+\b/g;
+export const UID_REGEX = /\b[A-Z0-9_-]+-\d+\b/g;
 const DERIVED_LINE_REGEX = /^\s*derived\s*:/i;
 const YAML_HEADER_LINE_REGEX = /^\s*header\s*:/i;
 const MARKDOWN_HEADING_LINE_REGEX = /^#{1,6}\s+/;
@@ -31,13 +31,15 @@ async function findLineMatching(uri: vscode.Uri, lineRegex: RegExp): Promise<vsc
   return new vscode.Location(uri, new vscode.Range(0, 0, 0, 0));
 }
 
-function findHeaderLocation(uri: vscode.Uri): Promise<vscode.Location> {
+/** The item's header line (`header:` for `.yml`, first `#` heading for `.md`); line 0 when neither is found. */
+export function findHeaderLocation(uri: vscode.Uri): Promise<vscode.Location> {
   const extension = path.extname(uri.fsPath).toLowerCase();
   const lineRegex = extension === '.md' ? MARKDOWN_HEADING_LINE_REGEX : YAML_HEADER_LINE_REGEX;
   return findLineMatching(uri, lineRegex);
 }
 
-function findReferenceLocation(uri: vscode.Uri, targetUid: string): Promise<vscode.Location> {
+/** The first line of `uri` that names `targetUid` as a whole word; line 0 when it is not mentioned. */
+export function findReferenceLocation(uri: vscode.Uri, targetUid: string): Promise<vscode.Location> {
   return findLineMatching(uri, new RegExp(`\\b${targetUid}\\b`));
 }
 

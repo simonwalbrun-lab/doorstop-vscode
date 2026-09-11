@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixed: **Reorder Document → Manual** no longer depends on the "Apply Reorder"
+  notification button. Running the command again while an `index.yml` exists now
+  offers **Apply index.yml** (as well as keep editing / discard), an index that is
+  still unsaved in the editor is saved before it is applied, and the stale
+  `index.yml` editor is closed once Doorstop has consumed the file
+- Requirements tree: a new **Show Call Hierarchy** icon on each item row opens the
+  item and VS Code's peek call hierarchy — **outgoing** lists the items it links to
+  (upstream), **incoming** the items that link to it (downstream); the peek's
+  single direction icon switches between the two, and it opens on outgoing.
+  Entries read `UID: Heading` with the document prefix alongside; a link to a
+  UID the server does not know is listed as `unresolved`. Also available in any
+  requirement file via *Peek Call Hierarchy* (`Shift+Alt+H`)
 - Review and suspect links: **Do Review**, **Clear Suspect Link** and **Clear All
   Suspect Links** are no longer CodeLenses floating above the field. They are now
   Quick Fixes on the problems Doorstop already reports for them — put the cursor

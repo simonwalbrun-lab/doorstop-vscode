@@ -78,6 +78,14 @@ Hover in editor over `derived`:
 **Traceability Links:** clickable list of linked child requirement IDs.
 ![alt text](media/promotion/02_downstream-links.gif)
 
+**Call Hierarchy:** click the hierarchy icon on a requirement row in the tree
+(or press `Shift+Alt+H` inside a requirement file) to open VS Code's peek call
+hierarchy for that item. **Outgoing** lists the items it links to (upstream),
+**incoming** the items that link to it (downstream); the single icon on the
+peek's top line switches between the two. Entries read `UID: Heading` with the
+document prefix alongside, and every entry expands further, so a whole chain
+can be traced without leaving the editor.
+
 ### 🎨 Requirements Canvas
 
 Collect and organize requirements on a visual canvas for spatial planning (and some future release traceability mapping).

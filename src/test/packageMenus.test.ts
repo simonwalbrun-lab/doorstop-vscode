@@ -53,3 +53,27 @@ suite('TreeView Row Actions (017 US2)', () => {
     assert.strictEqual(inlineEntries('doorstop.link').length, 1, 'Link Items stays inline');
   });
 });
+
+suite('TreeView Call Hierarchy Icon (018 US1)', () => {
+  const COMMAND = 'doorstop.showCallHierarchy';
+
+  test('Show Call Hierarchy is an inline icon on requirement rows only', () => {
+    const inline = inlineEntries(COMMAND);
+    assert.strictEqual(inline.length, 1, 'exactly one inline entry');
+    assert.ok(inline[0].when?.includes('viewItem == doorstop.item'), 'offered on requirement items');
+    assert.ok(!inline[0].when?.includes('doorstop.root'), 'never offered on document roots (FR-001)');
+  });
+
+  test('the command is declared with an icon', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'));
+    const command = (manifest.contributes.commands as { command: string; icon?: string }[])
+      .find(entry => entry.command === COMMAND);
+    assert.ok(command, 'command is contributed');
+    assert.ok(command.icon, 'an inline action needs an icon to render');
+  });
+
+  test('Add Item and Link Items are unaffected', () => {
+    assert.strictEqual(inlineEntries('doorstop.add').length, 1);
+    assert.strictEqual(inlineEntries('doorstop.link').length, 1);
+  });
+});

@@ -9,6 +9,7 @@ import { registerDeriveProvider } from './deriveProvider';
 import { registerReviewCodeActionProvider } from './reviewCodeActionProvider';
 import { registerReviewCommands } from './reviewLensProvider';
 import { registerDefinitionProvider } from './definitionProvider';
+import { registerCallHierarchyProvider } from './callHierarchyProvider';
 import { DoorstopCommandsProvider } from './commandsProvider';
 import { registerDoorstopCommands } from './doorstopCommands';
 import { ProblemsProvider, registerProblemsProvider } from './problemsProvider';
@@ -209,6 +210,7 @@ export async function activate(context: vscode.ExtensionContext) {
       server: doorstopServer,
       workspaceFolder
     });
+    registerCallHierarchyProvider(context, { server: doorstopServer });
   }
   const newDiagramCmd = vscode.commands.registerCommand('doorstop.newDiagram', async () => {
     const defaultUri = workspaceFolder
