@@ -1,0 +1,1067 @@
+<title>Requirements Publishing Templates</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Manrope:wght@400;500;600;700;800&family=Libre+Franklin:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{
+    --bg:#f3f5f6;
+    --surface:#ffffff;
+    --ink:#153243;
+    --ink-soft:#4c6272;
+    --ink-faint:#7c8f9c;
+    --line:#d0d6d9;
+    --red:#b41412;
+    --red-dark:#790000;
+    --orange:#ed7102;
+    --blue:#2ea3f2;
+    --shadow: 0 1px 2px rgba(21,50,67,0.07), 0 12px 30px -16px rgba(21,50,67,0.28);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0b161d;
+      --surface:#12222c;
+      --ink:#edf3f5;
+      --ink-soft:#a7bac5;
+      --ink-faint:#6f8794;
+      --line:#233c4a;
+      --red:#ff756e;
+      --red-dark:#ffb2ac;
+      --orange:#ffab52;
+      --blue:#6cc6ff;
+      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 12px 30px -16px rgba(0,0,0,0.65);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0b161d; --surface:#12222c; --ink:#edf3f5; --ink-soft:#a7bac5; --ink-faint:#6f8794;
+    --line:#233c4a; --red:#ff756e; --red-dark:#ffb2ac; --orange:#ffab52; --blue:#6cc6ff;
+    --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 12px 30px -16px rgba(0,0,0,0.65);
+  }
+
+  *{ box-sizing:border-box; }
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"IBM Plex Sans", system-ui, sans-serif;
+    padding:0 20px;
+  }
+  ::selection{ background:var(--red); color:#fff; }
+  .mono{ font-family:"IBM Plex Mono", ui-monospace, monospace; }
+
+  .wrap{ max-width:1120px; margin:0 auto; padding-block:44px 72px; }
+
+  /* ---- masthead ---- */
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:"IBM Plex Mono",monospace; font-size:0.72rem; letter-spacing:0.12em; text-transform:uppercase;
+    color:var(--red); background:color-mix(in srgb, var(--red) 10%, var(--surface));
+    border:1px solid var(--line); padding:5px 10px 5px 8px; border-radius:3px;
+  }
+  .eyebrow::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--red); flex:none; }
+  header.masthead{ display:flex; flex-direction:column; gap:16px; padding-bottom:28px; margin-bottom:28px; border-bottom:1px solid var(--line); }
+  h1.title{ font-size:clamp(1.7rem,4vw,2.4rem); font-weight:700; letter-spacing:-0.01em; line-height:1.1; margin:0; text-wrap:balance; }
+  .dek{ font-size:1.03rem; line-height:1.6; color:var(--ink-soft); max-width:660px; margin:0; }
+  .meta-row{ display:flex; flex-wrap:wrap; gap:8px; }
+  .swatch-mini{ display:inline-flex; align-items:center; gap:6px; font-family:"IBM Plex Mono",monospace; font-size:0.72rem; color:var(--ink-faint); border:1px solid var(--line); border-radius:20px; padding:3px 10px 3px 6px; background:var(--surface); }
+  .swatch-mini i{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+
+  /* ---- tabs ---- */
+  .tabbar{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:18px; border-bottom:1px solid var(--line); }
+  .tab{
+    appearance:none; background:transparent; border:none; cursor:pointer;
+    font-family:"IBM Plex Sans",sans-serif; text-align:left;
+    padding:12px 16px 14px; border-bottom:3px solid transparent; margin-bottom:-1px;
+    display:flex; flex-direction:column; gap:2px; color:var(--ink-faint);
+    min-width:150px;
+  }
+  .tab .tname{ font-weight:700; font-size:0.92rem; color:inherit; }
+  .tab .tdesc{ font-size:0.72rem; color:inherit; opacity:0.75; }
+  .tab:hover{ color:var(--ink-soft); }
+  .tab[aria-selected="true"]{ color:var(--ink); border-bottom-color:var(--red); }
+  .tab[aria-selected="true"] .tname{ color:var(--ink); }
+  .tab:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+
+  /* ---- stage / preview frame ---- */
+  .stage{ border:1px solid var(--line); border-radius:12px; background:var(--surface); box-shadow:var(--shadow); overflow:hidden; }
+  .panel{ background:#ffffff; color:#153243; } /* previews are fixed-appearance documents, like an exported file */
+  .panel-bar{
+    display:flex; align-items:center; gap:8px; padding:9px 14px; background:#eef1f2; border-bottom:1px solid #d0d6d9;
+    font-family:"IBM Plex Mono",monospace; font-size:0.7rem; color:#607382;
+  }
+  .panel-bar .dots{ display:flex; gap:5px; }
+  .panel-bar .dots span{ width:8px; height:8px; border-radius:50%; background:#d0d6d9; }
+  .panel-bar .fname{ margin-left:6px; }
+
+  footer{ margin-top:40px; border-top:1px solid var(--line); padding-top:24px; }
+  footer p{ color:var(--ink-faint); font-size:0.85rem; line-height:1.6; max-width:680px; }
+  .palette-strip{ display:flex; flex-wrap:wrap; gap:10px; margin:14px 0 18px; }
+  .pal{ display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:8px; padding:8px 12px; background:var(--surface); }
+  .pal i{ width:22px; height:22px; border-radius:5px; flex:none; }
+  .pal span{ font-family:"IBM Plex Mono",monospace; font-size:0.75rem; color:var(--ink-soft); }
+  .pal b{ display:block; font-size:0.72rem; color:var(--ink-faint); font-weight:500; }
+
+  @media (max-width:640px){
+    .tab{ min-width:44%; }
+  }
+
+  /* ---- controls row / print ---- */
+  .controls-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .current-label{ font-family:"IBM Plex Mono",monospace; font-size:0.76rem; color:var(--ink-faint); }
+  .current-label b{ color:var(--ink); font-weight:600; }
+  .btn-print{
+    display:inline-flex; align-items:center; gap:7px;
+    font-family:"IBM Plex Sans",sans-serif; font-size:0.82rem; font-weight:600;
+    color:#fff; background:var(--red); border:none; border-radius:6px; padding:8px 14px; cursor:pointer;
+  }
+  .btn-print:hover{ background:var(--red-dark); }
+  .btn-print:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+
+  @media print{
+    .masthead, .tabbar, .controls-row, .panel-bar, footer{ display:none !important; }
+    body{ background:#fff !important; padding:0 !important; }
+    .wrap{ max-width:none; padding:0; margin:0; }
+    .stage{ border:none; box-shadow:none; border-radius:0; }
+    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+    @page{ margin:14mm 12mm; }
+  }
+
+  /* =========================================================
+     TEMPLATE 1 — STRUCTURED BRIEF
+     ========================================================= */
+  .brief{ font-family:"Source Serif 4", Georgia, serif; }
+  .brief .cover{
+    background:#153243; color:#f3f5f6; padding:40px 36px 34px;
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .brief .cover .k{ font-family:"IBM Plex Mono",monospace; font-size:0.72rem; letter-spacing:0.14em; text-transform:uppercase; color:#8fb3c6; }
+  .brief .cover h2{ font-family:"Source Serif 4",serif; font-weight:700; font-size:2.1rem; margin:0; letter-spacing:-0.01em; }
+  .brief .cover .subtitle{ font-size:1.05rem; color:#d7e2e7; margin:0; }
+  .brief .cover .metabar{ display:flex; flex-wrap:wrap; gap:18px; margin-top:10px; font-family:"IBM Plex Mono",monospace; font-size:0.74rem; color:#a9c1cd; }
+  .brief-shell{ display:grid; grid-template-columns:210px 1fr; gap:0; }
+  .brief-toc{ border-right:1px solid #e3e7e9; padding:26px 20px; background:#fafbfb; }
+  .brief-toc .h{ font-family:"IBM Plex Sans",sans-serif; font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; color:#7c8f9c; margin:0 0 12px; }
+  .brief-toc ol{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px; }
+  .brief-toc a{ font-family:"IBM Plex Sans",sans-serif; font-size:0.82rem; color:#324a58; text-decoration:none; display:block; border-left:2px solid transparent; padding-left:10px; }
+  .brief-toc a:hover{ border-color:#b41412; color:#b41412; }
+  .brief-toc .lvl2{ padding-left:22px; color:#607382; }
+  .brief-content{ padding:30px 40px 40px; max-width:680px; }
+  .brief-item{ margin-bottom:30px; break-inside:avoid; }
+  .brief-item .num{ font-family:"IBM Plex Sans",sans-serif; font-weight:700; font-size:0.72rem; letter-spacing:0.08em; color:#b41412; text-transform:uppercase; }
+  .brief-item h3{ font-family:"Source Serif 4",serif; font-size:1.32rem; font-weight:700; margin:4px 0 10px; color:#153243; }
+  .brief-item.h1 h3{ font-size:1.6rem; padding-top:6px; border-top:2px solid #153243; }
+  .brief-item p{ font-size:1.02rem; line-height:1.75; color:#26333a; margin:0 0 10px; }
+  .brief-cap{ font-family:"IBM Plex Mono",monospace; font-size:0.72rem; color:#93a3ac; }
+  .brief-cap.unrev{ color:#ed7102; }
+  .brief-cap.suspect{ color:#b41412; }
+  @media (max-width:700px){ .brief-shell{ grid-template-columns:1fr; } .brief-toc{ border-right:none; border-bottom:1px solid #e3e7e9; } .brief-content{ padding:24px 22px 30px; } }
+
+  /* =========================================================
+     TEMPLATE 2 — TRACE BOARD
+     ========================================================= */
+  .board{ font-family:"IBM Plex Sans",sans-serif; background:#f7f8f8; }
+  .board-top{ background:#ffffff; border-bottom:1px solid #e1e5e7; padding:22px 28px; display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; }
+  .board-top h2{ font-family:"Manrope",sans-serif; font-weight:800; font-size:1.5rem; margin:0; color:#153243; }
+  .board-top .sub{ font-size:0.85rem; color:#607382; margin:4px 0 0; }
+  .board-stats{ display:flex; gap:10px; }
+  .board-stat{ text-align:center; padding:6px 14px; border-radius:8px; background:#f3f5f6; min-width:66px; }
+  .board-stat b{ display:block; font-family:"IBM Plex Mono",monospace; font-size:1.05rem; color:#153243; }
+  .board-stat span{ font-size:0.62rem; text-transform:uppercase; letter-spacing:0.05em; color:#7c8f9c; }
+  .board-shell{ display:grid; grid-template-columns:220px 1fr; gap:22px; padding:22px 28px 30px; }
+  .board-rail .h{ font-family:"Manrope",sans-serif; font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; color:#7c8f9c; margin:0 0 10px; }
+  .board-rail ul{ list-style:none; margin:0 0 20px; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .board-rail li{ display:flex; align-items:center; gap:8px; font-size:0.82rem; color:#324a58; }
+  .board-dot{ width:8px; height:8px; border-radius:50%; flex:none; }
+  .board-cards{ display:flex; flex-direction:column; gap:14px; }
+  .board-card{ background:#fff; border:1px solid #e1e5e7; border-left:4px solid #153243; border-radius:8px; padding:16px 18px; break-inside:avoid; }
+  .board-card.state-review{ border-left-color:#153243; }
+  .board-card.state-unrev{ border-left-color:#ed7102; }
+  .board-card.state-suspect{ border-left-color:#b41412; }
+  .board-card.state-heading{ border-left-color:#c3ccd1; background:#fbfcfc; }
+  .board-row1{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+  .board-uid{ font-family:"IBM Plex Mono",monospace; font-size:0.74rem; color:#153243; font-weight:600; }
+  .board-lvl{ font-family:"IBM Plex Mono",monospace; font-size:0.68rem; color:#7c8f9c; background:#f0f2f2; border-radius:4px; padding:2px 6px; }
+  .board-pill{ font-family:"IBM Plex Mono",monospace; font-size:0.65rem; letter-spacing:0.03em; text-transform:uppercase; padding:2px 8px; border-radius:20px; margin-left:auto; }
+  .board-pill.review{ background:#e3ebee; color:#153243; }
+  .board-pill.unrev{ background:#fdecd9; color:#8a4b00; }
+  .board-pill.suspect{ background:#f6dcda; color:#8a1210; }
+  .board-card h3{ font-family:"Manrope",sans-serif; font-size:1.02rem; font-weight:700; margin:0 0 6px; color:#153243; }
+  .board-card p{ font-size:0.88rem; line-height:1.6; color:#334752; margin:0 0 10px; }
+  .board-links{ display:flex; gap:6px; flex-wrap:wrap; }
+  .board-chip{ font-family:"IBM Plex Mono",monospace; font-size:0.68rem; color:#2ea3f2; background:#e8f4fd; border-radius:12px; padding:3px 10px; }
+  .board-chip.none{ color:#9aa8ae; background:#f0f2f2; }
+  @media (max-width:700px){ .board-shell{ grid-template-columns:1fr; padding:18px; } }
+
+  /* =========================================================
+     TEMPLATE 3 — SPEC SHEET
+     ========================================================= */
+  .sheet{
+    font-family:"IBM Plex Mono",monospace; color:#153243;
+    background-color:#fbfcfb;
+    background-image:linear-gradient(rgba(21,50,67,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(21,50,67,0.055) 1px, transparent 1px);
+    background-size:22px 22px;
+    padding:32px 26px 40px;
+  }
+  .sheet-head{ text-align:center; margin-bottom:26px; }
+  .sheet-head .tag{ font-size:0.7rem; letter-spacing:0.16em; color:#607382; }
+  .sheet-head h2{ font-size:1.6rem; letter-spacing:0.02em; margin:6px 0 0; }
+  .sheet-inner{ max-width:660px; margin:0 auto; display:flex; flex-direction:column; gap:16px; }
+  .sheet-rec{ background:#ffffff; border:1px solid #cfd7db; break-inside:avoid; }
+  .sheet-stamp{ background:#153243; color:#e9eef0; font-size:0.68rem; letter-spacing:0.04em; padding:7px 12px; display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center; }
+  .sheet-stamp .flag{ padding:1px 7px; border-radius:3px; font-weight:600; }
+  .sheet-stamp .flag.unrev{ background:#ed7102; color:#2a1600; }
+  .sheet-stamp .flag.suspect{ background:#b41412; color:#fff; }
+  .sheet-body{ padding:14px 16px 16px; }
+  .sheet-body h3{ font-family:"IBM Plex Mono",monospace; font-size:1.05rem; text-transform:uppercase; letter-spacing:0.01em; margin:0 0 8px; color:#153243; }
+  .sheet-body p{ font-family:"IBM Plex Sans",sans-serif; font-size:0.92rem; line-height:1.65; color:#2c3a41; margin:0; border-left:2px solid #b41412; padding-left:12px; }
+  .sheet-rec.heading .sheet-body h3{ font-size:1.2rem; }
+  @media (max-width:700px){ .sheet{ padding:22px 14px 30px; } }
+
+  /* =========================================================
+     TEMPLATE 4 — REVIEW DECK
+     ========================================================= */
+  .deck{ font-family:"IBM Plex Serif", Georgia, serif; background:#fff; }
+  .deck-head{ background:#153243; color:#fff; padding:24px 30px; display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; font-family:"Libre Franklin",sans-serif; }
+  .deck-head h2{ margin:0; font-size:1.25rem; font-weight:800; }
+  .deck-head .sub{ font-size:0.78rem; color:#a9c1cd; margin-top:2px; }
+  .deck-overall{ font-family:"IBM Plex Mono",monospace; font-size:0.72rem; background:#0e2431; padding:6px 12px; border-radius:6px; border:1px solid #2c4c5d; }
+  .deck-inner{ max-width:700px; margin:0 auto; padding:26px 24px 10px; }
+  .deck-item{ border:1px solid #e3e7e9; border-radius:8px; overflow:hidden; margin-bottom:16px; break-inside:avoid; }
+  .deck-strip{ height:5px; background:#153243; }
+  .deck-strip.unrev{ background:#ed7102; }
+  .deck-strip.suspect{ background:#b41412; }
+  .deck-body{ padding:16px 20px 18px; }
+  .deck-topline{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+  .deck-uid{ font-family:"IBM Plex Mono",monospace; font-size:0.72rem; color:#7c8f9c; }
+  .deck-stamp{ font-family:"Libre Franklin",sans-serif; font-size:0.68rem; font-weight:700; letter-spacing:0.03em; text-transform:uppercase; padding:3px 10px; border-radius:20px; }
+  .deck-stamp.review{ background:#e3ebee; color:#153243; }
+  .deck-stamp.unrev{ background:#fdecd9; color:#8a4b00; }
+  .deck-stamp.suspect{ background:#f6dcda; color:#8a1210; }
+  .deck-body h3{ font-family:"Libre Franklin",sans-serif; font-size:1.12rem; font-weight:800; margin:0 0 8px; color:#153243; }
+  .deck-body p{ font-size:0.96rem; line-height:1.65; color:#2c3a41; margin:0 0 10px; }
+  .deck-trace{ font-family:"IBM Plex Mono",monospace; font-size:0.72rem; color:#2ea3f2; }
+  .deck-trace.gap{ color:#b41412; }
+  .deck-signoff{ background:#f6f7f7; border:1px dashed #c3ccd1; border-radius:8px; padding:16px 20px; margin:20px 24px 26px; font-family:"IBM Plex Sans",sans-serif; font-size:0.82rem; color:#4c6272; line-height:1.6; }
+  .deck-signoff b{ color:#153243; }
+  @media (max-width:700px){ .deck-inner{ padding:20px 16px 6px; } .deck-signoff{ margin:18px 14px 22px; } }
+
+  /* =========================================================
+     TEMPLATE 5 — TWO-COLUMN PRINT
+     ========================================================= */
+  .twocol{ font-family:"IBM Plex Serif", Georgia, serif; background:#fff; padding:26px 30px 20px; font-size:0.86rem; }
+  .twocol-run{ display:flex; justify-content:space-between; align-items:baseline; font-family:"IBM Plex Mono",monospace; font-size:0.66rem; letter-spacing:0.05em; text-transform:uppercase; color:#607382; border-bottom:1px solid #153243; padding-bottom:6px; margin-bottom:14px; }
+  .twocol-body{ column-count:2; column-gap:28px; column-rule:1px solid #e1e5e7; }
+  .twocol-h1{ column-span:all; font-family:"IBM Plex Sans",sans-serif; font-weight:700; font-size:0.78rem; letter-spacing:0.06em; text-transform:uppercase; color:#153243; border-top:2px solid #153243; padding-top:6px; margin:0 0 10px; }
+  .twocol-item{ break-inside:avoid-column; margin-bottom:12px; }
+  .twocol-tag{ font-family:"IBM Plex Mono",monospace; font-size:0.64rem; color:#7c8f9c; display:block; margin-bottom:3px; }
+  .twocol-tag .gap{ color:#b41412; }
+  .twocol-item p{ font-size:0.82rem; line-height:1.5; margin:0; color:#26333a; }
+  .twocol-item b{ color:#153243; }
+  .twocol-foot{ display:flex; justify-content:space-between; font-family:"IBM Plex Mono",monospace; font-size:0.62rem; color:#9aa8ae; border-top:1px solid #e1e5e7; margin-top:14px; padding-top:6px; }
+  @media (max-width:700px){ .twocol-body{ column-count:1; } }
+
+  /* =========================================================
+     TEMPLATE 6 — DATA CARD / ATTRIBUTE GRID
+     ========================================================= */
+  .datacard{ font-family:"IBM Plex Sans",sans-serif; background:#f7f8f8; padding:22px 24px 28px; }
+  .datacard-head{ margin-bottom:14px; }
+  .datacard-head h2{ font-size:1.25rem; margin:0; color:#153243; }
+  .datacard-head .sub{ font-size:0.8rem; color:#607382; margin:3px 0 0; }
+  .datacard-item{ display:grid; grid-template-columns:1fr 216px; gap:0; background:#fff; border:1px solid #e1e5e7; border-radius:8px; margin-bottom:10px; overflow:hidden; break-inside:avoid; }
+  .datacard-item.heading{ grid-template-columns:1fr; }
+  .datacard-main{ padding:13px 16px; }
+  .datacard-main .tag{ font-family:"IBM Plex Mono",monospace; font-size:0.66rem; color:#7c8f9c; }
+  .datacard-main h3{ font-size:0.98rem; margin:3px 0 5px; color:#153243; }
+  .datacard-main p{ font-size:0.83rem; line-height:1.55; color:#334752; margin:0; }
+  .datacard-side{ border-left:1px solid #e9ecec; background:#fafbfb; padding:11px 13px; display:flex; flex-direction:column; gap:9px; }
+  .attr-row{ display:flex; justify-content:space-between; gap:8px; font-size:0.68rem; padding:2px 0; border-bottom:1px dotted #dde2e3; }
+  .attr-row:last-child{ border-bottom:none; }
+  .attr-row b{ font-weight:500; color:#7c8f9c; }
+  .attr-row span{ font-family:"IBM Plex Mono",monospace; color:#26333a; text-align:right; }
+  .datacard-links .lbl{ font-size:0.6rem; text-transform:uppercase; letter-spacing:0.05em; color:#9aa8ae; margin:0 0 4px; }
+  .datacard-tags{ display:flex; flex-wrap:wrap; gap:4px; margin-bottom:7px; }
+  .datacard-tags:last-child{ margin-bottom:0; }
+  .dctag{ font-family:"IBM Plex Mono",monospace; font-size:0.64rem; background:#e8f4fd; color:#2ea3f2; border-radius:10px; padding:2px 8px; }
+  .dctag.gap{ background:#f6dcda; color:#8a1210; }
+  @media (max-width:700px){ .datacard-item{ grid-template-columns:1fr; } .datacard-side{ border-left:none; border-top:1px solid #e9ecec; } }
+
+  /* =========================================================
+     TEMPLATE 7 — TRACEABILITY LADDER
+     ========================================================= */
+  .ladder{ font-family:"IBM Plex Sans",sans-serif; background:#fff; padding:24px 24px 30px; }
+  .ladder-head{ text-align:center; margin-bottom:20px; }
+  .ladder-head h2{ font-size:1.25rem; margin:0; color:#153243; }
+  .ladder-head .sub{ font-size:0.8rem; color:#607382; }
+  .ladder-heading{ text-align:center; font-weight:700; color:#153243; padding:7px 0; border-top:2px solid #153243; border-bottom:2px solid #153243; margin:0 auto 20px; max-width:520px; font-size:0.92rem; }
+  .ladder-chain{ max-width:460px; margin:0 auto 20px; display:flex; flex-direction:column; align-items:center; break-inside:avoid; }
+  .ladder-row{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .ladder-pill{ font-family:"IBM Plex Mono",monospace; font-size:0.7rem; padding:4px 11px; border-radius:20px; background:#e3ebee; color:#153243; border:1px solid #d0d6d9; }
+  .ladder-pill.gap{ background:#fff; color:#b41412; border:1px dashed #b41412; }
+  .ladder-arrow{ width:2px; height:14px; background:#c3ccd1; margin:1px 0; position:relative; }
+  .ladder-arrow::after{ content:"▾"; position:absolute; top:8px; left:50%; transform:translateX(-50%); color:#c3ccd1; font-size:0.68rem; line-height:1; }
+  .ladder-core{ width:100%; background:#153243; color:#fff; border-radius:8px; padding:12px 16px; margin:2px 0; }
+  .ladder-core.unrev{ background:#8a4b00; }
+  .ladder-core.suspect{ background:#8a1210; }
+  .ladder-core .tag{ font-family:"IBM Plex Mono",monospace; font-size:0.66rem; color:#c8d6dc; }
+  .ladder-core h3{ font-size:1rem; margin:3px 0 5px; }
+  .ladder-core p{ font-size:0.82rem; line-height:1.5; margin:0; color:#e3ebee; }
+
+  /* =========================================================
+     TEMPLATE 8 — ILLUSTRATED SPEC
+     ========================================================= */
+  .illus{ font-family:"IBM Plex Sans",sans-serif; background:#fff; padding:26px 32px 32px; }
+  .illus-head{ margin-bottom:18px; border-bottom:2px solid #153243; padding-bottom:9px; }
+  .illus-head h2{ font-size:1.35rem; margin:0; color:#153243; }
+  .illus-head .sub{ font-size:0.82rem; color:#607382; }
+  .illus-content{ max-width:620px; margin:0 auto; }
+  .illus-item{ margin-bottom:22px; break-inside:avoid; }
+  .illus-item .tag{ font-family:"IBM Plex Mono",monospace; font-size:0.68rem; color:#7c8f9c; }
+  .illus-item h3{ font-size:1.1rem; margin:3px 0 7px; color:#153243; }
+  .illus-item p{ font-size:0.9rem; line-height:1.6; color:#26333a; margin:0 0 8px; }
+  .illus-figure{ border:1px solid #d0d6d9; border-radius:8px; padding:12px; background:#fafbfb; margin:10px 0; break-inside:avoid; }
+  .illus-figure svg{ display:block; width:100%; height:auto; }
+  .illus-caption{ font-family:"IBM Plex Mono",monospace; font-size:0.68rem; color:#607382; text-align:center; margin-top:6px; }
+
+  /* =========================================================
+     TEMPLATE 9 — COMPACT LEDGER
+     ========================================================= */
+  .ledger{ font-family:"IBM Plex Sans",sans-serif; background:#fff; padding:20px 22px 26px; }
+  .ledger-head{ margin-bottom:12px; }
+  .ledger-head h2{ font-size:1.2rem; margin:0; color:#153243; }
+  .ledger-head .sub{ font-size:0.78rem; color:#607382; }
+  .ledger-scroll{ overflow-x:auto; border:1px solid #d0d6d9; border-radius:6px; }
+  table.ledger-table{ border-collapse:collapse; width:100%; min-width:760px; font-size:0.75rem; }
+  table.ledger-table th{ background:#153243; color:#e9eef0; font-family:"IBM Plex Mono",monospace; font-size:0.6rem; letter-spacing:0.04em; text-transform:uppercase; text-align:left; padding:7px 10px; }
+  table.ledger-table td{ padding:8px 10px; border-bottom:1px solid #e6e9ea; vertical-align:top; }
+  table.ledger-table tr{ break-inside:avoid; }
+  table.ledger-table tr.sect td{ background:#f3f5f6; font-weight:700; color:#153243; font-size:0.8rem; }
+  .ledger-uid{ font-family:"IBM Plex Mono",monospace; font-weight:600; color:#153243; white-space:nowrap; }
+  .ledger-req b{ display:block; color:#153243; margin-bottom:2px; }
+  .ledger-req span{ color:#4c6272; }
+  .ledger-tags{ display:flex; flex-wrap:wrap; gap:3px; }
+  .ltag{ font-family:"IBM Plex Mono",monospace; font-size:0.64rem; background:#e8f4fd; color:#2ea3f2; border-radius:8px; padding:1px 6px; white-space:nowrap; }
+  .ltag.gap{ background:#f6dcda; color:#8a1210; }
+  .lstate{ font-family:"IBM Plex Mono",monospace; font-size:0.64rem; font-weight:600; padding:2px 7px; border-radius:10px; white-space:nowrap; }
+  .lstate.review{ background:#e3ebee; color:#153243; }
+  .lstate.unrev{ background:#fdecd9; color:#8a4b00; }
+  .lstate.suspect{ background:#f6dcda; color:#8a1210; }
+  .lattr{ font-family:"IBM Plex Mono",monospace; font-size:0.68rem; color:#4c6272; white-space:nowrap; }
+
+  /* =========================================================
+     TEMPLATE 10 — PRINT BOOKLET
+     ========================================================= */
+  .booklet{ font-family:"IBM Plex Serif", Georgia, serif; background:#fff; padding:0; }
+  .booklet-cover{ padding:36px 34px 28px; text-align:center; border-bottom:3px double #153243; }
+  .booklet-cover .doctype{ font-family:"IBM Plex Mono",monospace; font-size:0.68rem; letter-spacing:0.16em; text-transform:uppercase; color:#607382; }
+  .booklet-cover h2{ font-size:1.8rem; margin:8px 0 4px; color:#153243; }
+  .booklet-cover .sub{ font-size:0.96rem; color:#4c6272; margin:0 0 16px; }
+  .booklet-control{ display:inline-grid; grid-template-columns:auto auto; gap:4px 20px; text-align:left; font-family:"IBM Plex Mono",monospace; font-size:0.7rem; margin:0 auto; }
+  .booklet-control b{ color:#7c8f9c; font-weight:500; }
+  .booklet-control span{ color:#153243; }
+  .booklet-break{ display:flex; align-items:center; gap:10px; color:#9aa8ae; font-family:"IBM Plex Mono",monospace; font-size:0.63rem; letter-spacing:0.08em; text-transform:uppercase; padding:10px 30px; }
+  .booklet-break::before, .booklet-break::after{ content:""; flex:1; border-top:1px dashed #c3ccd1; }
+  .booklet-toc{ padding:16px 34px 4px; max-width:560px; margin:0 auto; }
+  .booklet-toc h4{ font-family:"IBM Plex Sans",sans-serif; font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; color:#7c8f9c; margin:0 0 10px; }
+  .toc-row{ display:flex; align-items:baseline; font-size:0.85rem; color:#26333a; margin-bottom:6px; }
+  .toc-row .fill{ flex:1; border-bottom:1px dotted #b7c0c4; margin:0 6px 3px; }
+  .toc-row .pg{ font-family:"IBM Plex Mono",monospace; font-size:0.76rem; color:#7c8f9c; }
+  .booklet-page{ padding:4px 34px 0; max-width:620px; margin:0 auto; }
+  .booklet-runhead{ display:flex; justify-content:space-between; font-family:"IBM Plex Mono",monospace; font-size:0.6rem; color:#9aa8ae; border-bottom:1px solid #e6e9ea; padding-bottom:4px; margin-bottom:12px; }
+  .booklet-item{ margin-bottom:16px; break-inside:avoid; }
+  .booklet-item .num{ font-family:"IBM Plex Sans",sans-serif; font-weight:700; font-size:0.66rem; color:#b41412; text-transform:uppercase; letter-spacing:0.04em; }
+  .booklet-item h3{ font-size:1.05rem; margin:3px 0 6px; color:#153243; }
+  .booklet-item p{ font-size:0.86rem; line-height:1.55; color:#26333a; margin:0 0 6px; }
+  .booklet-item .foot{ font-family:"IBM Plex Mono",monospace; font-size:0.66rem; color:#7c8f9c; }
+  .booklet-item .foot .gap{ color:#b41412; }
+  .booklet-runfoot{ text-align:right; font-family:"IBM Plex Mono",monospace; font-size:0.6rem; color:#9aa8ae; border-top:1px solid #e6e9ea; padding-top:4px; margin:4px 0 16px; }
+  .booklet-hist{ margin:0 34px 30px; max-width:552px; }
+  .booklet-hist h4{ font-family:"IBM Plex Sans",sans-serif; font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; color:#7c8f9c; margin:0 0 8px; }
+  table.hist-table{ width:100%; border-collapse:collapse; font-size:0.74rem; }
+  table.hist-table th{ text-align:left; font-family:"IBM Plex Mono",monospace; font-size:0.6rem; text-transform:uppercase; color:#7c8f9c; border-bottom:1px solid #d0d6d9; padding:4px 8px 4px 0; }
+  table.hist-table td{ padding:5px 8px 5px 0; border-bottom:1px solid #eef1f1; color:#334752; }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <span class="eyebrow">Template gallery · requirements publishing</span>
+    <h1 class="title">Ten ways to publish a Doorstop document</h1>
+    <p class="dek">Same sample document (<span class="mono">SYS</span>, five items) rendered ten ways — each showing parent <em>and</em> child links, extra YAML attributes (safety class, verification method, owner), and where diagrams fit. All ten stay dense and print cleanly to PDF.</p>
+    <div class="meta-row">
+      <span class="swatch-mini"><i style="background:#153243"></i>#153243 navy</span>
+      <span class="swatch-mini"><i style="background:#b41412"></i>#b41412 red</span>
+      <span class="swatch-mini"><i style="background:#ed7102"></i>#ed7102 orange</span>
+      <span class="swatch-mini"><i style="background:#2ea3f2"></i>#2ea3f2 blue</span>
+    </div>
+  </header>
+
+  <nav class="tabbar" role="tablist" aria-label="Template examples">
+    <button class="tab" role="tab" aria-selected="true" aria-controls="panel-brief" id="tab-brief">
+      <span class="tname">1 · Structured Brief</span>
+      <span class="tdesc">Formal standard-document layout</span>
+    </button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-board" id="tab-board">
+      <span class="tname">2 · Trace Board</span>
+      <span class="tdesc">Dashboard-style status cards</span>
+    </button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-sheet" id="tab-sheet">
+      <span class="tname">3 · Spec Sheet</span>
+      <span class="tdesc">Datasheet / blueprint feel</span>
+    </button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-deck" id="tab-deck">
+      <span class="tname">4 · Review Deck</span>
+      <span class="tdesc">Audit / sign-off oriented</span>
+    </button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-twocol" id="tab-twocol">
+      <span class="tname">5 · Two-Column Print</span>
+      <span class="tdesc">Dense, print-first layout</span>
+    </button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-datacard" id="tab-datacard">
+      <span class="tname">6 · Data Card</span>
+      <span class="tdesc">Full YAML attribute grid</span>
+    </button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-ladder" id="tab-ladder">
+      <span class="tname">7 · Traceability Ladder</span>
+      <span class="tdesc">Parent → item → child chain</span>
+    </button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-illus" id="tab-illus">
+      <span class="tname">8 · Illustrated Spec</span>
+      <span class="tdesc">Inline diagrams &amp; figures</span>
+    </button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-ledger" id="tab-ledger">
+      <span class="tname">9 · Compact Ledger</span>
+      <span class="tdesc">Spreadsheet-dense register</span>
+    </button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-booklet" id="tab-booklet">
+      <span class="tname">10 · Print Booklet</span>
+      <span class="tdesc">Cover, TOC &amp; running pages</span>
+    </button>
+  </nav>
+
+  <div class="controls-row">
+    <span class="current-label">Previewing <b id="currentTemplateName">Structured Brief</b></span>
+    <button class="btn-print" id="btnPrint" type="button">🖨&nbsp; Print this template</button>
+  </div>
+
+  <div class="stage">
+    <div class="panel-bar"><span class="dots"><span></span><span></span><span></span></span><span class="fname">SYS.html — exported from Doorstop</span></div>
+
+    <!-- ============ PANEL 1: STRUCTURED BRIEF ============ -->
+    <section class="panel brief" id="panel-brief" role="tabpanel" aria-labelledby="tab-brief">
+      <div class="cover">
+        <span class="k">Requirements document</span>
+        <h2>SYS — Sensor Subsystem</h2>
+        <p class="subtitle">System-level requirements derived from REQ</p>
+        <div class="metabar">
+          <span>PARENT: REQ</span><span>ITEMS: 5</span><span>EXPORTED: 2026-09-12</span>
+        </div>
+      </div>
+      <div class="brief-shell">
+        <aside class="brief-toc">
+          <p class="h">Contents</p>
+          <ol>
+            <li><a href="#">1&nbsp;&nbsp;Sensor Subsystem</a></li>
+            <li><a href="#" class="lvl2">1.1&nbsp;&nbsp;Sensor input</a></li>
+            <li><a href="#" class="lvl2">1.1.1&nbsp;&nbsp;Sampling rate</a></li>
+            <li><a href="#" class="lvl2">1.2&nbsp;&nbsp;Fault detection</a></li>
+            <li><a href="#" class="lvl2">1.3&nbsp;&nbsp;Calibration interval</a></li>
+          </ol>
+        </aside>
+        <div class="brief-content">
+          <div class="brief-item h1">
+            <div class="num">1 · SYS-0001</div>
+            <h3>Sensor Subsystem</h3>
+          </div>
+          <div class="brief-item">
+            <div class="num">1.1 · SYS-0002</div>
+            <h3>Sensor input</h3>
+            <p>The system shall sample the primary analog sensor channel at a fixed interval and convert each sample to a calibrated physical value before it is made available to downstream processing.</p>
+            <div class="brief-cap">Traces to REQ-0006 · reviewed</div>
+          </div>
+          <div class="brief-item">
+            <div class="num">1.1.1 · SYS-0003</div>
+            <h3>Sampling rate</h3>
+            <p>The sensor input shall be sampled at 250&nbsp;Hz ±1%, sufficient to resolve waveform components up to 100&nbsp;Hz without aliasing.</p>
+            <div class="brief-cap unrev">Traces to REQ-0007 · unreviewed</div>
+          </div>
+          <div class="brief-item">
+            <div class="num">1.2 · SYS-0004</div>
+            <h3>Fault detection</h3>
+            <p>The system shall detect a disconnected or out-of-range sensor within 500&nbsp;ms and raise a fault condition visible to the operator interface.</p>
+            <div class="brief-cap suspect">Traces to REQ-0009 · suspect link</div>
+          </div>
+          <div class="brief-item">
+            <div class="num">1.3 · SYS-0005</div>
+            <h3>Calibration interval</h3>
+            <p>The system shall prompt for recalibration after 90 days of continuous operation or 10,000 measurement cycles, whichever occurs first.</p>
+            <div class="brief-cap">No upstream trace · reviewed</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PANEL 2: TRACE BOARD ============ -->
+    <section class="panel board" id="panel-board" role="tabpanel" aria-labelledby="tab-board" hidden>
+      <div class="board-top">
+        <div>
+          <h2>SYS · Sensor Subsystem</h2>
+          <p class="sub">Parent REQ · exported 2026-09-12</p>
+        </div>
+        <div class="board-stats">
+          <div class="board-stat"><b>5</b><span>Items</span></div>
+          <div class="board-stat"><b>1</b><span>Unreviewed</span></div>
+          <div class="board-stat"><b>1</b><span>Suspect</span></div>
+        </div>
+      </div>
+      <div class="board-shell">
+        <aside class="board-rail">
+          <p class="h">Outline</p>
+          <ul>
+            <li><span class="board-dot" style="background:#c3ccd1"></span>1&nbsp; Sensor Subsystem</li>
+            <li><span class="board-dot" style="background:#153243"></span>1.1&nbsp; Sensor input</li>
+            <li><span class="board-dot" style="background:#ed7102"></span>1.1.1&nbsp; Sampling rate</li>
+            <li><span class="board-dot" style="background:#b41412"></span>1.2&nbsp; Fault detection</li>
+            <li><span class="board-dot" style="background:#153243"></span>1.3&nbsp; Calibration interval</li>
+          </ul>
+        </aside>
+        <div class="board-cards">
+          <div class="board-card state-heading">
+            <div class="board-row1"><span class="board-uid">SYS-0001</span><span class="board-lvl">1.0</span></div>
+            <h3>Sensor Subsystem</h3>
+          </div>
+          <div class="board-card state-review">
+            <div class="board-row1"><span class="board-uid">SYS-0002</span><span class="board-lvl">1.1</span><span class="board-pill review">Reviewed</span></div>
+            <h3>Sensor input</h3>
+            <p>Samples the primary analog sensor channel at a fixed interval and converts each sample to a calibrated physical value.</p>
+            <div class="board-links"><span class="board-chip">→ REQ-0006</span></div>
+          </div>
+          <div class="board-card state-unrev">
+            <div class="board-row1"><span class="board-uid">SYS-0003</span><span class="board-lvl">1.1.1</span><span class="board-pill unrev">Unreviewed</span></div>
+            <h3>Sampling rate</h3>
+            <p>Sensor input sampled at 250 Hz ±1%, resolving waveform components up to 100 Hz without aliasing.</p>
+            <div class="board-links"><span class="board-chip">→ REQ-0007</span></div>
+          </div>
+          <div class="board-card state-suspect">
+            <div class="board-row1"><span class="board-uid">SYS-0004</span><span class="board-lvl">1.2</span><span class="board-pill suspect">Suspect link</span></div>
+            <h3>Fault detection</h3>
+            <p>Detects a disconnected or out-of-range sensor within 500 ms and raises a fault visible to the operator interface.</p>
+            <div class="board-links"><span class="board-chip">→ REQ-0009</span></div>
+          </div>
+          <div class="board-card state-review">
+            <div class="board-row1"><span class="board-uid">SYS-0005</span><span class="board-lvl">1.3</span><span class="board-pill review">Reviewed</span></div>
+            <h3>Calibration interval</h3>
+            <p>Prompts for recalibration after 90 days of continuous operation or 10,000 measurement cycles, whichever occurs first.</p>
+            <div class="board-links"><span class="board-chip none">no links</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PANEL 3: SPEC SHEET ============ -->
+    <section class="panel sheet" id="panel-sheet" role="tabpanel" aria-labelledby="tab-sheet" hidden>
+      <div class="sheet-head">
+        <div class="tag">DOCUMENT SYS // PARENT REQ // REV 2026-09-12</div>
+        <h2>SENSOR SUBSYSTEM</h2>
+      </div>
+      <div class="sheet-inner">
+        <div class="sheet-rec heading">
+          <div class="sheet-stamp">SYS-0001 // LEVEL 1.0 // HEADING</div>
+          <div class="sheet-body"><h3>Sensor Subsystem</h3></div>
+        </div>
+        <div class="sheet-rec">
+          <div class="sheet-stamp">SYS-0002 // LEVEL 1.1 // LINKS REQ-0006 // REVIEWED</div>
+          <div class="sheet-body">
+            <h3>Sensor input</h3>
+            <p>The system shall sample the primary analog sensor channel at a fixed interval and convert each sample to a calibrated physical value before it is made available to downstream processing.</p>
+          </div>
+        </div>
+        <div class="sheet-rec">
+          <div class="sheet-stamp">SYS-0003 // LEVEL 1.1.1 // LINKS REQ-0007 // <span class="flag unrev">UNREVIEWED</span></div>
+          <div class="sheet-body">
+            <h3>Sampling rate</h3>
+            <p>The sensor input shall be sampled at 250 Hz ±1%, sufficient to resolve waveform components up to 100 Hz without aliasing.</p>
+          </div>
+        </div>
+        <div class="sheet-rec">
+          <div class="sheet-stamp">SYS-0004 // LEVEL 1.2 // LINKS REQ-0009 // <span class="flag suspect">SUSPECT LINK</span></div>
+          <div class="sheet-body">
+            <h3>Fault detection</h3>
+            <p>The system shall detect a disconnected or out-of-range sensor within 500 ms and raise a fault condition visible to the operator interface.</p>
+          </div>
+        </div>
+        <div class="sheet-rec">
+          <div class="sheet-stamp">SYS-0005 // LEVEL 1.3 // LINKS — // REVIEWED</div>
+          <div class="sheet-body">
+            <h3>Calibration interval</h3>
+            <p>The system shall prompt for recalibration after 90 days of continuous operation or 10,000 measurement cycles, whichever occurs first.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PANEL 4: REVIEW DECK ============ -->
+    <section class="panel deck" id="panel-deck" role="tabpanel" aria-labelledby="tab-deck" hidden>
+      <div class="deck-head">
+        <div>
+          <h2>SYS · Sensor Subsystem Requirements</h2>
+          <div class="sub">Parent REQ · captured for sign-off on 2026-09-12</div>
+        </div>
+        <div class="deck-overall">3/5 REVIEWED · 1 PENDING · 1 FLAGGED</div>
+      </div>
+      <div class="deck-inner">
+        <div class="deck-item">
+          <div class="deck-strip"></div>
+          <div class="deck-body">
+            <div class="deck-topline"><span class="deck-uid">SYS-0002 · 1.1</span><span class="deck-stamp review">✓ Reviewed</span></div>
+            <h3>Sensor input</h3>
+            <p>The system shall sample the primary analog sensor channel at a fixed interval and convert each sample to a calibrated physical value before it is made available to downstream processing.</p>
+            <div class="deck-trace">Traces to REQ-0006</div>
+          </div>
+        </div>
+        <div class="deck-item">
+          <div class="deck-strip unrev"></div>
+          <div class="deck-body">
+            <div class="deck-topline"><span class="deck-uid">SYS-0003 · 1.1.1</span><span class="deck-stamp unrev">◐ Pending review</span></div>
+            <h3>Sampling rate</h3>
+            <p>The sensor input shall be sampled at 250 Hz ±1%, sufficient to resolve waveform components up to 100 Hz without aliasing.</p>
+            <div class="deck-trace">Traces to REQ-0007</div>
+          </div>
+        </div>
+        <div class="deck-item">
+          <div class="deck-strip suspect"></div>
+          <div class="deck-body">
+            <div class="deck-topline"><span class="deck-uid">SYS-0004 · 1.2</span><span class="deck-stamp suspect">▲ Suspect link</span></div>
+            <h3>Fault detection</h3>
+            <p>The system shall detect a disconnected or out-of-range sensor within 500 ms and raise a fault condition visible to the operator interface.</p>
+            <div class="deck-trace gap">Verify REQ-0009 before sign-off</div>
+          </div>
+        </div>
+        <div class="deck-item">
+          <div class="deck-strip"></div>
+          <div class="deck-body">
+            <div class="deck-topline"><span class="deck-uid">SYS-0005 · 1.3</span><span class="deck-stamp review">✓ Reviewed</span></div>
+            <h3>Calibration interval</h3>
+            <p>The system shall prompt for recalibration after 90 days of continuous operation or 10,000 measurement cycles, whichever occurs first.</p>
+            <div class="deck-trace gap">No upstream trace — flagged for audit</div>
+          </div>
+        </div>
+      </div>
+      <div class="deck-signoff"><b>Sign-off note.</b> This export reflects Doorstop review state at the time listed above. Items marked pending or suspect require action before the document can be approved.</div>
+    </section>
+
+    <!-- ============ PANEL 5: TWO-COLUMN PRINT ============ -->
+    <section class="panel twocol" id="panel-twocol" role="tabpanel" aria-labelledby="tab-twocol" hidden>
+      <div class="twocol-run"><span>SYS — Sensor Subsystem Requirements</span><span>Rev 1.2 · 2026-09-12</span></div>
+      <div class="twocol-body">
+        <div class="twocol-h1">1 — Sensor Subsystem</div>
+        <div class="twocol-item">
+          <span class="twocol-tag">SYS-0002 · 1.1 · ↑ REQ-0006 · ↓ TST-0014, TST-0015 · reviewed</span>
+          <p><b>Sensor input.</b> The system shall sample the primary analog sensor channel at a fixed interval and convert each sample to a calibrated physical value before it is made available to downstream processing.</p>
+        </div>
+        <div class="twocol-item">
+          <span class="twocol-tag">SYS-0003 · 1.1.1 · ↑ REQ-0007 · ↓ TST-0016 · unreviewed</span>
+          <p><b>Sampling rate.</b> The sensor input shall be sampled at 250&nbsp;Hz ±1%, sufficient to resolve waveform components up to 100&nbsp;Hz without aliasing.</p>
+        </div>
+        <div class="twocol-item">
+          <span class="twocol-tag">SYS-0004 · 1.2 · ↑ REQ-0009 · ↓ TST-0017, TST-0018 · suspect link</span>
+          <p><b>Fault detection.</b> The system shall detect a disconnected or out-of-range sensor within 500&nbsp;ms and raise a fault condition visible to the operator interface.</p>
+        </div>
+        <div class="twocol-item">
+          <span class="twocol-tag">SYS-0005 · 1.3 · ↑ <span class="gap">none</span> · ↓ <span class="gap">none</span> · reviewed</span>
+          <p><b>Calibration interval.</b> The system shall prompt for recalibration after 90 days of continuous operation or 10,000 measurement cycles, whichever occurs first.</p>
+        </div>
+      </div>
+      <div class="twocol-foot"><span>Doorstop export · SYS.html</span><span>Page 1 of 1 (preview)</span></div>
+    </section>
+
+    <!-- ============ PANEL 6: DATA CARD / ATTRIBUTE GRID ============ -->
+    <section class="panel datacard" id="panel-datacard" role="tabpanel" aria-labelledby="tab-datacard" hidden>
+      <div class="datacard-head">
+        <h2>SYS · Sensor Subsystem</h2>
+        <p class="sub">Every field from the item's YAML header, alongside the text</p>
+      </div>
+      <div class="datacard-item heading">
+        <div class="datacard-main"><span class="tag">SYS-0001 · 1.0 · heading</span><h3>Sensor Subsystem</h3></div>
+      </div>
+      <div class="datacard-item">
+        <div class="datacard-main">
+          <span class="tag">SYS-0002 · 1.1</span>
+          <h3>Sensor input</h3>
+          <p>Samples the primary analog sensor channel at a fixed interval and converts each sample to a calibrated physical value.</p>
+        </div>
+        <div class="datacard-side">
+          <div class="datacard-attrs">
+            <div class="attr-row"><b>normative</b><span>true</span></div>
+            <div class="attr-row"><b>reviewed</b><span>true</span></div>
+            <div class="attr-row"><b>safety_class</b><span>B</span></div>
+            <div class="attr-row"><b>verification</b><span>Test</span></div>
+            <div class="attr-row"><b>owner</b><span>J. Berger</span></div>
+          </div>
+          <div class="datacard-links">
+            <p class="lbl">↑ Parent</p>
+            <div class="datacard-tags"><span class="dctag">REQ-0006</span></div>
+            <p class="lbl">↓ Children</p>
+            <div class="datacard-tags"><span class="dctag">TST-0014</span><span class="dctag">TST-0015</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="datacard-item">
+        <div class="datacard-main">
+          <span class="tag">SYS-0003 · 1.1.1</span>
+          <h3>Sampling rate</h3>
+          <p>Sensor input sampled at 250 Hz ±1%, resolving waveform components up to 100 Hz without aliasing.</p>
+        </div>
+        <div class="datacard-side">
+          <div class="datacard-attrs">
+            <div class="attr-row"><b>normative</b><span>true</span></div>
+            <div class="attr-row"><b>reviewed</b><span>false</span></div>
+            <div class="attr-row"><b>safety_class</b><span>B</span></div>
+            <div class="attr-row"><b>verification</b><span>Analysis</span></div>
+            <div class="attr-row"><b>owner</b><span>J. Berger</span></div>
+          </div>
+          <div class="datacard-links">
+            <p class="lbl">↑ Parent</p>
+            <div class="datacard-tags"><span class="dctag">REQ-0007</span></div>
+            <p class="lbl">↓ Children</p>
+            <div class="datacard-tags"><span class="dctag">TST-0016</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="datacard-item">
+        <div class="datacard-main">
+          <span class="tag">SYS-0004 · 1.2</span>
+          <h3>Fault detection</h3>
+          <p>Detects a disconnected or out-of-range sensor within 500 ms and raises a fault visible to the operator interface.</p>
+        </div>
+        <div class="datacard-side">
+          <div class="datacard-attrs">
+            <div class="attr-row"><b>normative</b><span>true</span></div>
+            <div class="attr-row"><b>reviewed</b><span>suspect</span></div>
+            <div class="attr-row"><b>safety_class</b><span>C</span></div>
+            <div class="attr-row"><b>verification</b><span>Test</span></div>
+            <div class="attr-row"><b>priority</b><span>High</span></div>
+            <div class="attr-row"><b>owner</b><span>M. Keller</span></div>
+          </div>
+          <div class="datacard-links">
+            <p class="lbl">↑ Parent</p>
+            <div class="datacard-tags"><span class="dctag">REQ-0009</span></div>
+            <p class="lbl">↓ Children</p>
+            <div class="datacard-tags"><span class="dctag">TST-0017</span><span class="dctag">TST-0018</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="datacard-item">
+        <div class="datacard-main">
+          <span class="tag">SYS-0005 · 1.3</span>
+          <h3>Calibration interval</h3>
+          <p>Prompts for recalibration after 90 days of continuous operation or 10,000 measurement cycles, whichever occurs first.</p>
+        </div>
+        <div class="datacard-side">
+          <div class="datacard-attrs">
+            <div class="attr-row"><b>normative</b><span>true</span></div>
+            <div class="attr-row"><b>reviewed</b><span>true</span></div>
+            <div class="attr-row"><b>safety_class</b><span>A</span></div>
+            <div class="attr-row"><b>verification</b><span>Inspection</span></div>
+            <div class="attr-row"><b>owner</b><span>M. Keller</span></div>
+          </div>
+          <div class="datacard-links">
+            <p class="lbl">↑ Parent</p>
+            <div class="datacard-tags"><span class="dctag gap">none</span></div>
+            <p class="lbl">↓ Children</p>
+            <div class="datacard-tags"><span class="dctag gap">none</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PANEL 7: TRACEABILITY LADDER ============ -->
+    <section class="panel ladder" id="panel-ladder" role="tabpanel" aria-labelledby="tab-ladder" hidden>
+      <div class="ladder-head"><h2>SYS · Sensor Subsystem</h2><p class="sub">Upstream requirement → item → downstream verification</p></div>
+      <div class="ladder-heading">1 — SYS-0001 · Sensor Subsystem</div>
+
+      <div class="ladder-chain">
+        <div class="ladder-row"><span class="ladder-pill">REQ-0006</span></div>
+        <div class="ladder-arrow"></div>
+        <div class="ladder-core">
+          <span class="tag">SYS-0002 · 1.1 · reviewed</span>
+          <h3>Sensor input</h3>
+          <p>Samples the primary analog sensor channel and converts it to a calibrated physical value.</p>
+        </div>
+        <div class="ladder-arrow"></div>
+        <div class="ladder-row"><span class="ladder-pill">TST-0014</span><span class="ladder-pill">TST-0015</span></div>
+      </div>
+
+      <div class="ladder-chain">
+        <div class="ladder-row"><span class="ladder-pill">REQ-0007</span></div>
+        <div class="ladder-arrow"></div>
+        <div class="ladder-core unrev">
+          <span class="tag">SYS-0003 · 1.1.1 · unreviewed</span>
+          <h3>Sampling rate</h3>
+          <p>Sampled at 250 Hz ±1%, resolving waveform components up to 100 Hz without aliasing.</p>
+        </div>
+        <div class="ladder-arrow"></div>
+        <div class="ladder-row"><span class="ladder-pill">TST-0016</span></div>
+      </div>
+
+      <div class="ladder-chain">
+        <div class="ladder-row"><span class="ladder-pill">REQ-0009</span></div>
+        <div class="ladder-arrow"></div>
+        <div class="ladder-core suspect">
+          <span class="tag">SYS-0004 · 1.2 · suspect link</span>
+          <h3>Fault detection</h3>
+          <p>Detects a disconnected or out-of-range sensor within 500 ms and raises a fault to the operator interface.</p>
+        </div>
+        <div class="ladder-arrow"></div>
+        <div class="ladder-row"><span class="ladder-pill">TST-0017</span><span class="ladder-pill">TST-0018</span></div>
+      </div>
+
+      <div class="ladder-chain">
+        <div class="ladder-row"><span class="ladder-pill gap">no parent requirement</span></div>
+        <div class="ladder-arrow"></div>
+        <div class="ladder-core">
+          <span class="tag">SYS-0005 · 1.3 · reviewed</span>
+          <h3>Calibration interval</h3>
+          <p>Prompts for recalibration after 90 days of continuous operation or 10,000 measurement cycles.</p>
+        </div>
+        <div class="ladder-arrow"></div>
+        <div class="ladder-row"><span class="ladder-pill gap">no verification — gap</span></div>
+      </div>
+    </section>
+
+    <!-- ============ PANEL 8: ILLUSTRATED SPEC ============ -->
+    <section class="panel illus" id="panel-illus" role="tabpanel" aria-labelledby="tab-illus" hidden>
+      <div class="illus-head"><h2>SYS — Sensor Subsystem</h2><p class="sub">Figures render inline, exactly where they sit in the item's text</p></div>
+      <div class="illus-content">
+        <div class="illus-item">
+          <span class="tag">SYS-0001 · 1.0 · heading</span>
+          <h3>Sensor Subsystem</h3>
+        </div>
+        <div class="illus-item">
+          <span class="tag">SYS-0002 · 1.1 · ↑ REQ-0006 · reviewed</span>
+          <h3>Sensor input</h3>
+          <p>The system shall sample the primary analog sensor channel at a fixed interval and convert each sample to a calibrated physical value before it is made available to downstream processing.</p>
+          <div class="illus-figure">
+            <svg viewBox="0 0 560 110" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Signal path: Sensor to ADC to Calibration to Output">
+              <defs>
+                <marker id="arrowSignal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="#607382"></path>
+                </marker>
+              </defs>
+              <rect x="10" y="30" width="110" height="50" rx="6" fill="#e3ebee" stroke="#153243" stroke-width="1.5"></rect>
+              <text x="65" y="60" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="13" font-weight="600" fill="#153243">Sensor</text>
+              <line x1="120" y1="55" x2="147" y2="55" stroke="#607382" stroke-width="2" marker-end="url(#arrowSignal)"></line>
+              <rect x="150" y="30" width="110" height="50" rx="6" fill="#e3ebee" stroke="#153243" stroke-width="1.5"></rect>
+              <text x="205" y="60" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="13" font-weight="600" fill="#153243">ADC</text>
+              <line x1="260" y1="55" x2="287" y2="55" stroke="#607382" stroke-width="2" marker-end="url(#arrowSignal)"></line>
+              <rect x="290" y="30" width="130" height="50" rx="6" fill="#e3ebee" stroke="#153243" stroke-width="1.5"></rect>
+              <text x="355" y="60" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="13" font-weight="600" fill="#153243">Calibration</text>
+              <line x1="420" y1="55" x2="447" y2="55" stroke="#607382" stroke-width="2" marker-end="url(#arrowSignal)"></line>
+              <rect x="450" y="30" width="100" height="50" rx="6" fill="#e3ebee" stroke="#153243" stroke-width="1.5"></rect>
+              <text x="500" y="60" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="13" font-weight="600" fill="#153243">Output</text>
+            </svg>
+            <p class="illus-caption">Figure 1.1-a — Signal path from sensor to output</p>
+          </div>
+        </div>
+        <div class="illus-item">
+          <span class="tag">SYS-0003 · 1.1.1 · ↑ REQ-0007 · unreviewed</span>
+          <h3>Sampling rate</h3>
+          <p>The sensor input shall be sampled at 250&nbsp;Hz ±1%, sufficient to resolve waveform components up to 100&nbsp;Hz without aliasing.</p>
+        </div>
+        <div class="illus-item">
+          <span class="tag">SYS-0004 · 1.2 · ↑ REQ-0009 · suspect link</span>
+          <h3>Fault detection</h3>
+          <p>The system shall detect a disconnected or out-of-range sensor within 500&nbsp;ms and raise a fault condition visible to the operator interface.</p>
+          <div class="illus-figure">
+            <svg viewBox="0 0 620 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fault detection decision logic flowchart">
+              <defs>
+                <marker id="arrowFault" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="#607382"></path>
+                </marker>
+              </defs>
+              <rect x="10" y="20" width="110" height="48" rx="6" fill="#e3ebee" stroke="#153243" stroke-width="1.5"></rect>
+              <text x="65" y="49" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="12" font-weight="600" fill="#153243">Sensor</text>
+              <line x1="120" y1="44" x2="147" y2="44" stroke="#607382" stroke-width="2" marker-end="url(#arrowFault)"></line>
+              <rect x="150" y="20" width="150" height="48" rx="6" fill="#e3ebee" stroke="#153243" stroke-width="1.5"></rect>
+              <text x="225" y="48" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="11" font-weight="600" fill="#153243">Signal Conditioning</text>
+              <line x1="225" y1="68" x2="225" y2="105" stroke="#607382" stroke-width="2" marker-end="url(#arrowFault)"></line>
+              <polygon points="225,108 320,150 225,192 130,150" fill="#ffffff" stroke="#153243" stroke-width="1.5"></polygon>
+              <text x="225" y="147" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="11" font-weight="600" fill="#153243">Out of</text>
+              <text x="225" y="160" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="11" font-weight="600" fill="#153243">range?</text>
+              <polyline points="130,150 60,150 60,44 147,44" fill="none" stroke="#607382" stroke-width="2" marker-end="url(#arrowFault)"></polyline>
+              <text x="38" y="147" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#607382">No</text>
+              <line x1="320" y1="150" x2="378" y2="150" stroke="#607382" stroke-width="2" marker-end="url(#arrowFault)"></line>
+              <text x="349" y="141" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#607382">Yes</text>
+              <rect x="380" y="126" width="110" height="48" rx="6" fill="#f6dcda" stroke="#b41412" stroke-width="1.5"></rect>
+              <text x="435" y="154" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="12" font-weight="600" fill="#8a1210">Fault Flag</text>
+              <line x1="490" y1="150" x2="517" y2="150" stroke="#607382" stroke-width="2" marker-end="url(#arrowFault)"></line>
+              <rect x="520" y="126" width="90" height="48" rx="6" fill="#e3ebee" stroke="#153243" stroke-width="1.5"></rect>
+              <text x="565" y="154" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="11" font-weight="600" fill="#153243">Operator UI</text>
+            </svg>
+            <p class="illus-caption">Figure 1.2-a — Fault detection decision logic</p>
+          </div>
+        </div>
+        <div class="illus-item">
+          <span class="tag">SYS-0005 · 1.3 · no upstream trace · reviewed</span>
+          <h3>Calibration interval</h3>
+          <p>The system shall prompt for recalibration after 90 days of continuous operation or 10,000 measurement cycles, whichever occurs first.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PANEL 9: COMPACT LEDGER ============ -->
+    <section class="panel ledger" id="panel-ledger" role="tabpanel" aria-labelledby="tab-ledger" hidden>
+      <div class="ledger-head"><h2>SYS · Sensor Subsystem</h2><p class="sub">One row per item — closest to a spreadsheet export</p></div>
+      <div class="ledger-scroll">
+        <table class="ledger-table">
+          <thead>
+            <tr><th>UID</th><th>Lvl</th><th>Requirement</th><th>↑ Parent</th><th>↓ Children</th><th>State</th><th>Attrs</th></tr>
+          </thead>
+          <tbody>
+            <tr class="sect"><td colspan="7">1 — SYS-0001 · Sensor Subsystem</td></tr>
+            <tr>
+              <td class="ledger-uid">SYS-0002</td><td>1.1</td>
+              <td class="ledger-req"><b>Sensor input</b><span>Samples the primary sensor channel and converts it to a calibrated value.</span></td>
+              <td><span class="ltag">REQ-0006</span></td>
+              <td><div class="ledger-tags"><span class="ltag">TST-0014</span><span class="ltag">TST-0015</span></div></td>
+              <td><span class="lstate review">Reviewed</span></td>
+              <td class="lattr">B · Test</td>
+            </tr>
+            <tr>
+              <td class="ledger-uid">SYS-0003</td><td>1.1.1</td>
+              <td class="ledger-req"><b>Sampling rate</b><span>250 Hz ±1%, resolves up to 100 Hz without aliasing.</span></td>
+              <td><span class="ltag">REQ-0007</span></td>
+              <td><div class="ledger-tags"><span class="ltag">TST-0016</span></div></td>
+              <td><span class="lstate unrev">Unreviewed</span></td>
+              <td class="lattr">B · Analysis</td>
+            </tr>
+            <tr>
+              <td class="ledger-uid">SYS-0004</td><td>1.2</td>
+              <td class="ledger-req"><b>Fault detection</b><span>Detects a fault within 500 ms and raises it to the operator UI.</span></td>
+              <td><span class="ltag">REQ-0009</span></td>
+              <td><div class="ledger-tags"><span class="ltag">TST-0017</span><span class="ltag">TST-0018</span></div></td>
+              <td><span class="lstate suspect">Suspect</span></td>
+              <td class="lattr">C · Test · High</td>
+            </tr>
+            <tr>
+              <td class="ledger-uid">SYS-0005</td><td>1.3</td>
+              <td class="ledger-req"><b>Calibration interval</b><span>Recalibration after 90 days or 10,000 cycles.</span></td>
+              <td><span class="ltag gap">—</span></td>
+              <td><span class="ltag gap">—</span></td>
+              <td><span class="lstate review">Reviewed</span></td>
+              <td class="lattr">A · Inspection</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ PANEL 10: PRINT BOOKLET ============ -->
+    <section class="panel booklet" id="panel-booklet" role="tabpanel" aria-labelledby="tab-booklet" hidden>
+      <div class="booklet-cover">
+        <span class="doctype">Requirements document</span>
+        <h2>SYS — Sensor Subsystem</h2>
+        <p class="sub">System-level requirements derived from REQ</p>
+        <div class="booklet-control">
+          <b>Document ID</b><span>SYS</span>
+          <b>Revision</b><span>1.2</span>
+          <b>Status</b><span>For review</span>
+          <b>Prepared by</b><span>J. Berger</span>
+          <b>Approved by</b><span>—</span>
+          <b>Export date</b><span>2026-09-12</span>
+        </div>
+      </div>
+      <div class="booklet-break">page break</div>
+      <div class="booklet-toc">
+        <h4>Contents</h4>
+        <div class="toc-row"><span>1&nbsp;&nbsp;Sensor Subsystem</span><span class="fill"></span><span class="pg">3</span></div>
+        <div class="toc-row"><span>1.1&nbsp;&nbsp;Sensor input</span><span class="fill"></span><span class="pg">3</span></div>
+        <div class="toc-row"><span>1.1.1&nbsp;&nbsp;Sampling rate</span><span class="fill"></span><span class="pg">3</span></div>
+        <div class="toc-row"><span>1.2&nbsp;&nbsp;Fault detection</span><span class="fill"></span><span class="pg">4</span></div>
+        <div class="toc-row"><span>1.3&nbsp;&nbsp;Calibration interval</span><span class="fill"></span><span class="pg">4</span></div>
+        <div class="toc-row"><span>Document history</span><span class="fill"></span><span class="pg">4</span></div>
+      </div>
+      <div class="booklet-break">page break</div>
+      <div class="booklet-page">
+        <div class="booklet-runhead"><span>SYS — Sensor Subsystem Requirements</span><span>Rev 1.2</span></div>
+        <div class="booklet-item">
+          <div class="num">1 · SYS-0001</div>
+          <h3>Sensor Subsystem</h3>
+        </div>
+        <div class="booklet-item">
+          <div class="num">1.1 · SYS-0002</div>
+          <h3>Sensor input</h3>
+          <p>The system shall sample the primary analog sensor channel at a fixed interval and convert each sample to a calibrated physical value before it is made available to downstream processing.</p>
+          <div class="foot">↑ REQ-0006 · ↓ TST-0014, TST-0015 · Class B · Test · reviewed</div>
+        </div>
+        <div class="booklet-item">
+          <div class="num">1.1.1 · SYS-0003</div>
+          <h3>Sampling rate</h3>
+          <p>The sensor input shall be sampled at 250&nbsp;Hz ±1%, sufficient to resolve waveform components up to 100&nbsp;Hz without aliasing.</p>
+          <div class="foot">↑ REQ-0007 · ↓ TST-0016 · Class B · Analysis · unreviewed</div>
+        </div>
+        <div class="booklet-runfoot">Page 3 of 4</div>
+      </div>
+      <div class="booklet-break">page break</div>
+      <div class="booklet-page">
+        <div class="booklet-runhead"><span>SYS — Sensor Subsystem Requirements</span><span>Rev 1.2</span></div>
+        <div class="booklet-item">
+          <div class="num">1.2 · SYS-0004</div>
+          <h3>Fault detection</h3>
+          <p>The system shall detect a disconnected or out-of-range sensor within 500&nbsp;ms and raise a fault condition visible to the operator interface.</p>
+          <div class="foot">↑ REQ-0009 · ↓ TST-0017, TST-0018 · Class C · Test · <span class="gap">suspect link</span></div>
+        </div>
+        <div class="booklet-item">
+          <div class="num">1.3 · SYS-0005</div>
+          <h3>Calibration interval</h3>
+          <p>The system shall prompt for recalibration after 90 days of continuous operation or 10,000 measurement cycles, whichever occurs first.</p>
+          <div class="foot"><span class="gap">↑ no upstream trace</span> · ↓ none · Class A · Inspection · reviewed</div>
+        </div>
+        <div class="booklet-runfoot">Page 4 of 4</div>
+      </div>
+      <div class="booklet-hist">
+        <h4>Document history</h4>
+        <table class="hist-table">
+          <thead><tr><th>Rev</th><th>Date</th><th>Author</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td>1.0</td><td>2026-06-02</td><td>J. Berger</td><td>Initial draft</td></tr>
+            <tr><td>1.1</td><td>2026-07-18</td><td>M. Keller</td><td>Added fault detection requirement</td></tr>
+            <tr><td>1.2</td><td>2026-09-12</td><td>J. Berger</td><td>Exported from Doorstop document view</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <footer>
+    <p style="margin:0 0 4px; color:var(--ink); font-weight:600; font-size:0.9rem;">Shared palette</p>
+    <p>Read directly from corscience.com's published stylesheet, so any of the ten layouts above can share one token set.</p>
+    <div class="palette-strip">
+      <div class="pal"><i style="background:#153243"></i><span><b>Navy</b>#153243</span></div>
+      <div class="pal"><i style="background:#b41412"></i><span><b>Red</b>#b41412</span></div>
+      <div class="pal"><i style="background:#ed7102"></i><span><b>Orange</b>#ed7102</span></div>
+      <div class="pal"><i style="background:#2ea3f2"></i><span><b>Blue</b>#2ea3f2</span></div>
+      <div class="pal"><i style="background:#f3f5f6;border:1px solid #d0d6d9"></i><span><b>Paper</b>#f3f5f6</span></div>
+    </div>
+    <p>Each panel above is a fixed, print-style preview — the way the exported page itself would look — independent of your editor or OS theme, the way a generated PDF or HTML report would be. Every item block carries <code class="mono">break-inside:avoid</code>, so "Print this template" (or your browser's Print → Save as PDF) won't slice a requirement across two pages.</p>
+  </footer>
+
+</div>
+
+<script>
+  (function(){
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+    var nameEl = document.getElementById('currentTemplateName');
+    tabs.forEach(function(tab){
+      tab.addEventListener('click', function(){
+        tabs.forEach(function(t){
+          var panel = document.getElementById(t.getAttribute('aria-controls'));
+          var active = t === tab;
+          t.setAttribute('aria-selected', active ? 'true' : 'false');
+          if(panel) panel.hidden = !active;
+        });
+        if(nameEl){
+          var label = tab.querySelector('.tname').textContent.replace(/^\d+\s*·\s*/, '');
+          nameEl.textContent = label;
+        }
+      });
+    });
+    var printBtn = document.getElementById('btnPrint');
+    if(printBtn){ printBtn.addEventListener('click', function(){ window.print(); }); }
+  })();
+</script>

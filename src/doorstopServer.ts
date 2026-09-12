@@ -130,7 +130,7 @@ export class DoorstopServer {
     return this.start(projectPath, pythonPath);
   }
 
-  async request<T>(method: 'GET' | 'POST' | 'DELETE', pathName: string, body?: unknown): Promise<T> {
+  async request<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', pathName: string, body?: unknown): Promise<T> {
     const response = await fetch(`http://${this.host}:${this.port}${pathName}`, {
       method,
       headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,

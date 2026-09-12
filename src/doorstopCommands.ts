@@ -225,8 +225,13 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
 
   const link = register('doorstop.link', async (value?: unknown) => {
     const item = itemArgument(value);
+    // The Document View's "Link..." action names the child (spec 019); the
+    // tree row names the parent, and the palette asks for both.
+    const childFromView = !item && value && typeof (value as { childUid?: unknown }).childUid === 'string'
+      ? (value as { childUid: string }).childUid
+      : undefined;
     const parentUid = item?.itemData.uid || await vscode.window.showInputBox({ prompt: 'Enter parent item UID' });
-    const childUid = editorUid() || await vscode.window.showInputBox({ prompt: 'Enter child item UID' });
+    const childUid = childFromView || editorUid() || await vscode.window.showInputBox({ prompt: 'Enter child item UID' });
     if (childUid && parentUid) {
       await run(() => options.server.request('POST', `/items/${encodeURIComponent(childUid)}/links`, { parentUid: String(parentUid) }));
     }

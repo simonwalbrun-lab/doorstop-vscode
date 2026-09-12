@@ -33,7 +33,7 @@ interface AnchorResolution {
   fallbackUsed: boolean;
 }
 
-const SEVERITY_BY_NAME: Record<ValidationIssue['severity'], vscode.DiagnosticSeverity> = {
+export const SEVERITY_BY_NAME: Record<ValidationIssue['severity'], vscode.DiagnosticSeverity> = {
   error: vscode.DiagnosticSeverity.Error,
   warning: vscode.DiagnosticSeverity.Warning,
   info: vscode.DiagnosticSeverity.Information
@@ -279,11 +279,20 @@ export async function buildDiagnostics(
   return byFile;
 }
 
+export interface ProblemsRefresh {
+  validation: ValidationResponse;
+  tree: TreeResponse;
+}
+
 export interface ProblemsProvider {
   /** Refreshes now, bypassing the debounce. */
   refreshNow(): Promise<void>;
   /** Refreshes after the debounce interval, superseding any pending refresh. */
   scheduleRefresh(): void;
+  /** Fires after every successful pass with the data it was built from (spec 019 projection). */
+  readonly onDidRefresh: vscode.Event<ProblemsRefresh>;
+  /** The last successful pass, or undefined after a failure. */
+  getLastRefresh(): ProblemsRefresh | undefined;
 }
 
 export function registerProblemsProvider(
@@ -302,6 +311,8 @@ export function registerProblemsProvider(
   // Guards the failure notification so it fires once per failure transition,
   // not once per debounce tick.
   let lastPassFailed = false;
+  const refreshEmitter = new vscode.EventEmitter<ProblemsRefresh>();
+  let lastRefresh: ProblemsRefresh | undefined;
 
   const refreshNow = async (): Promise<void> => {
     const pass = ++latestPass;
@@ -322,6 +333,8 @@ export function registerProblemsProvider(
         collection.set(entry.uri, entry.diagnostics);
       }
       lastPassFailed = false;
+      lastRefresh = { validation, tree };
+      refreshEmitter.fire(lastRefresh);
     } catch (error) {
       if (pass !== latestPass) {
         return;
@@ -330,6 +343,7 @@ export function registerProblemsProvider(
       // (FR-014): an empty list plus a message is unambiguous, a five-minute-old
       // list is not.
       collection.clear();
+      lastRefresh = undefined;
       if (!lastPassFailed) {
         lastPassFailed = true;
         const message = error instanceof Error ? error.message : String(error);
@@ -366,9 +380,10 @@ export function registerProblemsProvider(
   // (a test does exactly that to exercise the failure path).
   context.subscriptions.push(
     collection,
+    refreshEmitter,
     onSave,
     { dispose: () => debounceTimer && clearTimeout(debounceTimer) }
   );
 
-  return { refreshNow, scheduleRefresh };
+  return { refreshNow, scheduleRefresh, onDidRefresh: refreshEmitter.event, getLastRefresh: () => lastRefresh };
 }

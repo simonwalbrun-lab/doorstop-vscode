@@ -12,6 +12,7 @@ import { getDeriveTargets } from '../deriveProvider';
 import { loadDoorstopIndex } from '../doorstopIndex';
 import { ProblemsProvider, registerProblemsProvider } from '../problemsProvider';
 import { DoorstopServer, DOORSTOP_SERVER_HOST, DOORSTOP_SERVER_PORT } from '../doorstopServer';
+import { DocumentViewHandle, Prompts } from '../documentViewProvider';
 import { DocumentNode, TreeResponse } from '../doorstopTypes';
 import { DoorstopTreeProvider, RequirementTreeItem } from '../requirementTree';
 
@@ -112,6 +113,7 @@ suite('Regression Fixture Integration Suite', () => {
   let startedOwnServer = false;
   let treeProvider: DoorstopTreeProvider;
   let problems: ProblemsProvider;
+  let documentView: DocumentViewHandle;
 
   suiteSetup(async function () {
     this.timeout(30000);
@@ -123,6 +125,8 @@ suite('Regression Fixture Integration Suite', () => {
     assert.ok(treeProvider, 'activate() should export treeProvider for tests');
     problems = exports.problemsProvider;
     assert.ok(problems, 'activate() should export problemsProvider for tests');
+    documentView = exports.documentView;
+    assert.ok(documentView, 'activate() should export documentView for tests');
 
     server = new DoorstopServer();
     // If the extension's own activation already started a server against this
@@ -1193,6 +1197,481 @@ suite('Regression Fixture Integration Suite', () => {
       assert.strictEqual(onDangling.name, 'REQ-009', 'an unknown UID falls back to the file itself');
 
       assert.deepStrictEqual(await prepare(path.join(FIXTURE_ROOT, 'CHECKLIST.md'), 0), [], 'not a requirement');
+    });
+  });
+
+  // ===========================================================================
+  // Spec 019 - Document View: one Doorstop document as a single editable
+  // markdown text. Every save-path test runs inside withRestoredFixture:
+  // Doorstop's reorder can rewrite several fixture files, and
+  // isRegressionFixtureTree requires exactly 10 REQ items afterwards.
+  // ===========================================================================
+  suite('Document View (019)', () => {
+    const VIEW_SCHEME = 'doorstop-document';
+    const REQ_SEPARATOR = (uid: string, level: string): string =>
+      `<!-- ${uid} · ${level} · item separator. keep this line -->`;
+
+    async function waitFor(predicate: () => boolean | Promise<boolean>, what: string, timeoutMs = 5000): Promise<void> {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        if (await predicate()) {
+          return;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      assert.fail(`timed out waiting for: ${what}`);
+    }
+
+    async function listFiles(dir: string): Promise<string[]> {
+      const out: string[] = [];
+      for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          out.push(...(await listFiles(full)));
+        } else {
+          out.push(full);
+        }
+      }
+      return out;
+    }
+
+    /** Snapshot every fixture file before `fn` and put the directory back afterwards. */
+    async function withRestoredFixture<T>(fn: () => Promise<T>): Promise<T> {
+      const before = new Map<string, Buffer>();
+      for (const file of await listFiles(FIXTURE_ROOT)) {
+        before.set(file, await fs.readFile(file));
+      }
+      try {
+        return await fn();
+      } finally {
+        for (const [file, bytes] of before) {
+          const current = await fs.readFile(file).catch(() => undefined);
+          if (!current || !current.equals(bytes)) {
+            await fs.writeFile(file, bytes);
+          }
+        }
+        for (const file of await listFiles(FIXTURE_ROOT)) {
+          if (!before.has(file)) {
+            await fs.unlink(file);
+          }
+        }
+        treeProvider.refresh();
+      }
+    }
+
+    async function closeViews(): Promise<void> {
+      for (const document of vscode.workspace.textDocuments.filter(candidate => candidate.uri.scheme === VIEW_SCHEME)) {
+        await vscode.window.showTextDocument(document, { preview: false });
+        await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+      }
+    }
+
+    async function openView(prefix: string): Promise<vscode.TextDocument> {
+      // The tree may be mid-reload from a previous test's refresh; a fresh
+      // load settles it.
+      let root: RequirementTreeItem | undefined;
+      for (let attempt = 0; attempt < 5 && !root; attempt++) {
+        treeProvider.refresh();
+        root = await findTreeItem(treeProvider, candidate => candidate.itemData.isDoorstopRoot === true && candidate.itemData.prefix === prefix);
+        if (!root) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+      assert.ok(root, `${prefix} root node`);
+      await vscode.commands.executeCommand('doorstop.openAsDocument', root);
+      const document = vscode.window.activeTextEditor?.document;
+      assert.ok(document && document.uri.scheme === VIEW_SCHEME, 'a document view is active');
+      return document!;
+    }
+
+    const lineOf = (document: vscode.TextDocument, text: string): number => {
+      const index = document.getText().split('\n').indexOf(text);
+      assert.ok(index >= 0, `line "${text}" present`);
+      return index;
+    };
+
+    async function replaceInView(document: vscode.TextDocument, from: string, to: string): Promise<void> {
+      const offset = document.getText().indexOf(from);
+      assert.ok(offset >= 0, `"${from}" present in the view`);
+      const edit = new vscode.WorkspaceEdit();
+      edit.replace(document.uri, new vscode.Range(document.positionAt(offset), document.positionAt(offset + from.length)), to);
+      assert.ok(await vscode.workspace.applyEdit(edit), 'edit applied');
+    }
+
+    /** Top-level YAML sections of an item file, keyed by attribute - for "only this key changed" checks. */
+    function sections(text: string): Map<string, string> {
+      const map = new Map<string, string>();
+      let key = '';
+      for (const line of text.split(/\r?\n/)) {
+        const match = /^([a-z_]+):/.exec(line);
+        if (match) {
+          key = match[1];
+          map.set(key, line);
+        } else if (key) {
+          map.set(key, `${map.get(key)}\n${line}`);
+        }
+      }
+      return map;
+    }
+
+    async function reqItems(): Promise<Map<string, { level: string; header?: string; text?: string; reviewed: boolean }>> {
+      const tree = await server.request<TreeResponse>('GET', '/tree');
+      return new Map(tree.documents.find(doc => doc.prefix === 'REQ')!.items.map(item => [item.uid, item]));
+    }
+
+    let originalPrompts: Prompts | undefined;
+    setup(() => {
+      originalPrompts ??= { ...documentView.prompts };
+    });
+    teardown(async () => {
+      Object.assign(documentView.prompts, originalPrompts);
+      await closeViews();
+    });
+
+    test('opens REQ as a markdown document with one block per item in level order (US1)', async function () {
+      this.timeout(30000);
+      const document = await openView('REQ');
+      assert.strictEqual(document.languageId, 'markdown');
+      assert.strictEqual(path.basename(document.uri.path), 'REQ (document)');
+      const lines = document.getText().split('\n');
+      assert.strictEqual(lines[0], '<!-- doorstop document REQ · keep this line -->');
+      const separators = lines.filter(line => line.includes('item separator'));
+      assert.deepStrictEqual(separators, [
+        ['REQ-001', '1.0'], ['REQ-002', '1.1'], ['REQ-003', '1.2'], ['REQ-004', '1.3'], ['REQ-005', '1.4'],
+        ['REQ-006', '1.5'], ['REQ-007', '1.6'], ['REQ-008', '1.7'], ['REQ-009', '1.8'], ['REQ-010', '1.9']
+      ].map(([uid, level]) => REQ_SEPARATOR(uid, level)));
+      assert.strictEqual(lines[lineOf(document, REQ_SEPARATOR('REQ-004', '1.3')) + 1], '## Heading Display Coverage');
+      const req002 = lineOf(document, REQ_SEPARATOR('REQ-002', '1.1'));
+      assert.strictEqual(lines[req002 + 1], '## REQ-002');
+      assert.strictEqual(lines[req002 + 2], 'The system shall have minimal text.');
+      assert.strictEqual(lines[req002 + 3], '', 'one blank line between blocks');
+
+      await openView('REQ');
+      const editors = vscode.window.visibleTextEditors.filter(editor => editor.document.uri.toString() === document.uri.toString());
+      assert.strictEqual(editors.length, 1, 'the existing tab is reused');
+
+      await documentView.openDocumentView('EMPTY');
+      const empty = vscode.window.activeTextEditor?.document;
+      assert.strictEqual(empty?.getText(), '<!-- doorstop document EMPTY · keep this line -->\n');
+    });
+
+    test('saves edited text and header through the server and regenerates the view (US2)', async function () {
+      this.timeout(60000);
+      await withRestoredFixture(async () => {
+        const original002 = await fs.readFile(path.join(FIXTURE_ROOT, 'REQ-002.yml'), 'utf8');
+        const original004 = await fs.readFile(path.join(FIXTURE_ROOT, 'REQ-004.yml'), 'utf8');
+        const before = new Map<string, Buffer>();
+        for (const file of await listFiles(FIXTURE_ROOT)) {
+          before.set(file, await fs.readFile(file));
+        }
+
+        const document = await openView('REQ');
+        await replaceInView(document, 'The system shall have minimal text.', 'The system shall have edited text.');
+        await replaceInView(document, '## Heading Display Coverage', '## Heading Changed');
+        const headerPrompts: string[][] = [];
+        documentView.prompts.confirmHeaderChange = async (uid, oldHeader, newHeader) => {
+          headerPrompts.push([uid, oldHeader, newHeader]);
+          return 'apply';
+        };
+        assert.strictEqual(await document.save(), true, 'save succeeds');
+        assert.strictEqual(document.isDirty, false);
+        assert.deepStrictEqual(headerPrompts, [['REQ-004', 'Heading Display Coverage', 'Heading Changed']]);
+
+        const items = await reqItems();
+        assert.strictEqual(items.get('REQ-002')?.text, 'The system shall have edited text.');
+        assert.strictEqual(items.get('REQ-004')?.header, 'Heading Changed');
+
+        const after002 = sections(await fs.readFile(path.join(FIXTURE_ROOT, 'REQ-002.yml'), 'utf8'));
+        for (const [key, value] of sections(original002)) {
+          if (key !== 'text') {
+            assert.strictEqual(after002.get(key), value, `REQ-002 ${key} untouched`);
+          }
+        }
+        const after004 = sections(await fs.readFile(path.join(FIXTURE_ROOT, 'REQ-004.yml'), 'utf8'));
+        for (const [key, value] of sections(original004)) {
+          if (key !== 'header') {
+            assert.strictEqual(after004.get(key), value, `REQ-004 ${key} untouched`);
+          }
+        }
+        for (const [file, bytes] of before) {
+          if (!file.endsWith('REQ-002.yml') && !file.endsWith('REQ-004.yml')) {
+            assert.ok((await fs.readFile(file)).equals(bytes), `${path.basename(file)} untouched`);
+          }
+        }
+
+        await waitFor(() => document.getText().includes('## Heading Changed') && !document.isDirty, 'view regenerated');
+        assert.ok(document.getText().includes('The system shall have edited text.'));
+
+        // A save without edits writes nothing.
+        const snapshot = new Map<string, Buffer>();
+        for (const file of await listFiles(FIXTURE_ROOT)) {
+          snapshot.set(file, await fs.readFile(file));
+        }
+        await replaceInView(document, 'edited text.', 'edited text.');
+        assert.strictEqual(await document.save(), true);
+        for (const [file, bytes] of snapshot) {
+          assert.ok((await fs.readFile(file)).equals(bytes), `${path.basename(file)} unchanged by an empty save`);
+        }
+      });
+    });
+
+    test('a save with the server unreachable fails and keeps the edits (US2)', async function () {
+      this.timeout(60000);
+      if (!startedOwnServer) {
+        this.skip();
+      }
+      const document = await openView('REQ');
+      await replaceInView(document, 'The system shall have minimal text.', 'Never written.');
+      const errors: string[] = [];
+      documentView.prompts.reportError = message => errors.push(message);
+      server.dispose();
+      try {
+        assert.strictEqual(await document.save(), false, 'save is refused');
+        assert.strictEqual(document.isDirty, true);
+        assert.ok(document.getText().includes('Never written.'));
+      } finally {
+        await server.restart(FIXTURE_ROOT, resolvePythonCommand());
+      }
+      const original = await fs.readFile(path.join(FIXTURE_ROOT, 'REQ-002.yml'), 'utf8');
+      assert.ok(!original.includes('Never written.'));
+    });
+
+    test('an edit inside a separator line is reverted with a hint (US3)', async function () {
+      this.timeout(30000);
+      const document = await openView('REQ');
+      const hints: string[] = [];
+      documentView.prompts.reportHint = message => hints.push(message);
+      const separator = REQ_SEPARATOR('REQ-003', '1.2');
+      const line = lineOf(document, separator);
+      const edit = new vscode.WorkspaceEdit();
+      edit.insert(document.uri, new vscode.Position(line, 5), 'x');
+      await vscode.workspace.applyEdit(edit);
+      await waitFor(() => document.lineAt(line).text === separator, 'separator restored');
+      assert.deepStrictEqual(hints, ['This line is managed by Doorstop - use the actions above it']);
+    });
+
+    test('a missing block asks Delete / Keep / Cancel before anything is removed (US3)', async function () {
+      this.timeout(60000);
+      await withRestoredFixture(async () => {
+        const file = path.join(FIXTURE_ROOT, 'REQ-010.yml');
+        const document = await openView('REQ');
+        const deleteBlock = async (): Promise<void> => {
+          const line = lineOf(document, REQ_SEPARATOR('REQ-010', '1.9'));
+          const edit = new vscode.WorkspaceEdit();
+          edit.delete(document.uri, new vscode.Range(line - 1, 0, document.lineCount - 1, 0));
+          await vscode.workspace.applyEdit(edit);
+        };
+        const asked: string[][] = [];
+
+        await deleteBlock();
+        documentView.prompts.confirmDeletions = async uids => { asked.push(uids); return 'keep'; };
+        assert.strictEqual(await document.save(), true, 'Keep continues the save');
+        assert.deepStrictEqual(asked, [['REQ-010']]);
+        assert.ok(await fs.stat(file).then(() => true, () => false), 'REQ-010.yml still exists');
+        await waitFor(() => document.getText().includes(REQ_SEPARATOR('REQ-010', '1.9')) && !document.isDirty, 'block restored');
+
+        await deleteBlock();
+        documentView.prompts.confirmDeletions = async () => 'cancel';
+        assert.strictEqual(await document.save(), false, 'Cancel aborts the save');
+        assert.strictEqual(document.isDirty, true);
+        assert.ok(await fs.stat(file).then(() => true, () => false), 'REQ-010.yml still exists after Cancel');
+
+        documentView.prompts.confirmDeletions = async () => 'delete';
+        assert.strictEqual(await document.save(), true, 'Delete removes the item');
+        await waitFor(() => fs.stat(file).then(() => false, () => true), 'REQ-010.yml removed');
+        assert.strictEqual((await reqItems()).size, 9);
+      });
+    });
+
+    test('a duplicated separator refuses the save and offers Restore block structure (US3)', async function () {
+      this.timeout(60000);
+      await withRestoredFixture(async () => {
+        const before = new Map<string, Buffer>();
+        for (const file of await listFiles(FIXTURE_ROOT)) {
+          before.set(file, await fs.readFile(file));
+        }
+        const document = await openView('REQ');
+        const separator = REQ_SEPARATOR('REQ-005', '1.4');
+        const line = lineOf(document, separator);
+        const edit = new vscode.WorkspaceEdit();
+        edit.insert(document.uri, new vscode.Position(line + 1, 0), `${separator}\n`);
+        await vscode.workspace.applyEdit(edit);
+
+        assert.strictEqual(await document.save(), false, 'save refused');
+        assert.strictEqual(document.isDirty, true);
+        for (const [file, bytes] of before) {
+          assert.ok((await fs.readFile(file)).equals(bytes), `${path.basename(file)} untouched`);
+        }
+
+        await waitFor(() => vscode.languages.getDiagnostics(document.uri).some(diagnostic =>
+          diagnostic.source === 'doorstop-document' && diagnostic.code === 'separator-duplicated' && diagnostic.range.start.line === line + 1
+        ), 'separator-duplicated diagnostic');
+        const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+          'vscode.executeCodeActionProvider', document.uri, new vscode.Range(line + 1, 0, line + 1, 0)
+        );
+        const restore = actions.find(action => action.title === 'Restore block structure of REQ-005');
+        assert.ok(restore?.command, 'quick fix offered');
+        await vscode.commands.executeCommand(restore!.command!.command, ...(restore!.command!.arguments ?? []));
+        assert.strictEqual(document.getText().split('\n').filter(candidate => candidate === separator).length, 1, 'duplicate removed');
+      });
+    });
+
+    test('a deleted heading line triggers the header confirmation (US3)', async function () {
+      this.timeout(60000);
+      await withRestoredFixture(async () => {
+        const file = path.join(FIXTURE_ROOT, 'REQ-004.yml');
+        const original = await fs.readFile(file);
+        const document = await openView('REQ');
+        await replaceInView(document, '## Heading Display Coverage', '');
+        const asked: string[][] = [];
+        documentView.prompts.confirmHeaderChange = async (uid, oldHeader, newHeader) => {
+          asked.push([uid, oldHeader, newHeader]);
+          return 'keep';
+        };
+        assert.strictEqual(await document.save(), true);
+        assert.deepStrictEqual(asked, [['REQ-004', 'Heading Display Coverage', '']]);
+        assert.ok((await fs.readFile(file)).equals(original), 'REQ-004.yml unchanged');
+        await waitFor(() => document.getText().includes('## Heading Display Coverage'), 'heading restored from disk');
+      });
+    });
+
+    test('+ New item below creates an item after the block, renumbering its followers (US4)', async function () {
+      this.timeout(60000);
+      await withRestoredFixture(async () => {
+        const document = await openView('REQ');
+        const line = lineOf(document, REQ_SEPARATOR('REQ-003', '1.2'));
+        await vscode.commands.executeCommand('doorstop.documentView.newItemBelow', { uri: document.uri.toString(), line });
+        const marker = lineOf(document, '<!-- new item -->');
+        assert.ok(marker > line, 'placeholder inserted below the block');
+        assert.strictEqual(document.lineAt(marker - 1).text, '');
+        assert.strictEqual(document.lineAt(marker + 1).text, '## ');
+        assert.strictEqual(document.lineAt(marker + 2).text, '');
+        assert.strictEqual(document.lineAt(marker + 3).text, REQ_SEPARATOR('REQ-004', '1.3'));
+        const selection = vscode.window.activeTextEditor!.selection.active;
+        assert.deepStrictEqual([selection.line, selection.character], [marker + 1, 3], 'cursor on the heading line');
+
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(document.uri, document.lineAt(marker + 1).range, '## Inserted item\nBody of the inserted item.');
+        await vscode.workspace.applyEdit(edit);
+        assert.strictEqual(await document.save(), true);
+
+        const items = await reqItems();
+        assert.strictEqual(items.size, 11);
+        assert.deepStrictEqual(
+          [items.get('REQ-011')?.level, items.get('REQ-011')?.header, items.get('REQ-011')?.text],
+          ['1.3', 'Inserted item', 'Body of the inserted item.']
+        );
+        assert.strictEqual(items.get('REQ-004')?.level, '1.4');
+        assert.strictEqual(items.get('REQ-010')?.level, '1.10');
+        assert.ok(await fs.stat(path.join(FIXTURE_ROOT, 'REQ-011.yml')).then(() => true, () => false));
+        await waitFor(() => document.getText().includes(REQ_SEPARATOR('REQ-011', '1.3')) && !document.isDirty, 'view shows the new item');
+        const lines = document.getText().split('\n');
+        assert.ok(lines.indexOf(REQ_SEPARATOR('REQ-003', '1.2')) < lines.indexOf(REQ_SEPARATOR('REQ-011', '1.3')));
+        assert.ok(lines.indexOf(REQ_SEPARATOR('REQ-011', '1.3')) < lines.indexOf(REQ_SEPARATOR('REQ-004', '1.4')));
+
+        // Cancel removes a placeholder; an empty one is ignored on save; a
+        // typed heading never creates an item.
+        await closeViews();
+        const fresh = await openView('REQ');
+        const rendered = fresh.getText();
+        await vscode.commands.executeCommand('doorstop.documentView.newItemBelow', { uri: fresh.uri.toString(), line: lineOf(fresh, REQ_SEPARATOR('REQ-003', '1.2')) });
+        await vscode.commands.executeCommand('doorstop.documentView.cancelPlaceholder', { uri: fresh.uri.toString(), line: lineOf(fresh, '<!-- new item -->') });
+        assert.strictEqual(fresh.getText(), rendered, 'Cancel restores the text');
+        await vscode.commands.executeCommand('doorstop.documentView.newItemBelow', { uri: fresh.uri.toString(), line: lineOf(fresh, REQ_SEPARATOR('REQ-003', '1.2')) });
+        assert.strictEqual(await fresh.save(), true);
+        assert.strictEqual((await reqItems()).size, 11, 'an empty placeholder creates nothing');
+
+        const yml = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(FIXTURE_ROOT, 'REQ-001.yml')));
+        await vscode.window.showTextDocument(yml);
+        const ymlText = yml.getText();
+        await vscode.commands.executeCommand('doorstop.insertItemHere');
+        assert.strictEqual(yml.getText(), ymlText, 'Insert Item Here does nothing outside a document view');
+      });
+    });
+
+    test('action line, projected problems and navigation work on the separators (US5)', async function () {
+      this.timeout(60000);
+      await withRestoredFile(path.join(FIXTURE_ROOT, 'REQ-001.yml'), async () => {
+        const document = await openView('REQ');
+        const separator = REQ_SEPARATOR('REQ-001', '1.0');
+        const line = lineOf(document, separator);
+        await problems.refreshNow();
+        await waitFor(() => vscode.languages.getDiagnostics(document.uri).some(diagnostic =>
+          diagnostic.source === 'doorstop' && diagnostic.range.start.line === line
+        ), 'projected doorstop problem on the separator');
+        const reviewCodes = new Set(['needs_initial_review', 'unreviewed_changes']);
+        const reviewDiagnostic = vscode.languages.getDiagnostics(document.uri).find(diagnostic =>
+          diagnostic.source === 'doorstop' && diagnostic.range.start.line === line && reviewCodes.has(String(diagnostic.code)));
+        assert.ok(reviewDiagnostic, 'REQ-001 needs review');
+
+        const titlesOn = async (target: number): Promise<string[]> => {
+          const lenses = await vscode.commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', document.uri, 500);
+          return lenses.filter(lens => lens.range.start.line === target).map(lens => lens.command?.title ?? '');
+        };
+        await waitFor(async () => (await titlesOn(line)).includes('Do Review'), 'Do Review lens');
+        assert.deepStrictEqual(await titlesOn(line), ['REQ-001', 'Open item', 'Do Review', 'Derive', 'Link...', 'no links', '+ New item below']);
+        assert.deepStrictEqual(await titlesOn(0), ['+ New item below']);
+        const req010 = lineOf(document, REQ_SEPARATOR('REQ-010', '1.9'));
+        assert.ok((await titlesOn(req010)).includes('2 links'));
+
+        const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+          'vscode.executeCodeActionProvider', document.uri, new vscode.Range(line, 0, line, 0)
+        );
+        const doReview = actions.find(action => action.title === 'Do Review');
+        assert.ok(doReview?.command, 'Do Review quick fix');
+        await vscode.commands.executeCommand(doReview!.command!.command, ...(doReview!.command!.arguments ?? []));
+        await waitFor(async () => (await reqItems()).get('REQ-001')?.reviewed === true, 'REQ-001 reviewed');
+        await problems.refreshNow();
+        await waitFor(async () => (await titlesOn(lineOf(document, separator))).includes('Review'), 'lens back to Review');
+
+        const position = new vscode.Position(lineOf(document, separator), 6);
+        const hovers = await vscode.commands.executeCommand<vscode.Hover[]>('vscode.executeHoverProvider', document.uri, position);
+        assert.ok(hovers.some(hover => hover.contents.some(content =>
+          (typeof content === 'string' ? content : (content as vscode.MarkdownString).value).includes('REQ-001'))), 'hover names the item');
+        const definitions = await vscode.commands.executeCommand<vscode.Location[]>('vscode.executeDefinitionProvider', document.uri, position);
+        assert.ok(definitions.some(location => location.uri.fsPath.endsWith('REQ-001.yml')), 'F12 opens the item file');
+        const references = await vscode.commands.executeCommand<vscode.Location[]>('vscode.executeReferenceProvider', document.uri, position);
+        const referenced = references.map(location => path.basename(location.uri.fsPath));
+        for (const linker of ['ARCH-001.yml', 'MD-001.md', 'REQ-010.yml']) {
+          assert.ok(referenced.includes(linker), `${linker} links to REQ-001`);
+        }
+        const roots = await vscode.commands.executeCommand<vscode.CallHierarchyItem[]>('vscode.prepareCallHierarchy', document.uri, position);
+        assert.strictEqual(roots[0]?.name, 'REQ-001');
+      });
+    });
+
+    test('changes on disk refresh a clean view and ask before touching a dirty one (US6)', async function () {
+      this.timeout(60000);
+      await withRestoredFixture(async () => {
+        const rewrite = async (uid: string, from: string, to: string): Promise<void> => {
+          const file = path.join(FIXTURE_ROOT, `${uid}.yml`);
+          const text = await fs.readFile(file, 'utf8');
+          assert.ok(text.includes(from), `${uid} contains "${from}"`);
+          await fs.writeFile(file, text.replace(from, to));
+        };
+        const document = await openView('REQ');
+        await rewrite('REQ-001', 'baseline capability', 'changed-on-disk capability');
+        await waitFor(() => document.getText().includes('changed-on-disk capability') && !document.isDirty,
+          `clean view refreshed (dirty=${document.isDirty}, state mtime=${documentView.getState('REQ')?.mtime}, state has change=${documentView.getState('REQ')?.text.includes('changed-on-disk')})`, 8000);
+
+        await replaceInView(document, 'The system shall remain pending review', 'The system shall remain edited in the view');
+        const labels: string[] = [];
+        documentView.prompts.notifyDiskChange = async label => { labels.push(label); return 'keep'; };
+        await rewrite('REQ-002', 'minimal text', 'text changed on disk');
+        await waitFor(() => labels.length > 0, 'disk-change notification', 8000);
+        assert.deepStrictEqual(labels, ['REQ-002 changed on disk']);
+        assert.ok(document.isDirty, 'Keep my edits leaves the view dirty');
+        assert.strictEqual(await document.save(), true);
+        const items = await reqItems();
+        assert.strictEqual(items.get('REQ-005')?.text, 'The system shall remain edited in the view, to exercise the unreviewed state.');
+        assert.strictEqual(items.get('REQ-002')?.text, 'The system shall have text changed on disk.');
+        await waitFor(() => document.getText().includes('text changed on disk') && document.getText().includes('edited in the view') && !document.isDirty, 'both changes visible');
+
+        await replaceInView(document, 'edited in the view', 'edited again');
+        documentView.prompts.notifyDiskChange = async () => 'reload';
+        await rewrite('REQ-003', 'multi-paragraph text', 'multi-paragraph text (disk)');
+        await waitFor(() => document.getText().includes('multi-paragraph text (disk)') && !document.getText().includes('edited again') && !document.isDirty, 'reload discards the edit', 8000);
+      });
     });
   });
 });

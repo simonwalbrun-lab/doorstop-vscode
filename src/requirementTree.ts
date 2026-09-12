@@ -28,7 +28,7 @@ function extractTitle(node: ItemNode): string {
  * (`len(self.level)`): the number of segments once a trailing ".0" (a heading
  * marker) is stripped. E.g. "1" / "1.0" -> 1, "1.2" -> 2, "1.14.0" -> 2, "1.14.1" -> 3.
  */
-function levelDepth(level: string): number {
+export function levelDepth(level: string): number {
   const parts = level.split('.').filter(part => part.length > 0);
   if (parts.length > 1 && parts[parts.length - 1] === '0') {
     return parts.length - 1;

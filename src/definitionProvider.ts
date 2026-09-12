@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 
 import { DoorstopIndex, getDocumentUid, loadDoorstopIndex } from './doorstopIndex';
 import { DoorstopServer } from './doorstopServer';
+import { DOCUMENT_VIEW_SCHEME } from './documentViewModel';
 
 export const UID_REGEX = /\b[A-Z0-9_-]+-\d+\b/g;
 const DERIVED_LINE_REGEX = /^\s*derived\s*:/i;
@@ -43,23 +44,24 @@ export function findReferenceLocation(uri: vscode.Uri, targetUid: string): Promi
   return findLineMatching(uri, new RegExp(`\\b${targetUid}\\b`));
 }
 
+/** Where each item that links to `uid` mentions it. */
+async function findLinkerLocations(uid: string, index: DoorstopIndex): Promise<vscode.Location[]> {
+  const locations: vscode.Location[] = [];
+  for (const linkerUid of index.getLinkers(uid)) {
+    const linkerUri = index.getUri(linkerUid);
+    if (linkerUri) {
+      locations.push(await findReferenceLocation(linkerUri, uid));
+    }
+  }
+  return locations;
+}
+
 async function findUsageLocations(
   document: vscode.TextDocument,
   index: DoorstopIndex
 ): Promise<vscode.Location[]> {
   const currentUid = getDocumentUid(document, index);
-  if (!currentUid) {
-    return [];
-  }
-
-  const locations: vscode.Location[] = [];
-  for (const linkerUid of index.getLinkers(currentUid)) {
-    const linkerUri = index.getUri(linkerUid);
-    if (linkerUri) {
-      locations.push(await findReferenceLocation(linkerUri, currentUid));
-    }
-  }
-  return locations;
+  return currentUid ? findLinkerLocations(currentUid, index) : [];
 }
 
 /**
@@ -144,6 +146,17 @@ export function registerDefinitionProvider(context: vscode.ExtensionContext, opt
 
   const referenceProvider = vscode.languages.registerReferenceProvider(selector, {
     async provideReferences(document, position) {
+      // In a Document View (spec 019) the UID under the cursor - inside a block
+      // separator - stands for the item, the way `derived:` does in its file.
+      if (document.uri.scheme === DOCUMENT_VIEW_SCHEME) {
+        const range = document.getWordRangeAtPosition(position, UID_REGEX);
+        const index = range ? await loadDoorstopIndex(server) : undefined;
+        const uid = range ? document.getText(range) : undefined;
+        if (!index || !uid || !index.has(uid)) {
+          return [];
+        }
+        return findLinkerLocations(uid, index);
+      }
       if (!DERIVED_LINE_REGEX.test(document.lineAt(position.line).text)) {
         return [];
       }

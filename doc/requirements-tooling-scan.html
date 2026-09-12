@@ -1,0 +1,597 @@
+<title>Requirements Tooling Scan</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --paper:#f1f3ed;
+    --paper-raised:#ffffff;
+    --ink:#1b2320;
+    --ink-soft:#4c554f;
+    --ink-faint:#7c847e;
+    --line:#d4d7cb;
+    --line-soft:#e3e5db;
+    --accent:#2c6b62;
+    --accent-ink:#183e38;
+    --accent-soft:#e2eeea;
+    --amber:#9c6b20;
+    --amber-soft:#f3e8d4;
+    --brick:#9c3f2f;
+    --brick-soft:#f2e2dd;
+    --mono-bg:#e9ece2;
+    --shadow: 0 1px 2px rgba(27,35,32,0.06), 0 8px 24px -12px rgba(27,35,32,0.12);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#14181a;
+      --paper-raised:#1b2023;
+      --ink:#e7ebe6;
+      --ink-soft:#a7b0aa;
+      --ink-faint:#767f79;
+      --line:#2b3134;
+      --line-soft:#232a2c;
+      --accent:#6fc0b3;
+      --accent-ink:#bfe9df;
+      --accent-soft:#1c2c29;
+      --amber:#dcaa5c;
+      --amber-soft:#332a19;
+      --brick:#e08972;
+      --brick-soft:#332120;
+      --mono-bg:#20262a;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#14181a;
+    --paper-raised:#1b2023;
+    --ink:#e7ebe6;
+    --ink-soft:#a7b0aa;
+    --ink-faint:#767f79;
+    --line:#2b3134;
+    --line-soft:#232a2c;
+    --accent:#6fc0b3;
+    --accent-ink:#bfe9df;
+    --accent-soft:#1c2c29;
+    --amber:#dcaa5c;
+    --amber-soft:#332a19;
+    --brick:#e08972;
+    --brick-soft:#332120;
+    --mono-bg:#20262a;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"IBM Plex Sans", system-ui, sans-serif;
+    padding:0 20px;
+  }
+  ::selection{ background:var(--accent-soft); color:var(--accent-ink); }
+
+  .wrap{ max-width:1040px; margin:0 auto; padding-block: 48px 80px; }
+  .prose{ max-width:700px; }
+
+  h1,h2,h3{ font-family:"IBM Plex Sans", system-ui, sans-serif; text-wrap:balance; color:var(--ink); }
+  p{ line-height:1.65; color:var(--ink-soft); }
+  .prose p{ font-family:"IBM Plex Serif", Georgia, serif; font-size:1.03rem; color:var(--ink); }
+  a{ color:var(--accent-ink); }
+  a:hover{ color:var(--accent); }
+
+  code, .uid, .mono{ font-family:"IBM Plex Mono", ui-monospace, monospace; }
+
+  /* ---------- Masthead ---------- */
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:0.72rem; letter-spacing:0.12em; text-transform:uppercase;
+    color:var(--accent-ink);
+    background:var(--accent-soft);
+    border:1px solid var(--line);
+    padding:5px 10px 5px 8px;
+    border-radius:3px;
+  }
+  .eyebrow::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--accent); flex:none; }
+
+  header.masthead{
+    padding-top:8px;
+    display:flex; flex-direction:column; gap:18px;
+    border-bottom:1px solid var(--line);
+    padding-bottom:32px;
+    margin-bottom:40px;
+  }
+  h1.title{
+    font-size:clamp(1.9rem, 4.2vw, 2.7rem);
+    font-weight:600;
+    line-height:1.08;
+    letter-spacing:-0.01em;
+    margin:0;
+  }
+  .dek{
+    font-family:"IBM Plex Serif", Georgia, serif;
+    font-size:1.15rem;
+    line-height:1.5;
+    color:var(--ink-soft);
+    max-width:640px;
+    margin:0;
+  }
+  .meta-row{
+    display:flex; flex-wrap:wrap; gap:18px 28px;
+    font-size:0.82rem; color:var(--ink-faint);
+    font-family:"IBM Plex Mono", monospace;
+  }
+  .meta-row strong{ color:var(--ink-soft); font-weight:500; }
+
+  /* ---------- Section scaffolding ---------- */
+  section{ margin-bottom:64px; }
+  .section-head{
+    display:flex; align-items:baseline; gap:14px;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+  }
+  .section-num{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:0.85rem; color:var(--accent);
+    border:1px solid var(--line);
+    background:var(--paper-raised);
+    border-radius:3px;
+    padding:2px 7px;
+  }
+  h2.section-title{ font-size:1.5rem; font-weight:600; margin:0; }
+  .section-sub{ font-size:0.95rem; color:var(--ink-faint); margin:6px 0 0; max-width:620px; }
+
+  /* ---------- Tool cards ---------- */
+  .tool-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(230px,1fr));
+    gap:14px;
+  }
+  .tool-card{
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:16px 16px 15px;
+    box-shadow:var(--shadow);
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .tool-card.is-doorstop{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent), var(--shadow); }
+  .tool-name{ font-weight:600; font-size:1rem; display:flex; align-items:center; gap:8px; justify-content:space-between; }
+  .tool-tag{
+    font-family:"IBM Plex Mono", monospace; font-size:0.65rem; letter-spacing:0.04em;
+    color:var(--accent-ink); background:var(--accent-soft);
+    border-radius:3px; padding:2px 6px; white-space:nowrap;
+  }
+  .tool-cat{ font-size:0.72rem; text-transform:uppercase; letter-spacing:0.07em; color:var(--ink-faint); font-family:"IBM Plex Mono",monospace;}
+  .tool-note{ font-size:0.87rem; color:var(--ink-soft); line-height:1.5; margin:0; }
+
+  /* ---------- Matrix table ---------- */
+  .matrix-scroll{ overflow-x:auto; border:1px solid var(--line); border-radius:8px; background:var(--paper-raised); box-shadow:var(--shadow);}
+  table.matrix{ border-collapse:collapse; width:100%; min-width:920px; font-size:0.86rem; }
+  table.matrix th, table.matrix td{ padding:10px 12px; border-bottom:1px solid var(--line-soft); text-align:left; vertical-align:middle; }
+  table.matrix thead th{
+    font-family:"IBM Plex Mono", monospace; font-size:0.68rem; letter-spacing:0.05em; text-transform:uppercase;
+    color:var(--ink-faint); background:var(--paper); border-bottom:1px solid var(--line);
+    position:sticky; top:0;
+  }
+  table.matrix th.rowhead-col, table.matrix td.rowhead{ position:sticky; left:0; background:var(--paper-raised); z-index:1; min-width:190px; }
+  table.matrix thead th.rowhead-col{ background:var(--paper); z-index:2; }
+  table.matrix tbody tr:last-child td{ border-bottom:none; }
+  tr.row-doorstop td.rowhead{ color:var(--accent-ink); font-weight:600; }
+  tr.row-doorstop{ background:var(--accent-soft); }
+  tr.row-doorstop td.rowhead{ background:var(--accent-soft); }
+  .rowhead-name{ font-weight:600; font-size:0.88rem; }
+  .rowhead-sub{ display:block; font-size:0.72rem; color:var(--ink-faint); font-weight:400; margin-top:2px;}
+
+  .status{ display:inline-flex; align-items:center; gap:6px; font-size:0.78rem; white-space:nowrap; }
+  .dot{ width:9px; height:9px; border-radius:50%; flex:none; }
+  .status.yes .dot{ background:var(--accent); }
+  .status.yes{ color:var(--accent-ink); }
+  .status.partial .dot{ background:var(--amber); }
+  .status.partial{ color:var(--amber); }
+  .status.no .dot{ background:transparent; border:1.5px solid var(--line); }
+  .status.no{ color:var(--ink-faint); }
+
+  .legend{ display:flex; flex-wrap:wrap; gap:16px; margin-top:12px; font-size:0.78rem; color:var(--ink-faint); }
+
+  /* ---------- Callout ---------- */
+  .callout{
+    display:flex; gap:16px;
+    background:var(--accent-soft);
+    border:1px solid var(--accent);
+    border-radius:8px;
+    padding:18px 20px;
+  }
+  .callout .mark{ font-family:"IBM Plex Mono",monospace; color:var(--accent); font-size:1.1rem; line-height:1.4; flex:none; }
+  .callout p{ margin:0; color:var(--ink); font-size:0.94rem; line-height:1.6; }
+  .callout strong{ color:var(--accent-ink); }
+
+  /* ---------- Idea cards ---------- */
+  .idea-list{ display:flex; flex-direction:column; gap:14px; }
+  .idea{
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:20px 22px;
+    box-shadow:var(--shadow);
+    display:grid;
+    grid-template-columns:auto 1fr;
+    gap:16px 20px;
+  }
+  .idea-num{
+    font-family:"IBM Plex Mono",monospace; font-size:0.95rem; color:var(--accent);
+    background:var(--accent-soft); border-radius:6px;
+    width:34px; height:34px; display:flex; align-items:center; justify-content:center;
+    font-weight:600;
+  }
+  .idea-body{ display:flex; flex-direction:column; gap:8px; min-width:0; }
+  .idea-title{ font-size:1.05rem; font-weight:600; margin:0; }
+  .idea-seen{ font-size:0.72rem; font-family:"IBM Plex Mono",monospace; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.04em; }
+  .idea-seen b{ color:var(--ink-soft); font-weight:600; text-transform:none; letter-spacing:0; }
+  .idea p{ font-size:0.92rem; line-height:1.6; margin:0; color:var(--ink-soft); }
+  .idea .for-doorstop{
+    background:var(--paper);
+    border:1px dashed var(--line);
+    border-radius:6px;
+    padding:11px 13px;
+    font-size:0.87rem;
+    color:var(--ink);
+  }
+  .idea .for-doorstop b{ color:var(--accent-ink); }
+
+  @media (max-width:560px){
+    .idea{ grid-template-columns:1fr; }
+    .idea-num{ display:none; }
+  }
+
+  /* ---------- Principles ---------- */
+  .principles{ display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; }
+  .principle{ border-left:2px solid var(--accent); padding:2px 0 2px 16px; }
+  .principle h3{ font-size:0.96rem; margin:0 0 6px; }
+  .principle p{ font-size:0.87rem; margin:0; line-height:1.55; }
+
+  /* ---------- Sources / footer ---------- */
+  .sources{ font-size:0.82rem; color:var(--ink-faint); line-height:2; }
+  .sources a{ color:var(--ink-soft); text-decoration:none; border-bottom:1px solid var(--line); }
+  .sources a:hover{ color:var(--accent); border-color:var(--accent); }
+  footer{ border-top:1px solid var(--line); padding-top:24px; margin-top:8px; }
+  footer .fine{ font-size:0.78rem; color:var(--ink-faint); margin-top:16px; }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <span class="eyebrow">Field scan · requirements tooling</span>
+    <h1 class="title">How other requirements tools show and protect a document</h1>
+    <p class="dek">A look across IBM DOORS Next, Jama Connect, Polarion, Codebeamer/Helix ALM, Modern Requirements, ReqView and StrictDoc — the viewing, traceability and review features they've converged on — read against Doorstop's item-file model and the <span class="mono">019</span> Document View spec, to find what's genuinely missing.</p>
+    <div class="meta-row">
+      <span><strong>Scope</strong> viewing &amp; traceability, not pricing</span>
+      <span><strong>Closest analogs</strong> StrictDoc, ReqView</span>
+      <span><strong>Reference</strong> specs/019-document-view</span>
+    </div>
+  </header>
+
+  <section id="tools">
+    <div class="section-head">
+      <span class="section-num">01</span>
+      <div>
+        <h2 class="section-title">Tools scanned</h2>
+        <p class="section-sub">From heavyweight, database-backed ALM suites to lightweight, plain-text, git-native tools — Doorstop's own end of the market.</p>
+      </div>
+    </div>
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tool-name">IBM DOORS Next <span class="tool-tag">enterprise</span></div>
+        <div class="tool-cat">Relational · Jazz platform</div>
+        <p class="tool-note">The traceability incumbent. Module-based documents, a graphical impact explorer and baselines are core, not add-ons — at the cost of a famously heavy, unintuitive editor.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">Jama Connect <span class="tool-tag">enterprise</span></div>
+        <div class="tool-cat">Cloud · review-centered</div>
+        <p class="tool-note">Best known for "Live Traceability" — replacing the static matrix with a continuously current upstream/downstream view, so gaps surface during development, not at audit time.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">Polarion <span class="tool-tag">enterprise</span></div>
+        <div class="tool-cat">LiveDoc editor</div>
+        <p class="tool-note">A "LiveDoc" is a merged, editable document over structured work items — the closest enterprise cousin to the 019 Document View — with named baselines and a side-by-side compare view built in.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">Codebeamer &amp; Helix ALM <span class="tool-tag">enterprise</span></div>
+        <div class="tool-cat">Full ALM suites</div>
+        <p class="tool-note">Requirements as one module inside a bigger lifecycle tool — strong matrix and compliance tooling, customizable workflow, but the document is one view among many.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">Modern Requirements <span class="tool-tag">Word / Azure DevOps</span></div>
+        <div class="tool-cat">Smart Docs + trace analysis</div>
+        <p class="tool-note">Lives inside Word and Azure DevOps. Builds an end-to-end trace matrix "in under a minute" with Grid, List and <em>Heatmap</em> views, plus immutable milestone snapshots.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">ReqView <span class="tool-tag">lightweight</span></div>
+        <div class="tool-cat">Git/SVN-native</div>
+        <p class="tool-note">A single desktop app over a document tree, versioned in git. Tabular document editor plus generated multi-level traceability reports to Word/Excel/PDF.</p>
+      </div>
+      <div class="tool-card is-doorstop">
+        <div class="tool-name">StrictDoc <span class="tool-tag">closest analog</span></div>
+        <div class="tool-cat">Plain-text · .sdoc + Git</div>
+        <p class="tool-note">Requirements as text files under version control, like Doorstop. Ships a web document editor, a spreadsheet-style bulk view, generated traceability matrices, and a tree-diff/changelog between two revisions.</p>
+      </div>
+      <div class="tool-card is-doorstop">
+        <div class="tool-name">Doorstop <span class="tool-tag">this project</span></div>
+        <div class="tool-cat">YAML/MD items · Git</div>
+        <p class="tool-note">One file per item, links resolved by UID, review state tracked per item. The 019 spec adds a merged, editable document view on top of that model.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="matrix">
+    <div class="section-head">
+      <span class="section-num">02</span>
+      <div>
+        <h2 class="section-title">Viewing &amp; traceability feature matrix</h2>
+        <p class="section-sub">Same seven capabilities, read across every tool — including where Doorstop stands today and where the 019 spec moves it to.</p>
+      </div>
+    </div>
+
+    <div class="matrix-scroll">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th class="rowhead-col">Tool</th>
+            <th>Merged document view</th>
+            <th>Traceability matrix</th>
+            <th>Coverage / gap analysis</th>
+            <th>Baseline &amp; diff view</th>
+            <th>Impact analysis</th>
+            <th>Review workflow</th>
+            <th>Plain-text, git-native</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="rowhead"><span class="rowhead-name">IBM DOORS Next</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status partial"><span class="dot"></span>Add-on (Auto RTM)</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status yes"><span class="dot"></span>Graphical explorer</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status no"><span class="dot"></span>No</span></td>
+          </tr>
+          <tr>
+            <td class="rowhead"><span class="rowhead-name">Jama Connect</span></td>
+            <td><span class="status partial"><span class="dot"></span>Partial</span></td>
+            <td><span class="status yes"><span class="dot"></span>Live Trace</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status yes"><span class="dot"></span>Live Trace Explorer</span></td>
+            <td><span class="status yes"><span class="dot"></span>Review center</span></td>
+            <td><span class="status no"><span class="dot"></span>No</span></td>
+          </tr>
+          <tr>
+            <td class="rowhead"><span class="rowhead-name">Polarion</span></td>
+            <td><span class="status yes"><span class="dot"></span>LiveDoc</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status partial"><span class="dot"></span>Partial</span></td>
+            <td><span class="status yes"><span class="dot"></span>Named baselines + compare</span></td>
+            <td><span class="status partial"><span class="dot"></span>Partial</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status no"><span class="dot"></span>No</span></td>
+          </tr>
+          <tr>
+            <td class="rowhead"><span class="rowhead-name">Codebeamer / Helix ALM</span></td>
+            <td><span class="status partial"><span class="dot"></span>Partial</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status partial"><span class="dot"></span>Partial</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status partial"><span class="dot"></span>Partial</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status no"><span class="dot"></span>No</span></td>
+          </tr>
+          <tr>
+            <td class="rowhead"><span class="rowhead-name">Modern Requirements</span></td>
+            <td><span class="status yes"><span class="dot"></span>Smart Docs</span></td>
+            <td><span class="status yes"><span class="dot"></span>Trace Analysis</span></td>
+            <td><span class="status yes"><span class="dot"></span>Heatmap tab</span></td>
+            <td><span class="status yes"><span class="dot"></span>Immutable snapshots</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status no"><span class="dot"></span>No</span></td>
+          </tr>
+          <tr>
+            <td class="rowhead"><span class="rowhead-name">ReqView</span></td>
+            <td><span class="status partial"><span class="dot"></span>Tabular hybrid</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status partial"><span class="dot"></span>Partial</span></td>
+            <td><span class="status partial"><span class="dot"></span>Git history, no diff UI</span></td>
+            <td><span class="status partial"><span class="dot"></span>Partial</span></td>
+            <td><span class="status partial"><span class="dot"></span>Change log only</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+          </tr>
+          <tr>
+            <td class="rowhead"><span class="rowhead-name">StrictDoc</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status yes"><span class="dot"></span>Tree diff + changelog</span></td>
+            <td><span class="status partial"><span class="dot"></span>Partial</span></td>
+            <td><span class="status no"><span class="dot"></span>No</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+          </tr>
+          <tr class="row-doorstop">
+            <td class="rowhead"><span class="rowhead-name">Doorstop — today</span><span class="rowhead-sub">item files + explorer</span></td>
+            <td><span class="status no"><span class="dot"></span>No</span></td>
+            <td><span class="status partial"><span class="dot"></span>Links + call hierarchy</span></td>
+            <td><span class="status no"><span class="dot"></span>No</span></td>
+            <td><span class="status partial"><span class="dot"></span>Raw git diff only</span></td>
+            <td><span class="status partial"><span class="dot"></span>Call hierarchy</span></td>
+            <td><span class="status partial"><span class="dot"></span>Reviewed / suspect flag</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+          </tr>
+          <tr class="row-doorstop">
+            <td class="rowhead"><span class="rowhead-name">Doorstop — 019 spec</span><span class="rowhead-sub">Document View</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+            <td><span class="status partial"><span class="dot"></span>Links + call hierarchy</span></td>
+            <td><span class="status no"><span class="dot"></span>No</span></td>
+            <td><span class="status partial"><span class="dot"></span>Raw git diff only</span></td>
+            <td><span class="status partial"><span class="dot"></span>Call hierarchy</span></td>
+            <td><span class="status partial"><span class="dot"></span>Surfaced in-view</span></td>
+            <td><span class="status yes"><span class="dot"></span>Yes</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="legend">
+      <span class="status yes"><span class="dot"></span>Present</span>
+      <span class="status partial"><span class="dot"></span>Partial / manual</span>
+      <span class="status no"><span class="dot"></span>Absent</span>
+    </div>
+  </section>
+
+  <section id="callout">
+    <div class="callout">
+      <span class="mark">→</span>
+      <p>The 019 spec closes exactly one gap — the <strong>merged document view</strong> — and closes it well: it's the one row where Doorstop moves from "No" to sitting alongside Polarion's LiveDoc, StrictDoc and Modern Requirements' Smart Docs. Three columns stay empty even after 019 ships: <strong>coverage/gap analysis</strong>, a real <strong>baseline &amp; diff view</strong>, and a <strong>traceability matrix</strong> beyond one item's call hierarchy. Doorstop already has the raw material for all three — it's the only tool here with both a merged document view and git-native storage.</p>
+    </div>
+  </section>
+
+  <section id="ideas">
+    <div class="section-head">
+      <span class="section-num">03</span>
+      <div>
+        <h2 class="section-title">Gaps &amp; feature ideas for Doorstop</h2>
+        <p class="section-sub">Each pattern below is standard in at least one tool above. The "for Doorstop" line is a concrete way it could work given the server-backed item index the 019 spec already relies on.</p>
+      </div>
+    </div>
+
+    <div class="idea-list">
+
+      <div class="idea">
+        <div class="idea-num">1</div>
+        <div class="idea-body">
+          <h3 class="idea-title">A traceability matrix / heatmap view</h3>
+          <div class="idea-seen">Seen in: <b>DOORS Next, Jama Live Trace, Modern Requirements Heatmap, StrictDoc</b></div>
+          <p>Every mature tool eventually gives you a grid — upstream document down the rows, downstream document across the columns — colour-coded by link status, so gaps and orphans are visible at a glance instead of item-by-item.</p>
+          <div class="for-doorstop"><b>For Doorstop:</b> a webview panel, generated from the same server-backed index that already powers call hierarchy and suspect-link detection — cell states: linked, suspect, missing upstream, orphaned downstream. Clicking a cell opens that item's document-view block.</div>
+        </div>
+      </div>
+
+      <div class="idea">
+        <div class="idea-num">2</div>
+        <div class="idea-body">
+          <h3 class="idea-title">A baseline compare / diff view</h3>
+          <div class="idea-seen">Seen in: <b>Polarion Document Baselines, StrictDoc tree-diff &amp; changelog, Modern Requirements snapshots</b></div>
+          <p>Polarion's LiveDoc compare view and StrictDoc's changelog both render "what changed between two points" as readable prose — added/removed/changed items with header and text diffs — not a raw text diff of YAML.</p>
+          <div class="for-doorstop"><b>For Doorstop:</b> Doorstop already has this data for free in git history. A "Compare Document..." command could render the same document-view markup for two refs (branch, tag, commit) side by side, diffing at the block level — reusing the 019 spec's block model instead of a new one.</div>
+        </div>
+      </div>
+
+      <div class="idea">
+        <div class="idea-num">3</div>
+        <div class="idea-body">
+          <h3 class="idea-title">A coverage / orphan report</h3>
+          <div class="idea-seen">Seen in: <b>DOORS Auto RTM, Jama Live Traceability, StrictDoc coverage views</b></div>
+          <p>Jama's pitch for Live Traceability is explicit: surface missing links "during development rather than during an audit." A standing report of items with no downstream link, or no upstream parent, does that without waiting for a review cycle.</p>
+          <div class="for-doorstop"><b>For Doorstop:</b> a Problems-panel-style list, or a dedicated explorer node, populated from validation the server already computes — this is largely a new view over existing suspect-link and missing-link diagnostics, not new analysis.</div>
+        </div>
+      </div>
+
+      <div class="idea">
+        <div class="idea-num">4</div>
+        <div class="idea-body">
+          <h3 class="idea-title">Multi-hop impact analysis, not just one hop</h3>
+          <div class="idea-seen">Seen in: <b>DOORS graphical explorer, Jama Live Trace Explorer</b></div>
+          <p>Call hierarchy shows one item's direct links. Impact analysis in the bigger tools walks several hops upstream and downstream at once, so a change to a system requirement shows every test case it could eventually affect, not just its immediate children.</p>
+          <div class="for-doorstop"><b>For Doorstop:</b> extend call hierarchy recursively into a small graph view for "what does changing this item touch, transitively" — most valuable right before editing a widely-linked item, which the document view makes easy to do without noticing.</div>
+        </div>
+      </div>
+
+      <div class="idea">
+        <div class="idea-num">5</div>
+        <div class="idea-body">
+          <h3 class="idea-title">Review as an audit trail, not a flag</h3>
+          <div class="idea-seen">Seen in: <b>Jama review center, DOORS/Polarion sign-off, redlining tools' change trails</b></div>
+          <p>Regulated tools don't just track "reviewed: true" — they keep who reviewed what, when, and against which content, because a boolean can't answer "did anyone actually re-review after this text changed."</p>
+          <div class="for-doorstop"><b>For Doorstop:</b> a lightweight history alongside the existing reviewed/suspect state — reviewer, timestamp, and the item's hash at review time — surfaced as a hover on the marker line the 019 spec already renders, no new storage format required beyond an optional field.</div>
+        </div>
+      </div>
+
+      <div class="idea">
+        <div class="idea-num">6</div>
+        <div class="idea-body">
+          <h3 class="idea-title">Export to a shareable static document</h3>
+          <div class="idea-seen">Seen in: <b>ReqView (Word/Excel/PDF/HTML), StrictDoc, Modern Requirements' Smart Report</b></div>
+          <p>Every lightweight tool in this scan ends up generating a polished, standalone artefact for people who won't open the editor at all — a stakeholder, an auditor, a customer.</p>
+          <div class="for-doorstop"><b>For Doorstop:</b> the document view's rendering already produces exactly the content this needs — an "Export as PDF/HTML" command is largely a rendering target, not a new data model, and gives non-technical readers a document without a VS Code install.</div>
+        </div>
+      </div>
+
+      <div class="idea">
+        <div class="idea-num">7</div>
+        <div class="idea-body">
+          <h3 class="idea-title">A bulk, spreadsheet-style view alongside the document view</h3>
+          <div class="idea-seen">Seen in: <b>StrictDoc's table view, DOORS' native grid, ReqView's tabular editor</b></div>
+          <p>StrictDoc deliberately ships two editors over the same data: a document view for reading and prose editing, and a spreadsheet view for comparing or bulk-editing attributes across many items at once — a different task, not a redundant one.</p>
+          <div class="for-doorstop"><b>For Doorstop:</b> a complementary "table view" for attributes the document view intentionally excludes (level, links, review state — FR-043) would give bulk operations a home without pulling scope into the document view itself.</div>
+        </div>
+      </div>
+
+      <div class="idea">
+        <div class="idea-num">8</div>
+        <div class="idea-body">
+          <h3 class="idea-title">A project-wide view across documents</h3>
+          <div class="idea-seen">Seen in: <b>DOORS/Jama project hierarchies, Codebeamer trackers</b></div>
+          <p>Enterprise tools default to a project-level view spanning every document; single-document views are the drill-down, not the destination.</p>
+          <div class="for-doorstop"><b>For Doorstop:</b> explicitly out of scope for 019 (FR-045, "exactly one document") and reasonably so — but worth flagging as the natural next document-view-shaped feature once single-document reading and editing are proven out.</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="principles">
+    <div class="section-head">
+      <span class="section-num">04</span>
+      <div>
+        <h2 class="section-title">Patterns worth carrying forward</h2>
+        <p class="section-sub">Less "add this feature," more "work this way" — the philosophy behind the tools above, independent of any one product.</p>
+      </div>
+    </div>
+    <div class="principles">
+      <div class="principle">
+        <h3>Traceability should be live, not a periodic export</h3>
+        <p>Jama's whole pitch is that a matrix generated once and pasted into a report is stale the moment anything changes. Doorstop's suspect-link mechanism already has this property — it just isn't presented as a standing view yet.</p>
+      </div>
+      <div class="principle">
+        <h3>The document is the human interface; the matrix is the audit interface</h3>
+        <p>Every serious tool keeps both, deliberately separate. The 019 spec earns the first half well. Treat the second half as a separate, later view rather than folding matrix concerns into the document.</p>
+      </div>
+      <div class="principle">
+        <h3>Baselines should be named, not just commits</h3>
+        <p>Polarion's baselines are git-like revisions with a human label attached. Doorstop already has git; a thin "name this state" layer over tags would make comparisons ("what changed since the v2 baseline") legible to non-technical readers.</p>
+      </div>
+      <div class="principle">
+        <h3>Plain text and git are a genuine edge, not a limitation</h3>
+        <p>ReqView and StrictDoc compete on this explicitly against DOORS-class tools. Doorstop's 019 spec leans into it — disk is the source of truth, diffs stay reviewable, nothing needs a database — worth defending as new views are added, not traded away for feature parity.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p class="section-sub" style="margin-bottom:10px;">Sources consulted for this scan</p>
+    <div class="sources">
+      <div><a href="https://www.ibm.com/products/requirements-management" target="_blank" rel="noopener">IBM Engineering Requirements DOORS — product page</a></div>
+      <div><a href="https://www.ibm.com/support/pages/what-auto-requirement-traceability-matrix-plug-or-feature-auto-rtm-ibm-doors/stub" target="_blank" rel="noopener">IBM — Auto Requirement Traceability Matrix (Auto RTM) for DOORS</a></div>
+      <div><a href="https://help.jamasoftware.com/ah/en/manage-content/coverage-and-traceability/live-trace-explorer.html" target="_blank" rel="noopener">Jama Software — Live Trace Explorer</a></div>
+      <div><a href="https://www.jamasoftware.com/requirements-management-guide/requirements-traceability/traceability-matrix-101/" target="_blank" rel="noopener">Jama Software — Traceability Matrix 101</a></div>
+      <div><a href="https://blogs.sw.siemens.com/polarion/polarion-alm-19-2-whats-new-and-noteworthy/" target="_blank" rel="noopener">Polarion — 19.2 release notes (Document Baselines)</a></div>
+      <div><a href="https://extensions.polarion.com/extensions/393-document-baseline-panel" target="_blank" rel="noopener">Polarion Extensions — Document Baseline Panel</a></div>
+      <div><a href="https://intland.com/comparison/codebeamer-vs-helix-alm/" target="_blank" rel="noopener">Codebeamer vs. Helix ALM comparison</a></div>
+      <div><a href="https://www.modernrequirements.com/products/modern-requirements4devops-features/" target="_blank" rel="noopener">Modern Requirements4DevOps — feature list</a></div>
+      <div><a href="https://www.reqview.com/doc/requirements-traceability-links/" target="_blank" rel="noopener">ReqView — Requirements Traceability Links</a></div>
+      <div><a href="https://www.reqview.com/" target="_blank" rel="noopener">ReqView — HW/SW Requirements Management Tool on Git</a></div>
+      <div><a href="https://strictdoc-project.github.io/features/" target="_blank" rel="noopener">StrictDoc — Features</a></div>
+      <div><a href="https://strictdoc.readthedocs.io/en/stable/stable/docs/strictdoc_01_user_guide.html" target="_blank" rel="noopener">StrictDoc — User Guide</a></div>
+      <div><a href="https://www.pistack.xyz/posts/2026-06-15-self-hosted-requirements-management-rmtoo-doorstop-strictdoc/" target="_blank" rel="noopener">Pi Stack — rmtoo vs. Doorstop vs. StrictDoc</a></div>
+      <div><a href="https://www.ptc.com/en/blogs/alm/requirements-traceability" target="_blank" rel="noopener">PTC — What is Requirements Traceability?</a></div>
+    </div>
+    <p class="fine">Compiled from public documentation and vendor materials, September 2026. Feature marks reflect documented capabilities, not hands-on testing of every tool — treat the matrix as a starting point for prioritisation, not a procurement scorecard.</p>
+  </footer>
+
+</div>

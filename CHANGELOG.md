@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Document View: **Open as document** on a document node (or *Doorstop: Open
+  Document View*) shows all items of a document as one editable markdown
+  text; headings and text write back to the item files on save, only changed
+  items are written, deletions ask for confirmation, and broken block
+  structure is flagged with a **Restore block structure** quick fix;
+  **+ New item below** / *Doorstop: Insert Item Here* create items in place;
+  Doorstop's problems and quick fixes, hover, go to definition, references
+  and the call hierarchy work on the block separators; theme colour
+  `doorstop.documentView.altBlockBackground` tints every second block
+- Server: `PATCH /items/{uid}` (header/text), `DELETE /items/{uid}`,
+  `after`/`header`/`text` on `POST /documents/{prefix}/items`; `GET /tree`
+  returns items in Doorstop's level order
+
 ## [0.1.0] - 2026-09-11
 
 ### Added

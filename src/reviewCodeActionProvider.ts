@@ -23,9 +23,9 @@ import {
  */
 
 /** Doorstop checks that mean "this item needs reviewing". */
-const REVIEW_CHECKS = new Set(['needs_initial_review', 'unreviewed_changes']);
+export const REVIEW_CHECKS = new Set(['needs_initial_review', 'unreviewed_changes']);
 /** Doorstop's check id for a link whose parent changed since it was stamped. */
-const SUSPECT_LINK_CHECK = 'suspect_link';
+export const SUSPECT_LINK_CHECK = 'suspect_link';
 
 /** `Diagnostic.code` is a union; only our own string codes are of interest. */
 function codeOf(diagnostic: vscode.Diagnostic): string | undefined {

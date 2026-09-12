@@ -13,6 +13,8 @@ import { registerCallHierarchyProvider } from './callHierarchyProvider';
 import { DoorstopCommandsProvider } from './commandsProvider';
 import { registerDoorstopCommands } from './doorstopCommands';
 import { ProblemsProvider, registerProblemsProvider } from './problemsProvider';
+import { DocumentViewHandle, registerDocumentView } from './documentViewProvider';
+import { registerDocumentViewLanguage } from './documentViewLanguage';
 interface DoorstopDiagramDocument extends vscode.CustomDocument {
   diagram: unknown;
 }
@@ -68,6 +70,7 @@ export async function activate(context: vscode.ExtensionContext) {
   // workspaceFolder block below assigns it, so the optional calls on it are
   // genuine no-ops during the first server start rather than a dead-zone error.
   let problemsProvider: ProblemsProvider | undefined;
+  let documentView: DocumentViewHandle | undefined;
 
   // Spawns the server process and reports the outcome; split out of
   // startDoorstopServer so the missing-package install flow below can call it
@@ -211,6 +214,17 @@ export async function activate(context: vscode.ExtensionContext) {
       workspaceFolder
     });
     registerCallHierarchyProvider(context, { server: doorstopServer });
+    // One Doorstop document as a single editable markdown text (spec 019).
+    documentView = registerDocumentView(context, {
+      server: doorstopServer,
+      tree: treeProvider,
+      onChanged
+    });
+    registerDocumentViewLanguage(context, {
+      documentView,
+      problems: problemsProvider,
+      server: doorstopServer
+    });
   }
   const newDiagramCmd = vscode.commands.registerCommand('doorstop.newDiagram', async () => {
     const defaultUri = workspaceFolder
@@ -497,7 +511,7 @@ export async function activate(context: vscode.ExtensionContext) {
   // Exported purely for extension-host tests (src/test/extension.test.ts) to
   // observe internal state that has no other public surface; not used by the
   // extension itself or intended for other extensions to depend on.
-  return { treeProvider, problemsProvider };
+  return { treeProvider, problemsProvider, documentView };
 }
 
 export function deactivate() {}

@@ -155,6 +155,44 @@
       "command": "doorstop.enableAutoReveal",
       "title": "Doorstop: Enable Auto-Reveal",
       "icon": "$(sync-ignored)"
+    },
+    {
+      "command": "doorstop.openDocumentView",
+      "title": "Doorstop: Open Document View",
+      "icon": "$(book)"
+    },
+    {
+      "command": "doorstop.openAsDocument",
+      "title": "Open as document",
+      "icon": "$(book)"
+    },
+    {
+      "command": "doorstop.insertItemHere",
+      "title": "Doorstop: Insert Item Here"
+    },
+    {
+      "command": "doorstop.documentView.newItemBelow",
+      "title": "+ New item below"
+    },
+    {
+      "command": "doorstop.documentView.cancelPlaceholder",
+      "title": "Cancel"
+    },
+    {
+      "command": "doorstop.documentView.restoreBlock",
+      "title": "Restore block structure"
+    }
+  ],
+  "colors": [
+    {
+      "id": "doorstop.documentView.altBlockBackground",
+      "description": "Background tint of every second item block in a Doorstop document view.",
+      "defaults": {
+        "dark": "#ffffff0a",
+        "light": "#0000000a",
+        "highContrast": "#ffffff1f",
+        "highContrastLight": "#0000001f"
+      }
     }
   ],
   "customEditors": [
@@ -209,6 +247,11 @@
         "group": "inline@1"
       },
       {
+        "command": "doorstop.openAsDocument",
+        "when": "view == doorstop.treeView && viewItem == doorstop.root",
+        "group": "inline@2"
+      },
+      {
         "command": "doorstop.showCallHierarchy",
         "when": "view == doorstop.treeView && viewItem == doorstop.item",
         "group": "inline@3"
@@ -222,6 +265,11 @@
         "command": "doorstop.addToDiagram",
         "when": "view == doorstop.treeView && viewItem == doorstop.item",
         "group": "7_diagram@1"
+      },
+      {
+        "command": "doorstop.openAsDocument",
+        "when": "view == doorstop.treeView && viewItem == doorstop.root",
+        "group": "1_requirement@0"
       },
       {
         "command": "doorstop.add",
@@ -247,6 +295,28 @@
         "command": "doorstop.link",
         "when": "view == doorstop.treeView && viewItem == doorstop.item",
         "group": "1_requirement@5"
+      }
+    ],
+    "commandPalette": [
+      {
+        "command": "doorstop.openAsDocument",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.documentView.newItemBelow",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.documentView.cancelPlaceholder",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.documentView.restoreBlock",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.insertItemHere",
+        "when": "resourceScheme == doorstop-document"
       }
     ]
   }

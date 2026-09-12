@@ -26,6 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # server/ is a submodule; the tests need its source, not just the pointer.
+          submodules: true
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -33,6 +36,21 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install doorstop-vscode-server[dev]
+      # The server from this commit, not the last PyPI release: the extension
+      # tests exercise endpoints that ship together with the extension code.
+      - run: pip install -e "./server[dev]"
       - run: npm ci
       - run: xvfb-run -a npm test
+
+  server-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e "./server[dev]"
+      - run: pytest server/tests

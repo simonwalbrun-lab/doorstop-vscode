@@ -30,8 +30,35 @@ All documents and items in the side bar.
 
 - One flat list per document, items ordered by level
 - Context menu: Add, Derive, Review, Clear Suspect, Link, Add to Diagram
-- Inline on hover: Add, Call Hierarchy, Link
+- Inline on hover: Add, Open as document, Call Hierarchy, Link
 - Global commands in the **Commands** view: Reorder, Import, Export, Publish
+
+### Document View
+
+Read and edit a whole document as one markdown file instead of jumping
+between item files - for developers and for project managers who never want
+to see YAML.
+
+- **Open as document** on a document node (or *Doorstop: Open Document View*)
+  opens a tab `<PREFIX> (document)`: every active item in level order as a
+  heading plus its text, separated by dimmed `<!-- SYS-0006 · 1.1 · item
+  separator. keep this line -->` comments; every second block is tinted
+  (theme colour `doorstop.documentView.altBlockBackground`)
+- Edit headings and text like any markdown; `Ctrl+S` writes only the items
+  that changed - through Doorstop, nothing else in the item files is touched
+- Separator lines are managed: typing into one is reverted; a deleted or
+  merged block asks **Delete / Keep / Cancel** before anything is removed;
+  broken structure is flagged while typing with a **Restore block structure**
+  quick fix and refuses the save
+- **+ New item below** (action line) or *Doorstop: Insert Item Here* inserts a
+  placeholder that becomes a new item after the block above it on save; a
+  typed heading never creates an item by accident
+- Every block's action line offers Open item, Review, Derive, Link..., the
+  link count and Clear suspect link; Doorstop's problems appear on the
+  separators with the same quick fixes as in item files; hover, `F12`,
+  references and call hierarchy work on the UIDs
+- Changes on disk (other tabs, commands, git) refresh the view; with unsaved
+  edits you are asked to **Reload** or **Keep my edits**
 
 <img src="media/promotion/06-treeview-navigation.gif" alt="Explorer navigation" width="914">
 

@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 import { DoorstopIndex, getDocumentUid, loadDoorstopIndex } from './doorstopIndex';
 import { DoorstopServer } from './doorstopServer';
+import { DOCUMENT_VIEW_SCHEME } from './documentViewModel';
 
 /**
  * Hover previews for requirement UIDs.
@@ -83,7 +84,8 @@ export function registerHoverProvider(
   context: vscode.ExtensionContext,
   options: HoverProviderOptions
 ): void {
-  const hoverProvider = vscode.languages.registerHoverProvider({ scheme: 'file' }, {
+  // Also the Document View (spec 019): its separators carry item UIDs.
+  const hoverProvider = vscode.languages.registerHoverProvider([{ scheme: 'file' }, { scheme: DOCUMENT_VIEW_SCHEME }], {
     async provideHover(document, position) {
       const lineText = document.lineAt(position.line).text;
       const isDerivedLine = DERIVED_LINE_REGEX.test(lineText);

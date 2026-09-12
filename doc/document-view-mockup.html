@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Doorstop Document View</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Cascadia+Code:wght@400;600&display=swap">
+<style>
+  :root {
+    --bg: #f3f5f8;
+    --surface: #ffffff;
+    --text: #1c2431;
+    --muted: #5d6878;
+    --line: #d8dee7;
+    --accent: #2f6fd1;
+    --accent-soft: #e4edfb;
+    --callout: #d9731a;
+    --callout-ink: #ffffff;
+    --ok: #2f8f5b;
+    --warn: #b7791f;
+    /* editor chrome is always VS Code Dark Modern - it is a screenshot of VS Code, not of this page */
+    --ed-bg: #1f1f1f;
+    --ed-chrome: #181818;
+    --ed-border: #2b2b2b;
+    --ed-line: #262626;
+    --ed-text: #cccccc;
+    --ed-dim: #6e7681;
+    --ed-comment: #6a9955;
+    --ed-heading: #569cd6;
+    --ed-link: #4fc1ff;
+    --ed-lens: #999999;
+    --ed-warn: #cca700;
+    --ed-info: #3794ff;
+    --ed-active: #282828;
+    --ed-alt: rgba(255,255,255,.04);   /* doorstop.documentView.altBlockBackground */
+    --ed-hint: #8b949e;
+    --ed-hint-bg: #2a2d2e;
+    --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "Courier New", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #131519; --surface: #1b1e24; --text: #e6e9ee; --muted: #9aa4b2; --line: #2c313a;
+      --accent: #6ea0ef; --accent-soft: #1e2b40; --callout: #e8863a; --callout-ink: #1a1a1a;
+      --ok: #5fbf8a; --warn: #d9a441;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #131519; --surface: #1b1e24; --text: #e6e9ee; --muted: #9aa4b2; --line: #2c313a;
+    --accent: #6ea0ef; --accent-soft: #1e2b40; --callout: #e8863a; --callout-ink: #1a1a1a;
+    --ok: #5fbf8a; --warn: #d9a441;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+    padding-block: 40px 64px; padding-inline: clamp(16px, 4vw, 48px);
+  }
+  .page { max-width: 1120px; margin: 0 auto; display: grid; gap: 40px; }
+
+  header.intro { max-width: 68ch; }
+  .eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 0 0 8px; }
+  h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; text-wrap: balance; }
+  h2 { font-size: 20px; margin: 0 0 12px; text-wrap: balance; }
+  p { margin: 0 0 12px; }
+  p.lead { color: var(--muted); font-size: 17px; }
+  code { font-family: var(--font-mono); font-size: .88em; background: var(--accent-soft); padding: 1px 5px; border-radius: 3px; }
+
+  /* ---------- editor mockup + callouts ---------- */
+  .stage { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+  @media (max-width: 900px) { .stage { grid-template-columns: 1fr; } }
+
+  .vscode {
+    background: var(--ed-bg); color: var(--ed-text); border: 1px solid var(--ed-border); border-radius: 8px;
+    font-family: var(--font-mono); font-size: 13px; line-height: 19px; overflow: hidden;
+    box-shadow: 0 12px 32px rgba(0,0,0,.28);
+  }
+  .tabs { background: var(--ed-chrome); display: flex; align-items: stretch; border-bottom: 1px solid var(--ed-border); font-family: var(--font-body); font-size: 13px; overflow-x: auto; }
+  .tab { padding: 8px 14px; color: var(--ed-dim); border-right: 1px solid var(--ed-border); white-space: nowrap; display: flex; gap: 8px; align-items: center; }
+  .tab.active { color: var(--ed-text); background: var(--ed-bg); border-top: 1px solid var(--ed-info); }
+  .tab .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ed-text); display: inline-block; }
+  .tab .ico { color: var(--ed-info); font-weight: 700; }
+  .crumbs { padding: 4px 16px; font-family: var(--font-body); font-size: 12px; color: var(--ed-dim); border-bottom: 1px solid var(--ed-border); display: flex; gap: 6px; align-items: center; }
+  .crumbs .badge { color: var(--ed-hint); background: var(--ed-hint-bg); padding: 0 6px; border-radius: 3px; font-family: var(--font-mono); font-size: 11px; }
+
+  .code { overflow-x: auto; padding-block: 8px 20px; }
+  .row { display: grid; grid-template-columns: 52px minmax(0, 1fr); min-height: 19px; position: relative; }
+  .row.alt { background: var(--ed-alt); }
+  .row.active { background: var(--ed-active); }
+  .ln { text-align: right; padding-right: 18px; color: var(--ed-dim); user-select: none; }
+  .row.active .ln { color: var(--ed-text); }
+  .src { white-space: pre; padding-right: 24px; }
+  .lens { font-family: var(--font-body); font-size: 11px; color: var(--ed-lens); line-height: 17px; min-height: 17px; }
+  .lens span { color: var(--ed-lens); }
+  .lens span + span::before { content: " | "; color: var(--ed-dim); }
+  .lens span.hot { color: var(--ed-info); }
+  .marker { color: var(--ed-comment); opacity: .8; }
+  .h { color: var(--ed-heading); font-weight: 600; }
+  .lvl { color: var(--ed-hint); background: var(--ed-hint-bg); padding: 0 5px; border-radius: 3px; margin-right: 6px; font-weight: 400; font-style: italic; }
+  .kw { color: var(--ed-heading); }
+  .link { color: var(--ed-link); text-decoration: underline; text-decoration-color: transparent; }
+  .squig { text-decoration: underline wavy var(--ed-warn); text-decoration-skip-ink: none; text-underline-offset: 3px; }
+  .ghost { color: var(--ed-hint); font-style: italic; }
+  .hint { position: absolute; right: 12px; top: 0; font-family: var(--font-body); font-size: 11px; color: var(--ed-hint); background: var(--ed-hint-bg); padding: 1px 8px; border-radius: 3px; line-height: 17px; }
+  .caret { border-left: 1.5px solid var(--ed-text); margin-left: 1px; }
+
+  /* callout markers */
+  .co {
+    position: absolute; left: 22px; top: 1px;
+    width: 17px; height: 17px; border-radius: 50%; background: var(--callout); color: var(--callout-ink);
+    font: 700 11px/17px var(--font-body); text-align: center; z-index: 1;
+  }
+  .co.tab-co { position: static; margin-left: 4px; }
+  .statusbar { background: var(--ed-chrome); border-top: 1px solid var(--ed-border); font-family: var(--font-body); font-size: 12px; color: var(--ed-hint); padding: 3px 14px; display: flex; gap: 18px; flex-wrap: wrap; }
+  .statusbar .warnc { color: var(--ed-warn); }
+
+  .notes { display: grid; gap: 10px; }
+  .note { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; font-size: 14px; line-height: 1.45; }
+  .note .co { position: static; margin-top: 2px; }
+  .note b { display: block; font-weight: 600; }
+  .note span { color: var(--muted); }
+
+  /* ---------- save flow ---------- */
+  .flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .step { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; position: relative; font-size: 14px; }
+  .step b { display: block; margin-bottom: 4px; }
+  .step span { color: var(--muted); }
+  .step code { font-size: 12px; }
+  @media (min-width: 1000px) {
+    .step:not(:last-child)::after { content: "→"; position: absolute; right: -14px; top: 12px; color: var(--muted); font-size: 18px; }
+  }
+
+  /* ---------- rules table ---------- */
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border: 1px solid var(--line); }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  .pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 10px; }
+  .pill.edit { background: var(--accent-soft); color: var(--accent); }
+  .pill.ro { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+
+  /* ---------- variants ---------- */
+  .variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .variant { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px; font-size: 14px; }
+  .variant.pick { border-color: var(--accent); }
+  .variant b { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .variant .tag { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  .variant pre { margin: 0 0 10px; background: var(--ed-bg); color: var(--ed-text); font-family: var(--font-mono); font-size: 12px; line-height: 18px; padding: 10px 12px; border-radius: 4px; overflow-x: auto; }
+  .variant pre .marker { color: var(--ed-comment); }
+  .variant pre .h { color: var(--ed-heading); }
+  .variant span.verdict { color: var(--muted); display: block; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="intro">
+    <p class="eyebrow">Option A · virtual document</p>
+    <h1>One document per Doorstop document, editable as plain markdown</h1>
+    <p class="lead">Opening <code>SYS</code> in the document view shows all its items merged in level order, in a normal VS Code editor. Headings and text are edited like any markdown; item metadata rides along in dimmed marker lines that map every block back to its file on save.</p>
+  </header>
+
+  <section class="stage">
+    <div class="vscode" aria-label="Mockup of the document view in VS Code">
+      <div class="tabs">
+        <div class="tab">SYS-0007.md</div>
+        <div class="tab active"><span class="ico">⇊</span> SYS (document) <span class="dot"></span><span class="co tab-co">1</span></div>
+        <div class="tab">REQ-0006.md</div>
+      </div>
+      <div class="crumbs">reqs › SYS › <span class="badge">doorstop-doc:/SYS.md</span> · 6 items · markdown</div>
+
+      <div class="code">
+        <div class="row"><div class="ln">1</div><div class="src"><span class="marker">&lt;!-- doorstop document SYS · reqs/SYS · parent REQ --&gt;</span></div></div>
+        <div class="row"><div class="ln">2</div><div class="src"></div></div>
+
+        <div class="row"><div class="ln"></div><div class="lens"><span>SYS-0001</span><span class="hot">Open item</span><span>Review</span><span>Add child</span></div></div>
+        <div class="row"><span class="co">2</span><div class="ln">3</div><div class="src"><span class="marker">&lt;!-- SYS-0001 · 1.0 · heading · reviewed --&gt;</span></div></div>
+        <div class="row"><span class="co">3</span><div class="ln">4</div><div class="src"><span class="h"><span class="lvl">1</span># Loren 1</span></div></div>
+        <div class="row"><div class="ln">5</div><div class="src"></div></div>
+
+        <div class="row alt"><div class="ln"></div><div class="lens"><span>SYS-0006</span><span class="hot">Open item</span><span>Review</span><span>Derive</span><span>1 link</span></div></div>
+        <div class="row alt"><span class="co">8</span><div class="ln">6</div><div class="src"><span class="marker">&lt;!-- SYS-0006 · 1.1 · links: <span class="link">REQ-0006</span> · reviewed --&gt;</span></div></div>
+        <div class="row alt"><span class="co">4</span><div class="ln">7</div><div class="src"><span class="h"><span class="lvl">1.1</span>## Loren 1</span></div></div>
+        <div class="row alt"><div class="ln">8</div><div class="src"></div></div>
+        <div class="row alt"><div class="ln">9</div><div class="src">The system shall provide a default configuration that is applied</div></div>
+        <div class="row alt"><div class="ln">10</div><div class="src">when no project specific settings are present.</div></div>
+        <div class="row alt"><div class="ln">11</div><div class="src"></div></div>
+
+        <div class="row"><div class="ln"></div><div class="lens"><span>SYS-0002</span><span class="hot">Open item</span><span>Review</span><span>Derive</span><span>1 link</span></div></div>
+        <div class="row"><div class="ln">12</div><div class="src"><span class="marker">&lt;!-- SYS-0002 · 1.2 · links: <span class="link">REQ-0007</span> · reviewed --&gt;</span></div></div>
+        <div class="row"><div class="ln">13</div><div class="src"><span class="h"><span class="lvl">1.2</span>## Loren 2</span></div></div>
+        <div class="row"><div class="ln">14</div><div class="src"></div></div>
+        <div class="row"><div class="ln">15</div><div class="src">Settings shall be stored per workspace and take precedence over</div></div>
+        <div class="row"><div class="ln">16</div><div class="src">the defaults from SYS-0006.</div></div>
+        <div class="row"><div class="ln">17</div><div class="src"></div></div>
+
+        <div class="row alt"><div class="ln"></div><div class="lens"><span>SYS-0121</span><span class="hot">Open item</span><span class="hot">Do Review</span><span>Derive</span><span>no links</span></div></div>
+        <div class="row alt"><span class="co">5</span><div class="ln">18</div><div class="src"><span class="marker">&lt;!-- SYS-0121 · 1.3 · links: — · <span class="squig">unreviewed</span> --&gt;</span></div></div>
+        <div class="row alt"><div class="ln">19</div><div class="src"><span class="h"><span class="lvl">1.3</span>## Unbenanntes Requirement</span></div></div>
+        <div class="row alt"><div class="ln">20</div><div class="src"></div></div>
+        <div class="row alt"><div class="ln">21</div><div class="src">Changes to the configuration shall be logged with a timestamp.</div></div>
+        <div class="row alt"><div class="ln">22</div><div class="src"></div></div>
+
+        <div class="row"><div class="ln"></div><div class="lens"><span>SYS-0007</span><span class="hot">Open item</span><span>Review</span><span class="hot">Clear suspect link</span><span>2 links</span><span>+ New item below</span></div></div>
+        <div class="row"><span class="co">6</span><div class="ln">23</div><div class="src"><span class="marker">&lt;!-- SYS-0007 · 1.4 · links: <span class="link squig">REQ-0006</span> <span class="link">REQ-0093</span> · reviewed --&gt;</span></div></div>
+        <div class="row"><div class="ln">24</div><div class="src"><span class="h"><span class="lvl">1.4</span>## Some System Requirement about Default text</span></div></div>
+        <div class="row"><div class="ln">25</div><div class="src"></div></div>
+        <div class="row active"><div class="ln">26</div><div class="src">Default texts shall be editable by the administrator without<span class="caret"></span></div></div>
+        <div class="row"><div class="ln">27</div><div class="src">a restart of the service.</div></div>
+        <div class="row"><div class="ln">28</div><div class="src"></div></div>
+
+        <div class="row alt"><div class="ln"></div><div class="lens"><span>new item</span><span class="hot">Cancel</span></div></div>
+        <div class="row alt"><span class="co">7</span><div class="ln">29</div><div class="src"><span class="marker">&lt;!-- new item --&gt;</span><span class="hint">created as SYS-0122 after SYS-0007 on save</span></div></div>
+        <div class="row alt"><div class="ln">30</div><div class="src"><span class="h"><span class="lvl ghost">1.5</span>## Watchdog timeout</span></div></div>
+        <div class="row alt"><div class="ln">31</div><div class="src"></div></div>
+        <div class="row alt"><div class="ln">32</div><div class="src">The service shall restart automatically if the watchdog is not</div></div>
+        <div class="row alt"><div class="ln">33</div><div class="src">served for 5 s.</div></div>
+      </div>
+      <div class="statusbar"><span class="warnc">⚠ 2</span><span>Ln 26, Col 63</span><span>Spaces: 2</span><span>UTF-8</span><span>Markdown</span><span>Doorstop · 6 items, 1 new</span></div>
+    </div>
+
+    <aside class="notes" aria-label="Callouts">
+      <div class="note"><span class="co">1</span><div><b>A virtual file</b><span>Scheme <code>doorstop-doc:</code>, served by a FileSystemProvider. Dirty state, undo, find/replace, multi-cursor all come from the editor for free.</span></div></div>
+      <div class="note"><span class="co">2</span><div><b>Item marker</b><span>One HTML comment per item: UID, level, links, review state. Dimmed by a decoration and read-only — it's the key that maps the block back to <code>SYS-0001.md</code>.</span></div></div>
+      <div class="note"><span class="co">3</span><div><b>Heading items</b><span>Non-normative items with a <code>header:</code> render as headings; the depth follows the level (<code>1.0</code> → <code>#</code>, <code>1.1</code> → <code>##</code>). The level number is an inline decoration, not text.</span></div></div>
+      <div class="note"><span class="co">4</span><div><b>Header and text are the editable parts</b><span>The <code>##</code> line writes back to <code>header:</code>, the paragraphs to <code>text:</code>. Nothing else in the item file is touched.</span></div></div>
+      <div class="note"><span class="co">5</span><div><b>Problems, in place</b><span>Doorstop's validation is mapped onto the marker line, so the same squiggles and quick fixes as in the item file appear here — <em>Do Review</em> also sits in the CodeLens.</span></div></div>
+      <div class="note"><span class="co">6</span><div><b>Links stay navigable</b><span>Hover, F12 and the call hierarchy work on the UIDs in the marker, because the providers are registered for markdown, not for the <code>file:</code> scheme only.</span></div></div>
+      <div class="note"><span class="co">7</span><div><b>New items always get a marker</b><span>A heading typed without a marker is text of the item above — headings are legal inside item text, so they can't mark a boundary. <em>+ New item below</em> (CodeLens) or <em>Doorstop: Insert Item Here</em> inserts a <code>&lt;!-- new item --&gt;</code> placeholder plus an empty heading; on save each placeholder becomes an item created after the block above it. Deleting a block asks before the file is removed.</span></div></div>
+          <div class="note"><span class="co">8</span><div><b>Block striping</b><span>Every second item is tinted with a faint whole-line background decoration (themeable colour <code>doorstop.documentView.altBlockBackground</code>), so block boundaries are visible without reading the marker lines. The tint follows the text as it is edited.</span></div></div>
+    </aside>
+  </section>
+
+  <section>
+    <h2>What happens on save</h2>
+    <div class="flow">
+      <div class="step"><b>1 · Split</b><span>The text is cut at the marker lines. Each block is <code>{uid, header, text}</code>; a block whose marker is <code>&lt;!-- new item --&gt;</code> is a new item; text is never split at headings.</span></div>
+      <div class="step"><b>2 · Diff per UID</b><span>Header and text are compared with the item on disk. Unchanged items are skipped, so a save touches only what you edited.</span></div>
+      <div class="step"><b>3 · Write</b><span>Changed items get <code>header:</code>/<code>text:</code> updated in their file; new items go through the server; missing blocks prompt before deletion.</span></div>
+      <div class="step"><b>4 · Refresh</b><span>Doorstop re-validates, the Problems panel and tree update, and the view is regenerated so review hashes and levels are current.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Editing rules</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Part of the view</th><th>Editable</th><th>Where it goes</th></tr></thead>
+        <tbody>
+          <tr><td>Heading line (<code>## …</code>)</td><td><span class="pill edit">edit</span></td><td><code>header:</code> of the item</td></tr>
+          <tr><td>Paragraphs below the heading</td><td><span class="pill edit">edit</span></td><td><code>text:</code> of the item, markdown kept as written</td></tr>
+          <tr><td><code>&lt;!-- new item --&gt;</code> block (inserted by <em>+ New item below</em>)</td><td><span class="pill edit">edit</span></td><td>New item created after the previous block on save</td></tr>
+          <tr><td>Heading typed without a marker</td><td><span class="pill edit">edit</span></td><td>Ordinary text of the item above — never a new item</td></tr>
+          <tr><td>Marker line (UID, level, links, reviewed)</td><td><span class="pill ro">read-only</span></td><td>Edits are reverted; use the CodeLens or context commands (Link, Review, Clear) — same as today</td></tr>
+          <tr><td>Level number decoration</td><td><span class="pill ro">read-only</span></td><td>Reorder via the tree / <code>Reorder Document</code>; the view regenerates</td></tr>
+          <tr><td>Order of blocks</td><td><span class="pill ro">read-only</span> (v1)</td><td>Moving blocks could map to reorder later; v1 keeps it explicit to avoid accidental renumbering</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Three ways to write the marker</h2>
+    <div class="variants">
+      <div class="variant pick">
+        <b>HTML comment <span class="tag">recommended</span></b>
+        <pre><span class="marker">&lt;!-- SYS-0006 · 1.1 · links: REQ-0006 · reviewed --&gt;</span>
+<span class="h">## Loren 1</span>
+
+The system shall provide a default configuration …</pre>
+        <span class="verdict">Invisible in any markdown preview, one line, carries all attributes. Easy to dim with a decoration and to protect from edits.</span>
+      </div>
+      <div class="variant">
+        <b>Heading anchor <span class="tag">doorstop publish style</span></b>
+        <pre><span class="h">## 1.1 Loren 1 {#SYS-0006}</span>
+
+The system shall provide a default configuration …</pre>
+        <span class="verdict">Most compact and matches <code>doorstop publish</code>, but links and review state need a second place, and the level lives inside editable text.</span>
+      </div>
+      <div class="variant">
+        <b>Front matter per item <span class="tag">most faithful</span></b>
+        <pre><span class="marker">---
+uid: SYS-0006
+level: 1.1
+links: [REQ-0006]
+---</span>
+<span class="h">## Loren 1</span></pre>
+        <span class="verdict">Mirrors the item files exactly and could allow editing links inline, but four to six extra lines per item defeat the "one readable document" idea.</span>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>
