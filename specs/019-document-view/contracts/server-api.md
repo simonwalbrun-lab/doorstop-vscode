@@ -39,10 +39,11 @@ Request body (`AddItemRequest`):
 | --- | --- | --- |
 | `level` | `str?` | existing behaviour (explicit level, Doorstop reorders with `keep=item`) |
 | `after` | `str?` | UID of an item **of this document**; the new level is `after.level >> 1` with `heading=False` when `after.level.heading` (e.g. `1.0` → `1.1`), else `after.level + 1` (e.g. `1.2` → `1.3`); then `document.add_item(level=…)` renumbers duplicates/gaps with `keep=item` |
+| `first` | `bool?` | insert **before** the document's current first item: the new item takes that item's exact level and `add_item`'s `reorder(keep=item)` shifts the former first item and its followers down (`1.1` → the new item at `1.1`, old first at `1.2`; a heading first level `1.0` pushes the old first block to `2.0`). An empty document needs no level and falls back to Doorstop's append |
 | `header` | `str?` | set on the new item before the response |
 | `text` | `str?` | set on the new item before the response |
 
-- `after` **and** `level` together → 422 `INVALID_REQUEST` ("after and level are mutually exclusive").
+- Any two of `after`, `level`, `first` together → 422 `INVALID_REQUEST` ("after and level are mutually exclusive", naming the fields given).
 - `after` naming an item of another document → 400 `DOORSTOP_ERROR` ("… is not an item of document …").
 - Unknown `after` → 400 `DOORSTOP_ERROR`.
 - Neither `after` nor `level` → existing behaviour (append at Doorstop's default next level).
@@ -63,5 +64,5 @@ Response 200 (`ItemResponse`) — `level` is the level **after** reordering.
 | File | Cases |
 | --- | --- |
 | `test_items.py` | PATCH header only / text only / both on a YAML item and on a markdown-format item (document created with `itemFormat: "markdown"`), file re-read through `/tree` shows the new values and other attributes unchanged; PATCH with empty body → 422; PATCH unknown UID → 400; DELETE removes the file and renumbers followers; DELETE unknown → 400 |
-| `test_documents.py` | POST with `after` on a normal item → sibling level and followers shifted; POST with `after` on a heading item (`level: 1.0`, `normative: false` set via Doorstop API) → `1.1`; POST with `after` from another document → 400; `after` + `level` → 422; header/text on create land in the file |
+| `test_documents.py` | POST with `after` on a normal item → sibling level and followers shifted; POST with `after` on a heading item (`level: 1.0`, `normative: false` set via Doorstop API) → `1.1`; POST with `after` from another document → 400; `after` + `level` → 422; header/text on create land in the file; POST with `first` in a populated document → leads the document and the former first item moves down; `first` before a heading level; `first` in an empty document; `first` + `after` / `first` + `level` → 422 |
 | `test_tree.py` | items created out of level order are returned sorted by level |

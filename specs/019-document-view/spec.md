@@ -16,6 +16,9 @@
 - Q: Which level does a new item get when created between two existing items on save? → A: A sibling of the block above (after 1.2 → 1.3); the document is automatically renumbered so following siblings shift (1.3 → 1.4 …). Other items change only in their level; a new item after the last block or in an empty document needs no renumbering.
 - Q: What happens when one of several writes fails midway through a save? → A: The save continues with the remaining items, then reports all failures together in one message naming the items. Successfully written blocks are regenerated from disk; the failed blocks keep the user's edits, so the tab stays dirty until they are saved.
 - Q: What does the marker show about links and review state (originally: what when an item is both unreviewed and has a suspect link)? → A (revised by the user): Nothing. The item marker is a static separator `<!-- SYS-0007 · 1.4 · item separator. keep this line -->` carrying only UID and level plus a fixed hint; links and review state are shown on the action line and in the Problems panel only. The marker text changes only when the item's level changes.
+- Amendment (post-plan, confirmed by user): the action line carries **one** `Review` entry whose label reads `Do Review` while Doorstop reports a review problem for that item - not a second, additional entry. FR-034 and US5 scenario 2 updated accordingly.
+- Amendment (post-plan, confirmed by user): a new item created after a **heading** item (a level ending in `.0`) becomes that heading's first child (`1.0` → `1.1`), i.e. directly below the heading in reading order, following Doorstop's own append-after-heading rule. The sibling rule and its `1.2` → `1.3` example stay as specified for every other item. FR-031a updated accordingly.
+- Amendment (post-plan, confirmed by user): the confirmation dialogs appear on **every** save, including an automatic one (`files.autoSave`); there is no separate auto-save behaviour and no save is silently applied past a question.
 - Q: Should the document marker on line 1 use the same static style? → A: Yes: `<!-- doorstop document SYS · keep this line -->` — prefix only; document folder and parent prefix are dropped (available in the explorer and on hover).
 
 ## User Scenarios & Testing *(mandatory)*
@@ -270,9 +273,10 @@ a marker line works.
    Link... | 1 link | + New item below` (the link entry reads "no links" when
    there are none and "N links" otherwise).
 2. **Given** Doorstop reports an item as unreviewed, **When** the view shows
-   its action line, **Then** it additionally offers "Do Review"; **Given**
-   Doorstop reports a suspect link, **Then** it additionally offers "Clear
-   suspect link"; neither appears when Doorstop reports no such problem.
+   its action line, **Then** its Review entry is labelled "Do Review" (and
+   reads "Review" again once the item is reviewed); **Given** Doorstop
+   reports a suspect link, **Then** the line additionally offers "Clear
+   suspect link", which does not appear when there is no suspect link.
 3. **Given** the user activates "Open item", "Review", "Derive", "Link...",
    "Do Review" or "Clear suspect link" on a block, **Then** the existing
    corresponding command runs for that item, and the view refreshes
@@ -546,10 +550,13 @@ colour can be overridden via the theme colour
   as text; after the save the view MUST show the new item with its UID and
   a real marker.
 - **FR-031a**: The new item MUST be a sibling of the block above it (the
-  next level number at the same depth, e.g. after `1.2` → `1.3`); when that
-  level is already taken, the document MUST be renumbered automatically so
-  that the following siblings shift (`1.3` → `1.4`, …) and the view's
-  reading order equals the level order after the save. Renumbering MUST
+  next level number at the same depth, e.g. after `1.2` → `1.3`), except
+  after a heading item (a level ending in `.0`), where it MUST become that
+  heading's first child (`1.0` → `1.1`) so that it lands directly below the
+  heading in reading order; when that level is already taken, the document
+  MUST be renumbered automatically so that the following siblings shift
+  (`1.3` → `1.4`, …) and the view's reading order equals the level order
+  after the save. Renumbering MUST
   change nothing but the level of the affected items. A new item after the
   last block, or in an empty document, takes the next free level without
   renumbering.
@@ -562,9 +569,10 @@ colour can be overridden via the theme colour
 
 - **FR-034**: Above every item block an action line MUST show the UID and the
   actions Open item, Review, Derive, Link..., the link count ("no links" /
-  "1 link" / "N links") and "+ New item below"; "Do Review" and "Clear
-  suspect link" MUST additionally appear only when Doorstop reports the
-  corresponding problem for that item.
+  "1 link" / "N links") and "+ New item below". The Review entry MUST be
+  labelled "Do Review" while Doorstop reports a review problem for that item
+  and "Review" otherwise (one entry, not two). "Clear suspect link" MUST
+  appear only when Doorstop reports a suspect link for that item.
 - **FR-035**: Each action MUST invoke the existing corresponding Doorstop
   command for that item, and the view MUST refresh afterwards.
 - **FR-036**: Problems Doorstop reports for an item MUST be shown on the
@@ -708,6 +716,10 @@ colour can be overridden via the theme colour
 - **Header-change confirmation**: intentionally accepted as a per-item
   question even for deliberate header edits, since the feature description
   prioritises catching an accidentally deleted header line.
+- **Automatic saves**: a save triggered by `files.autoSave` behaves exactly
+  like `Ctrl+S` - the deletion and header-change dialogs appear and the save
+  waits for the answer. Nothing is written past an unanswered question, and
+  no save path skips a confirmation.
 - **Multiple disk changes**: when several items change on disk at once while
   the view is dirty, one notification lists the affected UIDs (or the
   document, when many changed) with the same Reload / Keep my edits choices.

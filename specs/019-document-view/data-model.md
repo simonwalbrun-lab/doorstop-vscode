@@ -20,9 +20,7 @@ of the view.
 | `text` | `string` | The rendered text VS Code last read (`readFile`). |
 | `mtime` | `number` | Monotonic per view; bumped only when `text` is replaced *and* VS Code should re-read (see transitions). |
 | `blocks` | `RenderedBlock[]` | Separator texts + UIDs of the last accepted render; used by the separator-revert rule and by "Restore block structure". |
-| `saveReason` | `TextDocumentSaveReason \| undefined` | Recorded by `onWillSaveTextDocument` immediately before `writeFile`. |
 | `saving` | `boolean` | Suppresses watcher-triggered regeneration while a save is in flight. |
-| `pendingDiskChange` | `Set<string>` (UIDs) | Files changed on disk while the view was dirty and the user chose "Keep my edits"; cleared on the next regeneration. |
 
 Lifecycle: created by `doorstop.openDocumentView`; disposed when the last
 `TextDocument` for the URI closes (`onDidCloseTextDocument`).
@@ -58,7 +56,7 @@ Lifecycle: created by `doorstop.openDocumentView`; disposed when the last
 | --- | --- | --- | --- |
 | `text-before-first-separator` | Error | first orphan line | Text precedes the first item separator (typically the first block's separator or the document marker was deleted). Fix: re-insert the document marker at line 1 if missing, then insert the separator of the first snapshot item that has no separator in the text directly above the orphan text (so the orphan text becomes that item's block again); if every item still has its separator, the orphan text is left for the user and the message names the line. Save refused. |
 | `separator-duplicated` | Error | second occurrence | Same UID separator twice. Fix: remove the duplicate separator line (its following text becomes part of the previous block). Save refused. |
-| `separator-unknown` | Error | that line | UID not in this document (computed at save time only, needs the tree). Save refused. |
+| `separator-unknown` | Error | that line | UID not in this document - typically a block pasted in from another view (editing a separator in place is reverted). Fix: delete that separator line, so the text below it becomes part of the block above (FR-029). Save refused until then. |
 | `separator-lookalike` | Error | that line | A text line inside an item on disk parses as a separator. Save refused; fix in the item file. |
 | `separator-changed` | Warning | that line | Separator text differs from the rendered one but still names the UID. Fix: restore the separator text. |
 | `missing-header` | Warning | line after separator | Line after a separator is empty or not a heading. Fix: re-insert `#{depth} <header or UID>` from the snapshot. |

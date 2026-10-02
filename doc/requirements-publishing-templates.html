@@ -117,6 +117,9 @@
     body{ background:#fff !important; padding:0 !important; }
     .wrap{ max-width:none; padding:0; margin:0; }
     .stage{ border:none; box-shadow:none; border-radius:0; }
+    .native{ background:#fff !important; padding:0 !important; }
+    .native-note{ display:none !important; }
+    .native-page{ width:auto !important; box-shadow:none !important; padding:0 !important; }
     *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
     @page{ margin:14mm 12mm; }
   }
@@ -343,37 +346,42 @@
   .lattr{ font-family:"IBM Plex Mono",monospace; font-size:0.68rem; color:#4c6272; white-space:nowrap; }
 
   /* =========================================================
-     TEMPLATE 10 — PRINT BOOKLET
+     TEMPLATE 10 — NATIVE PUBLISH (matches doorstop's real HTML output)
      ========================================================= */
-  .booklet{ font-family:"IBM Plex Serif", Georgia, serif; background:#fff; padding:0; }
-  .booklet-cover{ padding:36px 34px 28px; text-align:center; border-bottom:3px double #153243; }
-  .booklet-cover .doctype{ font-family:"IBM Plex Mono",monospace; font-size:0.68rem; letter-spacing:0.16em; text-transform:uppercase; color:#607382; }
-  .booklet-cover h2{ font-size:1.8rem; margin:8px 0 4px; color:#153243; }
-  .booklet-cover .sub{ font-size:0.96rem; color:#4c6272; margin:0 0 16px; }
-  .booklet-control{ display:inline-grid; grid-template-columns:auto auto; gap:4px 20px; text-align:left; font-family:"IBM Plex Mono",monospace; font-size:0.7rem; margin:0 auto; }
-  .booklet-control b{ color:#7c8f9c; font-weight:500; }
-  .booklet-control span{ color:#153243; }
-  .booklet-break{ display:flex; align-items:center; gap:10px; color:#9aa8ae; font-family:"IBM Plex Mono",monospace; font-size:0.63rem; letter-spacing:0.08em; text-transform:uppercase; padding:10px 30px; }
-  .booklet-break::before, .booklet-break::after{ content:""; flex:1; border-top:1px dashed #c3ccd1; }
-  .booklet-toc{ padding:16px 34px 4px; max-width:560px; margin:0 auto; }
-  .booklet-toc h4{ font-family:"IBM Plex Sans",sans-serif; font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; color:#7c8f9c; margin:0 0 10px; }
-  .toc-row{ display:flex; align-items:baseline; font-size:0.85rem; color:#26333a; margin-bottom:6px; }
-  .toc-row .fill{ flex:1; border-bottom:1px dotted #b7c0c4; margin:0 6px 3px; }
-  .toc-row .pg{ font-family:"IBM Plex Mono",monospace; font-size:0.76rem; color:#7c8f9c; }
-  .booklet-page{ padding:4px 34px 0; max-width:620px; margin:0 auto; }
-  .booklet-runhead{ display:flex; justify-content:space-between; font-family:"IBM Plex Mono",monospace; font-size:0.6rem; color:#9aa8ae; border-bottom:1px solid #e6e9ea; padding-bottom:4px; margin-bottom:12px; }
-  .booklet-item{ margin-bottom:16px; break-inside:avoid; }
-  .booklet-item .num{ font-family:"IBM Plex Sans",sans-serif; font-weight:700; font-size:0.66rem; color:#b41412; text-transform:uppercase; letter-spacing:0.04em; }
-  .booklet-item h3{ font-size:1.05rem; margin:3px 0 6px; color:#153243; }
-  .booklet-item p{ font-size:0.86rem; line-height:1.55; color:#26333a; margin:0 0 6px; }
-  .booklet-item .foot{ font-family:"IBM Plex Mono",monospace; font-size:0.66rem; color:#7c8f9c; }
-  .booklet-item .foot .gap{ color:#b41412; }
-  .booklet-runfoot{ text-align:right; font-family:"IBM Plex Mono",monospace; font-size:0.6rem; color:#9aa8ae; border-top:1px solid #e6e9ea; padding-top:4px; margin:4px 0 16px; }
-  .booklet-hist{ margin:0 34px 30px; max-width:552px; }
-  .booklet-hist h4{ font-family:"IBM Plex Sans",sans-serif; font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; color:#7c8f9c; margin:0 0 8px; }
-  table.hist-table{ width:100%; border-collapse:collapse; font-size:0.74rem; }
-  table.hist-table th{ text-align:left; font-family:"IBM Plex Mono",monospace; font-size:0.6rem; text-transform:uppercase; color:#7c8f9c; border-bottom:1px solid #d0d6d9; padding:4px 8px 4px 0; }
-  table.hist-table td{ padding:5px 8px 5px 0; border-bottom:1px solid #eef1f1; color:#334752; }
+  .native{ font-family:"IBM Plex Serif", Georgia, serif; background:#e9ecee; padding:26px 16px 36px; }
+  .native-note{ width:210mm; max-width:100%; margin:0 auto 16px; font-family:"IBM Plex Sans",sans-serif; font-size:0.78rem; color:#4c6272; background:#fff; border:1px dashed #c3ccd1; border-radius:6px; padding:10px 14px; line-height:1.55; box-sizing:border-box; }
+  .native-note b{ color:#153243; }
+  .native-note .mono{ background:#f0f2f2; border-radius:3px; padding:0 4px; }
+  .native-page{ width:210mm; max-width:100%; box-sizing:border-box; margin:0 auto; background:#fff; box-shadow:0 2px 4px rgba(21,50,67,0.08), 0 18px 40px -20px rgba(21,50,67,0.35); padding:18mm 16mm; }
+  .native-head{ border-bottom:3px solid #b41412; padding-bottom:14px; margin-bottom:18px; }
+  .native-head .doctitle{ font-family:"Libre Franklin",sans-serif; font-weight:800; font-size:1.55rem; color:#153243; margin:0 0 4px; }
+  .native-head .docsub{ font-family:"IBM Plex Sans",sans-serif; font-size:0.86rem; color:#607382; margin:0 0 10px; }
+  .native-meta{ display:flex; flex-wrap:wrap; gap:4px 22px; font-family:"IBM Plex Mono",monospace; font-size:0.72rem; color:#4c6272; }
+  .native-meta b{ color:#7c8f9c; font-weight:500; text-transform:uppercase; letter-spacing:0.04em; margin-right:4px; }
+  .native-toc{ margin:0 0 22px; padding:12px 16px; background:#f7f8f8; border:1px solid #e6e9ea; border-radius:6px; }
+  .native-toc .lbl{ font-family:"IBM Plex Sans",sans-serif; font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; color:#7c8f9c; margin:0 0 8px; }
+  .native-toc ol{ list-style:none; margin:0; padding:0; columns:2; column-gap:24px; }
+  .native-toc li{ font-size:0.82rem; margin-bottom:5px; break-inside:avoid; }
+  .native-toc a{ color:#26333a; text-decoration:none; }
+  .native-toc a:hover{ color:#b41412; }
+  .native-toc li.lvl1 > a{ font-weight:700; color:#153243; }
+  .native-toc li.lvl3{ padding-left:16px; }
+  .native-body h1, .native-body h2, .native-body h3{ font-family:"Libre Franklin",sans-serif; color:#153243; break-after:avoid; }
+  .native-body h1{ font-size:1.3rem; margin:26px 0 10px; }
+  .native-body h2{ font-size:1.1rem; margin:22px 0 8px; }
+  .native-body h3{ font-size:0.98rem; margin:18px 0 7px; }
+  .native-body h1:first-child, .native-body h2:first-child{ margin-top:0; }
+  .native-body small{ font-weight:400; color:#7c8f9c; font-size:0.78em; }
+  .native-body p{ font-size:0.9rem; line-height:1.68; color:#26333a; margin:0 0 10px; break-inside:avoid; }
+  .native-body p.linkline{ font-size:0.84rem; color:#4c6272; margin:0 0 6px; }
+  .native-body p.linkline em{ font-style:normal; color:#7c8f9c; }
+  .native-body p.linkline a{ color:#2ea3f2; text-decoration:none; }
+  .native-body p.linkline a:hover{ text-decoration:underline; }
+  .native-body table{ border-collapse:collapse; width:100%; margin:4px 0 18px; font-size:0.78rem; break-inside:avoid; }
+  .native-body table th{ text-align:left; font-family:"IBM Plex Mono",monospace; font-size:0.66rem; text-transform:uppercase; letter-spacing:0.03em; color:#7c8f9c; border-bottom:1px solid #d0d6d9; padding:4px 10px 4px 0; }
+  .native-body table td{ padding:4px 10px 4px 0; border-bottom:1px solid #eef1f1; color:#334752; font-family:"IBM Plex Mono",monospace; }
+  .native-end{ text-align:center; font-family:"IBM Plex Mono",monospace; font-size:0.68rem; color:#aab6bc; letter-spacing:0.1em; text-transform:uppercase; margin-top:28px; border-top:1px solid #e6e9ea; padding-top:12px; }
+  @media (max-width:700px){ .native-page{ padding:8mm 6mm; } .native-toc ol{ columns:1; } }
 </style>
 
 <div class="wrap">
@@ -381,7 +389,7 @@
   <header class="masthead">
     <span class="eyebrow">Template gallery · requirements publishing</span>
     <h1 class="title">Ten ways to publish a Doorstop document</h1>
-    <p class="dek">Same sample document (<span class="mono">SYS</span>, five items) rendered ten ways — each showing parent <em>and</em> child links, extra YAML attributes (safety class, verification method, owner), and where diagrams fit. All ten stay dense and print cleanly to PDF.</p>
+    <p class="dek">Same sample document (<span class="mono">SYS</span>, five items) rendered ten ways — each showing parent <em>and</em> child links, extra YAML attributes (safety class, verification method, owner), and where diagrams fit. All ten stay dense and print cleanly to PDF —</p>
     <div class="meta-row">
       <span class="swatch-mini"><i style="background:#153243"></i>#153243 navy</span>
       <span class="swatch-mini"><i style="background:#b41412"></i>#b41412 red</span>
@@ -427,9 +435,9 @@
       <span class="tname">9 · Compact Ledger</span>
       <span class="tdesc">Spreadsheet-dense register</span>
     </button>
-    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-booklet" id="tab-booklet">
-      <span class="tname">10 · Print Booklet</span>
-      <span class="tdesc">Cover, TOC &amp; running pages</span>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-native" id="tab-native">
+      <span class="tname">10 · Fresh</span>
+      <span class="tdesc">Matches Doorstop's real HTML output</span>
     </button>
   </nav>
 
@@ -950,79 +958,88 @@
       </div>
     </section>
 
-    <!-- ============ PANEL 10: PRINT BOOKLET ============ -->
-    <section class="panel booklet" id="panel-booklet" role="tabpanel" aria-labelledby="tab-booklet" hidden>
-      <div class="booklet-cover">
-        <span class="doctype">Requirements document</span>
-        <h2>SYS — Sensor Subsystem</h2>
-        <p class="sub">System-level requirements derived from REQ</p>
-        <div class="booklet-control">
-          <b>Document ID</b><span>SYS</span>
-          <b>Revision</b><span>1.2</span>
-          <b>Status</b><span>For review</span>
-          <b>Prepared by</b><span>J. Berger</span>
-          <b>Approved by</b><span>—</span>
-          <b>Export date</b><span>2026-09-12</span>
+    <!-- ============ PANEL 10: FRESH ============ -->
+    <section class="panel native" id="panel-native" role="tabpanel" aria-labelledby="tab-native" hidden>
+      <div class="native-note"><b>Fresh — why this one's different.</b> This is not a new UI — it reproduces what <span class="mono">doorstop publish --html</span> already outputs today (see <span class="mono">doorstop/core/publishers/html.py</span> and <span class="mono">markdown.py</span>): headings carry level + header + <span class="mono">(UID)</span>, "Parent links:" and "Child links:" are the literal labels Doorstop emits and are <em>omitted entirely</em> when an item has none (see SYS-0005 below), and the attribute table is the exact "Attribute / Value" table produced when a document's <span class="mono">publish:</span> list names extra YAML fields. There is no reviewed/unreviewed state anywhere — Doorstop's own template never shows one — so Fresh needs only a <span class="mono">fresh.css</span> + <span class="mono">fresh.tpl</span>, not a new generator. Ready-to-use files: <span class="mono">doc/fresh-template/</span>.</div>
+      <div class="native-page">
+        <div class="native-head">
+          <p class="doctitle">Sensor Subsystem Requirements</p>
+          <p class="docsub">System-level requirements derived from REQ</p>
+          <div class="native-meta">
+            <span><b>Doc</b>SYS</span>
+            <span><b>Ref</b>ICD-014</span>
+            <span><b>By</b>J. Berger</span>
+            <span><b>Issue</b>1.2</span>
+          </div>
         </div>
-      </div>
-      <div class="booklet-break">page break</div>
-      <div class="booklet-toc">
-        <h4>Contents</h4>
-        <div class="toc-row"><span>1&nbsp;&nbsp;Sensor Subsystem</span><span class="fill"></span><span class="pg">3</span></div>
-        <div class="toc-row"><span>1.1&nbsp;&nbsp;Sensor input</span><span class="fill"></span><span class="pg">3</span></div>
-        <div class="toc-row"><span>1.1.1&nbsp;&nbsp;Sampling rate</span><span class="fill"></span><span class="pg">3</span></div>
-        <div class="toc-row"><span>1.2&nbsp;&nbsp;Fault detection</span><span class="fill"></span><span class="pg">4</span></div>
-        <div class="toc-row"><span>1.3&nbsp;&nbsp;Calibration interval</span><span class="fill"></span><span class="pg">4</span></div>
-        <div class="toc-row"><span>Document history</span><span class="fill"></span><span class="pg">4</span></div>
-      </div>
-      <div class="booklet-break">page break</div>
-      <div class="booklet-page">
-        <div class="booklet-runhead"><span>SYS — Sensor Subsystem Requirements</span><span>Rev 1.2</span></div>
-        <div class="booklet-item">
-          <div class="num">1 · SYS-0001</div>
-          <h3>Sensor Subsystem</h3>
-        </div>
-        <div class="booklet-item">
-          <div class="num">1.1 · SYS-0002</div>
-          <h3>Sensor input</h3>
+
+        <nav class="native-toc">
+          <p class="lbl">Contents</p>
+          <ol>
+            <li class="lvl1"><a href="#SYS-0001">1.0 Sensor Subsystem</a></li>
+            <li class="lvl2"><a href="#SYS-0002">1.1 Sensor input (SYS-0002)</a></li>
+            <li class="lvl3"><a href="#SYS-0003">1.1.1 Sampling rate (SYS-0003)</a></li>
+            <li class="lvl2"><a href="#SYS-0004">1.2 Fault detection (SYS-0004)</a></li>
+            <li class="lvl2"><a href="#SYS-0005">1.3 Calibration interval (SYS-0005)</a></li>
+          </ol>
+        </nav>
+
+        <div class="native-body">
+          <h1 id="SYS-0001">1.0 Sensor Subsystem</h1>
+
+          <h2 id="SYS-0002">1.1 Sensor input <small>(SYS-0002)</small></h2>
           <p>The system shall sample the primary analog sensor channel at a fixed interval and convert each sample to a calibrated physical value before it is made available to downstream processing.</p>
-          <div class="foot">↑ REQ-0006 · ↓ TST-0014, TST-0015 · Class B · Test · reviewed</div>
-        </div>
-        <div class="booklet-item">
-          <div class="num">1.1.1 · SYS-0003</div>
-          <h3>Sampling rate</h3>
+          <p class="linkline"><em>Parent links:</em> <a href="#REQ-0006">REQ-0006 Sensor measurement</a></p>
+          <p class="linkline"><em>Child links:</em> <a href="#TST-0014">TST-0014 Sensor input — nominal range</a>, <a href="#TST-0015">TST-0015 Sensor input — out-of-range</a></p>
+          <table>
+            <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>safety_class</td><td>B</td></tr>
+              <tr><td>verification</td><td>Test</td></tr>
+              <tr><td>owner</td><td>J. Berger</td></tr>
+            </tbody>
+          </table>
+
+          <h3 id="SYS-0003">1.1.1 Sampling rate <small>(SYS-0003)</small></h3>
           <p>The sensor input shall be sampled at 250&nbsp;Hz ±1%, sufficient to resolve waveform components up to 100&nbsp;Hz without aliasing.</p>
-          <div class="foot">↑ REQ-0007 · ↓ TST-0016 · Class B · Analysis · unreviewed</div>
-        </div>
-        <div class="booklet-runfoot">Page 3 of 4</div>
-      </div>
-      <div class="booklet-break">page break</div>
-      <div class="booklet-page">
-        <div class="booklet-runhead"><span>SYS — Sensor Subsystem Requirements</span><span>Rev 1.2</span></div>
-        <div class="booklet-item">
-          <div class="num">1.2 · SYS-0004</div>
-          <h3>Fault detection</h3>
+          <p class="linkline"><em>Parent links:</em> <a href="#REQ-0007">REQ-0007 Sampling requirement</a></p>
+          <p class="linkline"><em>Child links:</em> <a href="#TST-0016">TST-0016 Sampling rate verification</a></p>
+          <table>
+            <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>safety_class</td><td>B</td></tr>
+              <tr><td>verification</td><td>Analysis</td></tr>
+              <tr><td>owner</td><td>J. Berger</td></tr>
+            </tbody>
+          </table>
+
+          <h2 id="SYS-0004">1.2 Fault detection <small>(SYS-0004)</small></h2>
           <p>The system shall detect a disconnected or out-of-range sensor within 500&nbsp;ms and raise a fault condition visible to the operator interface.</p>
-          <div class="foot">↑ REQ-0009 · ↓ TST-0017, TST-0018 · Class C · Test · <span class="gap">suspect link</span></div>
-        </div>
-        <div class="booklet-item">
-          <div class="num">1.3 · SYS-0005</div>
-          <h3>Calibration interval</h3>
+          <p class="linkline"><em>Parent links:</em> <a href="#REQ-0009">REQ-0009 Fault handling</a></p>
+          <p class="linkline"><em>Child links:</em> <a href="#TST-0017">TST-0017 Fault detection — disconnected sensor</a>, <a href="#TST-0018">TST-0018 Fault detection — out-of-range</a></p>
+          <table>
+            <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>safety_class</td><td>C</td></tr>
+              <tr><td>verification</td><td>Test</td></tr>
+              <tr><td>priority</td><td>High</td></tr>
+              <tr><td>owner</td><td>M. Keller</td></tr>
+            </tbody>
+          </table>
+
+          <h2 id="SYS-0005">1.3 Calibration interval <small>(SYS-0005)</small></h2>
           <p>The system shall prompt for recalibration after 90 days of continuous operation or 10,000 measurement cycles, whichever occurs first.</p>
-          <div class="foot"><span class="gap">↑ no upstream trace</span> · ↓ none · Class A · Inspection · reviewed</div>
+          <table>
+            <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>safety_class</td><td>A</td></tr>
+              <tr><td>verification</td><td>Inspection</td></tr>
+              <tr><td>owner</td><td>M. Keller</td></tr>
+            </tbody>
+          </table>
         </div>
-        <div class="booklet-runfoot">Page 4 of 4</div>
-      </div>
-      <div class="booklet-hist">
-        <h4>Document history</h4>
-        <table class="hist-table">
-          <thead><tr><th>Rev</th><th>Date</th><th>Author</th><th>Change</th></tr></thead>
-          <tbody>
-            <tr><td>1.0</td><td>2026-06-02</td><td>J. Berger</td><td>Initial draft</td></tr>
-            <tr><td>1.1</td><td>2026-07-18</td><td>M. Keller</td><td>Added fault detection requirement</td></tr>
-            <tr><td>1.2</td><td>2026-09-12</td><td>J. Berger</td><td>Exported from Doorstop document view</td></tr>
-          </tbody>
-        </table>
+
+        <p class="native-end">— end of document —</p>
       </div>
     </section>
 
@@ -1030,7 +1047,7 @@
 
   <footer>
     <p style="margin:0 0 4px; color:var(--ink); font-weight:600; font-size:0.9rem;">Shared palette</p>
-    <p>Read directly from corscience.com's published stylesheet, so any of the ten layouts above can share one token set.</p>
+    <p> so any of the ten layouts above can share one token set.</p>
     <div class="palette-strip">
       <div class="pal"><i style="background:#153243"></i><span><b>Navy</b>#153243</span></div>
       <div class="pal"><i style="background:#b41412"></i><span><b>Red</b>#b41412</span></div>

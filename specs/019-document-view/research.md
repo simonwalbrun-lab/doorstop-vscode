@@ -90,15 +90,14 @@ dirty after a save attempt; returning normally always marks it clean. The
 notification wording ("Failed to save … : SYS-0007 would be deleted …") is
 VS Code's, with our message embedded, which is acceptable and consistent.
 
-**Auto-save**: `writeFile` cannot see the save reason, but
-`workspace.onWillSaveTextDocument` can (`TextDocumentSaveReason`). The
-provider records the reason per URI right before `writeFile` runs. For
-`AfterDelay` / `FocusOut` saves the change set is applied only when it
-contains nothing that needs a dialog (plain text or header+text updates);
-otherwise the save is refused once with the message "changes need
-confirmation — save manually (Ctrl+S)" and the message is not repeated
-until the document changes again. Recorded in the spec's Assumptions during
-tasks if the user confirms; the spec itself describes manual saves.
+**Auto-save** (decided by the user, 2026-10-01): an automatic save
+(`files.autoSave`) runs the same path as `Ctrl+S`, dialogs included — the
+save awaits the answer rather than being refused, so nothing is ever written
+past an unanswered question. `writeFile` therefore never inspects the save
+reason and no `onWillSaveTextDocument` hook is needed. The alternative
+considered and rejected was applying only dialog-free changes automatically
+and asking the user to save manually otherwise: it meant a structural change
+could sit unsaved behind a notification the user had already dismissed.
 
 **Alternatives considered**: `onWillSaveTextDocument` alone — cannot cancel a
 save or replace the write. A custom "Doorstop: Save Document View" command —

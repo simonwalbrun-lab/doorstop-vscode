@@ -92,11 +92,7 @@ export interface DocumentViewState {
   blocks: RenderedBlock[];
   /** Lookalike separators inside item text of the current snapshot. */
   renderIssues: StructuralIssue[];
-  saveReason?: vscode.TextDocumentSaveReason;
   saving: boolean;
-  pendingDiskChange: Set<string>;
-  /** Document version an auto-save was already refused for (research §3). */
-  autoSaveRefusedVersion?: number;
   watcher?: vscode.Disposable;
   watcherTimer?: NodeJS.Timeout;
   watcherUids: Set<string>;
@@ -246,7 +242,6 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
     state.snapshot = snapshot;
     state.blocks = rendered.blocks;
     state.renderIssues = rendered.issues;
-    state.pendingDiskChange.clear();
     const changed = rendered.text !== state.text;
     if (changed || forceBump) {
       state.text = rendered.text;
@@ -318,9 +313,8 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
     const label = changed.length <= 3 ? `${changed.join(', ')} changed on disk` : `${state.prefix} changed on disk`;
     const choice = await prompts.notifyDiskChange(label);
     if (choice !== 'reload') {
-      for (const uid of changed) {
-        state.pendingDiskChange.add(uid);
-      }
+      // Nothing to remember: the next save diffs each block against a fresh
+      // snapshot, so an item the user did not touch is skipped either way.
       return;
     }
     try {
@@ -382,7 +376,6 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
         blocks: rendered.blocks,
         renderIssues: rendered.issues,
         saving: false,
-        pendingDiskChange: new Set(),
         watcherUids: new Set(),
         generation: 0
       };
@@ -449,8 +442,6 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
   };
 
   const saveView = async (state: DocumentViewState, text: string): Promise<void> => {
-    const reason = state.saveReason;
-    state.saveReason = undefined;
     state.saving = true;
     try {
       let snapshot: DocumentNode;
@@ -469,18 +460,8 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
         return refuse(`${first.message} (line ${first.line + 1})${REFUSED_SAVE_SUFFIX}`);
       }
 
-      const needsDialog = plan.deletions.length > 0
-        || plan.creations.length > 0
-        || plan.updates.some(update => update.headerOnly);
-      if (reason !== undefined && reason !== vscode.TextDocumentSaveReason.Manual && needsDialog) {
-        const version = openDocumentFor(state.uri)?.version;
-        if (state.autoSaveRefusedVersion !== version) {
-          state.autoSaveRefusedVersion = version;
-          prompts.reportError(`Doorstop: ${state.prefix} (document) has changes that need confirmation - save manually (Ctrl+S)`);
-        }
-        return refuse('changes need confirmation - save manually');
-      }
-
+      // Every save asks the same questions, auto-save included: a deletion or
+      // a header change is never applied without the user seeing the dialog.
       let deletions = plan.deletions;
       if (deletions.length > 0) {
         const answer = await prompts.confirmDeletions(deletions);
@@ -516,8 +497,13 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
       }
       for (const creation of plan.creations) {
         try {
+          // No block above means "before the current first item"; only an
+          // empty document falls through to Doorstop's plain append.
+          const position = creation.afterUid
+            ? { after: creation.afterUid }
+            : snapshot.items.some(item => item.active) ? { first: true } : {};
           await options.server.request<AddedItem>('POST', `/documents/${encodeURIComponent(state.prefix)}/items`, {
-            ...(creation.afterUid ? { after: creation.afterUid } : {}),
+            ...position,
             header: creation.header,
             text: creation.text
           });
@@ -667,13 +653,6 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
       const document = await documentFromArg(arg);
       if (document && arg?.line !== undefined) {
         await cancelPlaceholder(document, arg.line);
-      }
-    }),
-
-    vscode.workspace.onWillSaveTextDocument(event => {
-      const state = getState(event.document.uri);
-      if (state) {
-        state.saveReason = event.reason;
       }
     }),
 

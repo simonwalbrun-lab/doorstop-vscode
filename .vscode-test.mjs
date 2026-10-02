@@ -23,6 +23,12 @@ export default defineConfig([
 		files: 'out/test/diagramLayout.test.js',
 	},
 	{
+		// The Document View's pure text model (spec 019): render / parse / save
+		// plan over in-memory snapshots. No fixture workspace, no server.
+		label: 'documentViewModel',
+		files: 'out/test/documentViewModel.test.js',
+	},
+	{
 		// Needs the fixture workspace (so the extension activates and its CodeLens
 		// providers register) but deliberately starts no Doorstop server — lens
 		// provision must be a pure text scan.

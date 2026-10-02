@@ -1516,6 +1516,84 @@ suite('Regression Fixture Integration Suite', () => {
       });
     });
 
+    test('a pasted separator from another document is refused and removable (US3, FR-025)', async function () {
+      this.timeout(60000);
+      await withRestoredFixture(async () => {
+        const document = await openView('REQ');
+        // Editing a separator in place is reverted, so the realistic way a
+        // foreign UID gets in is a pasted block. Inserting at the start of the
+        // blank line between two blocks is exactly that, and leaves the
+        // surrounding separators untouched.
+        const blank = lineOf(document, REQ_SEPARATOR('REQ-004', '1.3')) - 1;
+        assert.strictEqual(document.lineAt(blank).text, '', 'the line above a separator is blank');
+        const pasted = new vscode.WorkspaceEdit();
+        pasted.insert(document.uri, new vscode.Position(blank, 0),
+          `${REQ_SEPARATOR('REQ-999', '1.5')}\n## Pasted from elsewhere\nBody of the pasted block.\n`);
+        await vscode.workspace.applyEdit(pasted);
+
+        const strayLine = lineOf(document, REQ_SEPARATOR('REQ-999', '1.5'));
+        assert.strictEqual(await document.save(), false, 'a foreign UID refuses the save');
+        assert.strictEqual(document.isDirty, true);
+        await waitFor(() => vscode.languages.getDiagnostics(document.uri).some(diagnostic =>
+          diagnostic.source === 'doorstop-document'
+          && diagnostic.code === 'separator-unknown'
+          && diagnostic.range.start.line === strayLine
+        ), 'separator-unknown diagnostic on the pasted line');
+
+        const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+          'vscode.executeCodeActionProvider', document.uri, new vscode.Range(strayLine, 0, strayLine, 0)
+        );
+        const restore = actions.find(action => action.title === 'Restore block structure of REQ-999');
+        assert.ok(restore?.command, 'the quick fix is offered');
+        await vscode.commands.executeCommand(restore!.command!.command, ...(restore!.command!.arguments ?? []));
+
+        // REQ-009's own text mentions REQ-999 (the fixture's dangling-link
+        // decoy), so only the separator line may be asserted on.
+        assert.ok(!document.getText().split('\n').includes(REQ_SEPARATOR('REQ-999', '1.5')), 'the stray separator line is gone');
+        assert.strictEqual(await document.save(), true, 'the save goes through once the structure is sound');
+        // The pasted prose had no separator of its own, so it belongs to the
+        // block above it (FR-029) - here REQ-003.
+        const text = (await reqItems()).get('REQ-003')?.text ?? '';
+        assert.ok(text.includes('## Pasted from elsewhere'), `REQ-003 keeps the pasted heading as text: ${text}`);
+        assert.ok(text.includes('Body of the pasted block.'));
+      });
+    });
+
+    test('a stray separator on the very last line is removable too (FR-027)', async function () {
+      this.timeout(60000);
+      await withRestoredFixture(async () => {
+        const document = await openView('REQ');
+        // The rendered text ends with a newline, so the last line is empty.
+        // Pasting a separator there without a trailing newline puts it on the
+        // final line - the boundary where a line-to-line delete range would
+        // collapse to nothing.
+        const last = document.lineCount - 1;
+        assert.strictEqual(document.lineAt(last).text, '', 'the rendered text ends with a newline');
+        const pasted = new vscode.WorkspaceEdit();
+        pasted.insert(document.uri, document.lineAt(last).range.end, REQ_SEPARATOR('REQ-999', '9.9'));
+        await vscode.workspace.applyEdit(pasted);
+        assert.strictEqual(document.lineAt(document.lineCount - 1).text, REQ_SEPARATOR('REQ-999', '9.9'));
+
+        assert.strictEqual(await document.save(), false, 'a foreign UID refuses the save');
+        const strayLine = document.lineCount - 1;
+        await waitFor(() => vscode.languages.getDiagnostics(document.uri).some(diagnostic =>
+          diagnostic.source === 'doorstop-document'
+          && diagnostic.code === 'separator-unknown'
+          && diagnostic.range.start.line === strayLine
+        ), 'separator-unknown diagnostic on the last line');
+
+        const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+          'vscode.executeCodeActionProvider', document.uri, new vscode.Range(strayLine, 0, strayLine, 0)
+        );
+        const restore = actions.find(action => action.title === 'Restore block structure of REQ-999');
+        assert.ok(restore?.command, 'the quick fix is offered');
+        await vscode.commands.executeCommand(restore!.command!.command, ...(restore!.command!.arguments ?? []));
+
+        assert.ok(!document.getText().split('\n').includes(REQ_SEPARATOR('REQ-999', '9.9')), 'the stray line is gone');
+        assert.strictEqual(await document.save(), true, 'the save goes through afterwards');
+      });
+    });
+
     test('a deleted heading line triggers the header confirmation (US3)', async function () {
       this.timeout(60000);
       await withRestoredFixture(async () => {
@@ -1637,6 +1715,73 @@ suite('Regression Fixture Integration Suite', () => {
         }
         const roots = await vscode.commands.executeCommand<vscode.CallHierarchyItem[]>('vscode.prepareCallHierarchy', document.uri, position);
         assert.strictEqual(roots[0]?.name, 'REQ-001');
+      });
+    });
+
+    test('a placeholder above the first block becomes the first item (US4)', async function () {
+      this.timeout(60000);
+      await withRestoredFixture(async () => {
+        const document = await openView('REQ');
+        // Line 0 is the document marker: the placeholder lands above REQ-001.
+        await vscode.commands.executeCommand('doorstop.documentView.newItemBelow', { uri: document.uri.toString(), line: 0 });
+        const marker = lineOf(document, '<!-- new item -->');
+        assert.strictEqual(marker, 2, 'placeholder sits directly under the document marker');
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(document.uri, document.lineAt(marker + 1).range, '# Introduction\nLeads the document.');
+        await vscode.workspace.applyEdit(edit);
+        assert.strictEqual(await document.save(), true);
+
+        const items = await reqItems();
+        assert.strictEqual(items.size, 11);
+        const created = [...items.entries()].find(([, value]) => value.header === 'Introduction');
+        assert.ok(created, 'the new item was created');
+        // REQ-001 sits at the heading level 1.0, so Doorstop shifts its whole
+        // block to 2.x and the new item leads the document.
+        assert.strictEqual(created![1].level, '1.0');
+        assert.strictEqual(items.get('REQ-001')?.level, '2.0');
+        assert.strictEqual(items.get('REQ-010')?.level, '2.9');
+        await waitFor(() => document.getText().includes(REQ_SEPARATOR(created![0], '1.0')) && !document.isDirty, 'view shows the new first item');
+        const lines = document.getText().split('\n');
+        assert.strictEqual(lines[2], REQ_SEPARATOR(created![0], '1.0'), 'first block of the document');
+        assert.ok(lines.indexOf(REQ_SEPARATOR(created![0], '1.0')) < lines.indexOf(REQ_SEPARATOR('REQ-001', '2.0')));
+      });
+    });
+
+    test('a failed write is reported and keeps that block dirty (US2, FR-021a)', async function () {
+      this.timeout(60000);
+      await withRestoredFixture(async () => {
+        const blocked = path.join(FIXTURE_ROOT, 'REQ-005.yml');
+        const original = await fs.readFile(blocked);
+        await fs.chmod(blocked, 0o444);
+        // A platform (or a root CI container) that ignores the read-only bit
+        // would make the assertions below meaningless - skip instead of flaking.
+        const writeIsBlocked = await fs.appendFile(blocked, ' ').then(() => false, () => true);
+        if (!writeIsBlocked) {
+          await fs.chmod(blocked, 0o644);
+          await fs.writeFile(blocked, original);
+          this.skip();
+        }
+
+        const errors: string[] = [];
+        try {
+          const document = await openView('REQ');
+          documentView.prompts.reportError = message => errors.push(message);
+          await replaceInView(document, 'The system shall have minimal text.', 'REQ-002 was written.');
+          await replaceInView(document, 'The system shall remain pending review', 'REQ-005 could not be written');
+          assert.strictEqual(await document.save(), false, 'the save reports a failure');
+          assert.strictEqual(document.isDirty, true, 'the tab stays dirty');
+
+          const items = await reqItems();
+          assert.strictEqual(items.get('REQ-002')?.text, 'REQ-002 was written.', 'the writable item was still saved');
+          assert.ok(items.get('REQ-005')?.text?.startsWith('The system shall remain pending review'), 'the blocked item is unchanged');
+          assert.strictEqual(errors.length, 1, `one summary message, got: ${JSON.stringify(errors)}`);
+          assert.match(errors[0], /^Doorstop: 1 of 2 changes could not be saved: REQ-005 \(.+\)\. The failed blocks keep your edits\.$/);
+          await waitFor(() => document.getText().includes('REQ-005 could not be written'), 'the failed block keeps the edit');
+          assert.ok(document.getText().includes('REQ-002 was written.'), 'the written block shows the saved text');
+        } finally {
+          await fs.chmod(blocked, 0o644);
+          await fs.writeFile(blocked, original);
+        }
       });
     });
 

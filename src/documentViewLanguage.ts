@@ -73,6 +73,16 @@ function lineRange(document: vscode.TextDocument, line: number): vscode.Range {
   return document.lineAt(clamped).range;
 }
 
+/**
+ * The range that removes `line` entirely, line break included. Plain
+ * `Range(line, 0, line + 1, 0)` collapses to nothing on the document's last
+ * line, which would make a quick fix silently do nothing there.
+ */
+function wholeLine(document: vscode.TextDocument, line: number): vscode.Range {
+  const clamped = Math.min(Math.max(0, line), document.lineCount - 1);
+  return document.lineAt(clamped).rangeIncludingLineBreak;
+}
+
 export function registerDocumentViewLanguage(context: vscode.ExtensionContext, options: DocumentViewLanguageOptions): void {
   const { documentView } = options;
   const collection = vscode.languages.createDiagnosticCollection(STRUCTURAL_SOURCE);
@@ -392,7 +402,7 @@ export function registerDocumentViewLanguage(context: vscode.ExtensionContext, o
         break;
       }
       case 'separator-duplicated':
-        edit.delete(document.uri, new vscode.Range(arg.line, 0, Math.min(arg.line + 1, document.lineCount - 1), 0));
+        edit.delete(document.uri, wholeLine(document, arg.line));
         break;
       case 'placeholder-empty-heading': {
         const block = parse(document.getText()).find(candidate =>
@@ -418,10 +428,16 @@ export function registerDocumentViewLanguage(context: vscode.ExtensionContext, o
         }
         break;
       }
+      case 'separator-unknown':
+        // Nothing to restore - the UID belongs to no item of this document
+        // (typically pasted in from another view). Dropping the line lets the
+        // text below it join the block above, which is what FR-029 says it is.
+        edit.delete(document.uri, wholeLine(document, arg.line));
+        break;
       default:
-        documentView.prompts.reportHint(arg.code === 'separator-lookalike'
-          ? 'Edit this item in its own file'
-          : `${arg.uid ?? 'This separator'} is not an item of this document - remove the separator line`);
+        // separator-lookalike: the offending line lives inside an item's text
+        // on disk, so nothing the view can edit would fix it.
+        documentView.prompts.reportHint('Edit this item in its own file');
         return;
     }
     await vscode.workspace.applyEdit(edit);

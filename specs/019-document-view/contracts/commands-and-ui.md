@@ -103,7 +103,8 @@ Applied to every visible editor of the view URI; refreshed by the debounced scan
 | Refused save | `Failed to save 'SYS (document)': <reason> (line N) - use the quick fix "Restore block structure"` (VS Code prefixes the first part) | — |
 | Partial failure | `Doorstop: 2 of 5 changes could not be saved: SYS-0006 (…), SYS-0009 (…). The failed blocks keep your edits.` | — |
 | Disk change while dirty | `SYS-0006 changed on disk` (or `SYS changed on disk` when > 3 files) | `Reload`, `Keep my edits` |
-| Auto-save needs confirmation | `Doorstop: SYS (document) has changes that need confirmation - save manually (Ctrl+S)` | — |
+
+An automatic save (`files.autoSave`) shows the same dialogs as `Ctrl+S` and waits for the answer; there is no separate auto-save message.
 
 ## Test surface exported from `activate()`
 
