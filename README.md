@@ -99,6 +99,14 @@ Trace an item up- and downstream as a call hierarchy: **outgoing** shows the ite
 
 <img src="media/promotion/05_autocomplete.gif" alt="Autocompletion of links" width="914">
 
+## Settings
+
+Search for "Doorstop" in the VS Code settings:
+
+- **Problems:** one checkbox per kind of Doorstop problem; unticked kinds are hidden from the Problems panel and the document view (all on by default)
+- **New Document:** item format (YAML / Markdown), UID separator (none, `-`, `.`, `_`) and number of digits used by **Create Document** (defaults: YAML, none, 3)
+- **Publish:** template name for HTML and LaTeX publishing, taken from the document's `template` folder (empty = Doorstop's built-in template)
+
 ## Requirements
 
 The extension talks to a small local server that wraps the Doorstop Python API. Install it into the Python environment of your workspace (the extension will offer to do this for you):

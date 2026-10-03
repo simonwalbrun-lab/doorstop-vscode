@@ -201,6 +201,12 @@ export async function activate(context: vscode.ExtensionContext) {
       'doorstop.recheckProblems',
       () => problemsProvider?.refreshNow()
     ));
+    // A problem kind switched on or off in the settings shows at once (spec 020 FR-004).
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+      if (event.affectsConfiguration('doorstop.problems') && doorstopServer.isRunning) {
+        void problemsProvider?.refreshNow();
+      }
+    }));
     const onChanged = (): void => {
       treeProvider.refresh();
       problemsProvider?.scheduleRefresh();

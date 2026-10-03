@@ -179,9 +179,13 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     // `null` is the deliberate "root document" choice, which sends no parentPrefix.
     const parentPrefix = await chooseParentPrefix(options.tree);
     if (parentPrefix === undefined) {return;}
+    const settings = vscode.workspace.getConfiguration('doorstop.newDocument');
     await run(() => options.server.request('POST', '/documents', {
       prefix,
       path: folders[0].fsPath,
+      itemFormat: settings.get<string>('itemFormat', 'yaml'),
+      separator: settings.get<string>('separator', ''),
+      digits: settings.get<number>('digits', 3),
       ...(parentPrefix === null ? {} : { parentPrefix })
     }));
   });
@@ -378,12 +382,21 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     if (!format) {return;}
     const destination = await vscode.window.showSaveDialog({ saveLabel: 'Publish' });
     if (destination) {
+      // Markdown output takes no template; sending one would fail on any
+      // document without a `template` folder (spec 020 research R5).
+      const configured = vscode.workspace.getConfiguration('doorstop.publish').get<string>('template', '').trim();
+      const template = format.value === 'markdown' ? '' : configured;
       const result = await run(() => options.server.request<{ path: string }>(
         'POST', `/documents/${encodeURIComponent(prefix)}/publish`, {
           format: format.value,
-          destinationPath: destination.fsPath
+          destinationPath: destination.fsPath,
+          ...(template ? { template } : {})
         }
-      ));
+      ).catch(error => {
+        if (!template) {throw error;}
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`${message} (template "${template}" from setting doorstop.publish.template)`);
+      }));
       if (result?.path) {
         await reportWrittenPath('Publish', destination.fsPath, result.path);
       }

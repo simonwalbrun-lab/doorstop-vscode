@@ -317,10 +317,16 @@ export function registerProblemsProvider(
   const refreshNow = async (): Promise<void> => {
     const pass = ++latestPass;
     try {
-      const [validation, tree] = await Promise.all([
+      const [unfiltered, tree] = await Promise.all([
         options.server.request<ValidationResponse>('GET', '/validate'),
         options.server.request<TreeResponse>('GET', '/tree')
       ]);
+      // Problem kinds the user switched off in the settings (spec 020 US1) are
+      // dropped here, so the Problems panel and the document view agree.
+      const enabled = vscode.workspace.getConfiguration('doorstop').get<Record<string, boolean>>('problems', {});
+      const validation: ValidationResponse = {
+        issues: unfiltered.issues.filter(issue => enabled[issue.check] !== false)
+      };
       const byFile = await buildDiagnostics(validation, tree);
       if (pass !== latestPass) {
         return;

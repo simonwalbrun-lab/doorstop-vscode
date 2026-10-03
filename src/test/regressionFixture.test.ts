@@ -636,6 +636,31 @@ suite('Regression Fixture Integration Suite', () => {
     );
   });
 
+  test('Create Document applies the new-document settings (020 US2)', async function () {
+    this.timeout(20000);
+    // Global target: a workspace setting would write into the fixture.
+    const settings = vscode.workspace.getConfiguration('doorstop.newDocument');
+    try {
+      await settings.update('itemFormat', 'markdown', vscode.ConfigurationTarget.Global);
+      await settings.update('separator', '-', vscode.ConfigurationTarget.Global);
+      await settings.update('digits', 4, vscode.ConfigurationTarget.Global);
+      await createDocumentInto(
+        'TMPSET',
+        items => items.find(item => labelOf(item) === 'REQ'),
+        async created => {
+          assert.ok(created, 'the new document should exist');
+          assert.strictEqual(created!.itemFormat, 'markdown');
+          assert.strictEqual(created!.separator, '-');
+          assert.strictEqual(created!.digits, 4);
+        }
+      );
+    } finally {
+      for (const key of ['itemFormat', 'separator', 'digits']) {
+        await settings.update(key, undefined, vscode.ConfigurationTarget.Global);
+      }
+    }
+  });
+
   test('The parent quick-select distinguishes "None" from a dismissed pick', async function () {
     this.timeout(20000);
 
@@ -812,6 +837,22 @@ suite('Regression Fixture Integration Suite', () => {
       assert.ok(diagnostic.code, 'every diagnostic identifies the check that produced it');
       assert.ok(diagnostic.message.trim().length > 0);
     }
+  });
+
+  test('Settings: an unticked problem kind is hidden and comes back when re-ticked (020 US1)', async function () {
+    this.timeout(30000);
+    const suspectFile = path.join(FIXTURE_ROOT, 'REQ-007.yml');
+    const brokenFile = path.join(FIXTURE_ROOT, 'REQ-009.yml');
+    // Global target: a workspace setting would write into the fixture.
+    const settings = vscode.workspace.getConfiguration('doorstop');
+    try {
+      await settings.update('problems', { suspect_link: false }, vscode.ConfigurationTarget.Global);
+      assert.strictEqual(withCode(await diagnosticsFor(suspectFile), 'suspect_link').length, 0, 'the unticked kind is hidden');
+      assert.strictEqual(withCode(await diagnosticsFor(brokenFile), 'linked_to_unknown_item').length, 1, 'other kinds stay');
+    } finally {
+      await settings.update('problems', undefined, vscode.ConfigurationTarget.Global);
+    }
+    assert.strictEqual(withCode(await diagnosticsFor(suspectFile), 'suspect_link').length, 1, 're-ticking brings it back');
   });
 
   test('Problems: a fixed problem disappears on the next check (US5)', async function () {
