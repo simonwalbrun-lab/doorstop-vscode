@@ -18,6 +18,14 @@ All notable changes to this project will be documented in this file.
 - Server: `PATCH /items/{uid}` (header/text), `DELETE /items/{uid}`,
   `after`/`header`/`text` on `POST /documents/{prefix}/items`; `GET /tree`
   returns items in Doorstop's level order
+- Publish: choose `all` to publish every document into one folder; the run
+  stops at the first document that fails and names it
+- Commands show a progress notification while they work, and the same
+  command can't run twice at once
+- **Generate Status Report** (Commands view / *Doorstop: Generate Status
+  Report*) writes `doorstop-status.md` with Mermaid bar charts of items per
+  document, problems per type per document, and weekly requirement volatility
+  from git history
 
 ## [0.1.0] - 2026-09-11
 

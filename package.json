@@ -318,6 +318,11 @@
       "icon": "$(rocket)"
     },
     {
+      "command": "doorstop.statusReport",
+      "title": "Doorstop: Generate Status Report",
+      "icon": "$(graph)"
+    },
+    {
       "command": "doorstop.addToDiagram",
       "title": "Doorstop: Add to Diagram",
       "icon": "$(graph)"

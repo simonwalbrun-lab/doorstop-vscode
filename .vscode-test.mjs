@@ -29,6 +29,12 @@ export default defineConfig([
 		files: 'out/test/documentViewModel.test.js',
 	},
 	{
+		// The status report's pure Markdown/chart builder (spec 021). No fixture
+		// workspace, no server, no git.
+		label: 'statusReport',
+		files: 'out/test/statusReport.test.js',
+	},
+	{
 		// Needs the fixture workspace (so the extension activates and its CodeLens
 		// providers register) but deliberately starts no Doorstop server — lens
 		// provision must be a pure text scan.

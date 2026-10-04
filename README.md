@@ -32,6 +32,11 @@ All documents and items in the side bar.
 - Context menu: Add, Derive, Review, Clear Suspect, Link, Add to Diagram
 - Inline on hover: Add, Open as document, Call Hierarchy, Link
 - Global commands in the **Commands** view: Reorder, Import, Export, Publish
+  (one document or `all`), Generate Status Report; a progress notification
+  shows while a command works
+- **Generate Status Report** writes `doorstop-status.md` with Mermaid charts:
+  items per document, problems per type for each document, and changed item
+  files per week over the last 26 weeks (from git)
 
 ### Document View
 
