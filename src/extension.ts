@@ -15,6 +15,7 @@ import { registerDoorstopCommands } from './doorstopCommands';
 import { ProblemsProvider, registerProblemsProvider } from './problemsProvider';
 import { DocumentViewHandle, registerDocumentView } from './documentViewProvider';
 import { registerDocumentViewLanguage } from './documentViewLanguage';
+import { registerFilterNotebook } from './filterNotebook';
 interface DoorstopDiagramDocument extends vscode.CustomDocument {
   diagram: unknown;
 }
@@ -183,6 +184,9 @@ export async function activate(context: vscode.ExtensionContext) {
     },
     workspaceFolder: workspaceFolder || vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder
   }));
+  // Filter notebooks (spec 022). Registered even without a server: a run then
+  // reports "server not available" in the cell instead of the notebook failing to open.
+  registerFilterNotebook(context, doorstopServer);
   if (workspaceFolder) {
     // Registered first so the providers below can ask it to re-check after a
     // mutation they caused.

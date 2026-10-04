@@ -96,6 +96,35 @@ Trace an item up- and downstream as a call hierarchy: **outgoing** shows the ite
 
 <img src="media/promotion/12_refence_call.png" alt="Call hierarchy of a requirement" width="474">
 
+### Filter Notebooks
+
+*Doorstop: New Filter Notebook* (also in the Commands panel) opens a notebook where every code cell is one filter. Run a cell to get a table of the matching items with a count above it; click a UID to open the item. A new notebook starts with a short cheat-sheet, a simple and a complex example. Save it as `*.doorstop-filter` to reuse it.
+
+Filters are YAML in the shape of Obsidian Bases filters: `and:` / `or:` / `not:` groups nest freely, `hasChild:` / `hasParent:` match on direct children or parents, and conditions work on the built-in attributes (`uid`, `document`, `level`, `header`, `text`, `ref`, `active`, `normative`, `derived`, `reviewed`, `links`) and on any custom attribute.
+
+```yaml
+# REQ items that have an approved child
+and:
+  - document == "REQ"
+  - hasChild: status == "approved"
+```
+
+```yaml
+# unreviewed items without a ref, from level 2 on
+and:
+  - reviewed == false
+  - ref.isEmpty()
+  - level >= "2"
+```
+
+```yaml
+# pick the table columns, Bases-style (UID always comes first)
+filters: document == "TST"
+order: [status, owner, header]
+```
+
+Conditions are `attribute <op> value` (`==` `!=` `<` `<=` `>` `>=`) or `.contains("…")`, `.startsWith("…")`, `.isEmpty()`, `.isNotEmpty()`. Use groups instead of `!`, `&&` or `||`, and write levels as strings. Without `order:` the table shows document, level and header.
+
 ### Editor Integration
 
 - **CodeLens:** derive a downstream requirement with one click above the item

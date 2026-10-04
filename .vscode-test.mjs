@@ -35,6 +35,12 @@ export default defineConfig([
 		files: 'out/test/statusReport.test.js',
 	},
 	{
+		// Filter notebooks' pure serializer / result rendering (spec 022). No
+		// fixture workspace, no server.
+		label: 'filterNotebook',
+		files: 'out/test/filterNotebook.test.js',
+	},
+	{
 		// Needs the fixture workspace (so the extension activates and its CodeLens
 		// providers register) but deliberately starts no Doorstop server — lens
 		// provision must be a pure text scan.

@@ -26,6 +26,14 @@ All notable changes to this project will be documented in this file.
   Report*) writes `doorstop-status.md` with Mermaid bar charts of items per
   document, problems per type per document, and weekly requirement volatility
   from git history
+- **Filter notebooks** (*Doorstop: New Filter Notebook*, `*.doorstop-filter`):
+  each cell is a YAML filter shaped like Obsidian Bases filters - nested
+  `and`/`or`/`not`, `hasChild`/`hasParent`, conditions on built-in and custom
+  attributes, `isNotEmpty()` - and shows the matching items as a table with
+  clickable UIDs; `filters:` + `order: [...]` picks the table columns; also in
+  the Commands panel
+- Server: `POST /filter` evaluates such a filter against the tree and returns
+  the chosen column values; malformed filters return `INVALID_FILTER`
 
 ## [0.1.0] - 2026-09-11
 

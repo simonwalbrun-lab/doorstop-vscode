@@ -323,6 +323,11 @@
       "icon": "$(graph)"
     },
     {
+      "command": "doorstop.newFilterNotebook",
+      "title": "Doorstop: New Filter Notebook",
+      "icon": "$(filter)"
+    },
+    {
       "command": "doorstop.addToDiagram",
       "title": "Doorstop: Add to Diagram",
       "icon": "$(graph)"
@@ -386,6 +391,28 @@
         }
       ],
       "priority": "default"
+    }
+  ],
+  "notebookRenderer": [
+    {
+      "id": "doorstop-filter-results",
+      "displayName": "Doorstop Filter Results",
+      "entrypoint": "./dist/webview/filterResults/renderer.js",
+      "mimeTypes": [
+        "application/vnd.doorstop.filter-results+json"
+      ],
+      "requiresMessaging": "always"
+    }
+  ],
+  "notebooks": [
+    {
+      "type": "doorstop-filter",
+      "displayName": "Doorstop Filter",
+      "selector": [
+        {
+          "filenamePattern": "*.doorstop-filter"
+        }
+      ]
     }
   ],
   "menus": {

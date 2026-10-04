@@ -66,3 +66,21 @@ export interface ValidationIssue {
 export interface ValidationResponse {
   issues: ValidationIssue[];
 }
+
+/** One row of a filter notebook result (spec 022, `POST /filter`). */
+export interface FilterItem {
+  uid: string;
+  documentPrefix: string;
+  level: string;
+  header?: string | null;
+  text?: string | null;
+  path: string;
+  /** One display value per `FilterResponse.columns` entry, already formatted by the server. */
+  values: string[];
+}
+
+export interface FilterResponse {
+  /** Table columns after UID: the cell's `order:` or the defaults (document, level, header). */
+  columns: string[];
+  items: FilterItem[];
+}
