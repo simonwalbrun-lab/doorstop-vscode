@@ -1,6 +1,8 @@
 import { ChildProcess, spawn } from 'node:child_process';
 import * as path from 'node:path';
 
+import { recordServer, timingActive } from './timing';
+
 export const DOORSTOP_SERVER_HOST = '127.0.0.1';
 export const DOORSTOP_SERVER_PORT = 7867;
 
@@ -35,6 +37,10 @@ interface ErrorPayload {
   error?: { code?: string; message?: string };
 }
 
+function parseBody<T>(text: string | undefined): T {
+  return (text === undefined ? undefined : JSON.parse(text)) as T;
+}
+
 export class DoorstopServer {
   private readonly host: string;
   private readonly port: number;
@@ -44,6 +50,7 @@ export class DoorstopServer {
   private startPromise: Promise<void> | undefined;
   private disposed = false;
   private recentStderr = '';
+  private readonly inflightGets = new Map<string, Promise<string | undefined>>();
 
   constructor(options: DoorstopServerOptions = {}) {
     this.host = options.host || DOORSTOP_SERVER_HOST;
@@ -123,46 +130,97 @@ export class DoorstopServer {
     return this.startPromise;
   }
 
-  restart(projectPath: string, pythonPath: string): Promise<void> {
-    this.stopProcess();
+  async restart(projectPath: string, pythonPath: string): Promise<void> {
+    await this.stopProcess();
     this.disposed = false;
     this.startPromise = undefined;
     return this.start(projectPath, pythonPath);
   }
 
-  async request<T>(method: 'GET' | 'POST' | 'DELETE', pathName: string, body?: unknown): Promise<T> {
-    const response = await fetch(`http://${this.host}:${this.port}${pathName}`, {
-      method,
-      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
-      body: body !== undefined ? JSON.stringify(body) : undefined
-    });
-
-    if (!response.ok) {
-      const payload = await response.json().catch(() => undefined) as ErrorPayload | undefined;
-      throw new DoorstopApiError(
-        payload?.error?.code ?? 'UNKNOWN',
-        payload?.error?.message ?? response.statusText,
-        response.status
-      );
+  /**
+   * Identical GETs issued while one is still running share its response: after a
+   * change many views ask for the full tree at once, and the server answers them
+   * one at a time, each re-reading the whole project. Any non-GET resets the
+   * sharing, so a caller asking after a change never gets data from before it.
+   * Each caller parses its own copy, so no caller sees another's mutations.
+   */
+  async request<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', pathName: string, body?: unknown): Promise<T> {
+    if (method !== 'GET') {
+      this.inflightGets.clear();
+      return parseBody<T>(await this.send(method, pathName, body));
     }
-
-    if (response.status === 204) {
-      return undefined as T;
+    let pending = this.inflightGets.get(pathName);
+    if (!pending) {
+      const started = this.send(method, pathName, body);
+      const forget = (): void => {
+        if (this.inflightGets.get(pathName) === started) {
+          this.inflightGets.delete(pathName);
+        }
+      };
+      started.then(forget, forget);
+      this.inflightGets.set(pathName, started);
+      pending = started;
     }
-    return response.json() as Promise<T>;
+    return parseBody<T>(await pending);
   }
 
-  dispose(): void {
+  /** One HTTP round trip; resolves to the raw body text (undefined for 204). */
+  private async send(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', pathName: string, body?: unknown): Promise<string | undefined> {
+    // Decided at the start, like measure(): a toggle mid-request records nothing partial.
+    const timed = timingActive();
+    const t0 = performance.now();
+    let response: Response | undefined;
+    let ok = false;
+    try {
+      response = await fetch(`http://${this.host}:${this.port}${pathName}`, {
+        method,
+        headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+        body: body !== undefined ? JSON.stringify(body) : undefined
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => undefined) as ErrorPayload | undefined;
+        throw new DoorstopApiError(
+          payload?.error?.code ?? 'UNKNOWN',
+          payload?.error?.message ?? response.statusText,
+          response.status
+        );
+      }
+
+      const result = response.status === 204 ? undefined : await response.text();
+      ok = true;
+      return result;
+    } finally {
+      if (timed) {
+        recordServer(`${method} ${pathName}`, performance.now() - t0, ok ? 'ok' : 'failed', response?.headers.get('server-timing'));
+      }
+    }
+  }
+
+  /** Resolves once the process has exited and the port is free. */
+  dispose(): Promise<void> {
     this.disposed = true;
-    this.stopProcess();
+    return this.stopProcess();
   }
 
-  private stopProcess(): void {
+  /**
+   * On POSIX kill() is a SIGTERM and uvicorn keeps serving while it shuts down
+   * gracefully, so callers wait for the exit; SIGKILL if it takes too long.
+   */
+  private stopProcess(): Promise<void> {
     const child = this.process;
     this.process = undefined;
-    if (child && child.exitCode === null && !child.killed) {
-      child.kill();
+    if (!child || child.exitCode !== null || child.signalCode !== null) {
+      return Promise.resolve();
     }
+    return new Promise(resolve => {
+      const force = setTimeout(() => child.kill('SIGKILL'), 5000);
+      child.once('exit', () => {
+        clearTimeout(force);
+        resolve();
+      });
+      child.kill();
+    });
   }
 
   private async waitForHealthy(): Promise<void> {

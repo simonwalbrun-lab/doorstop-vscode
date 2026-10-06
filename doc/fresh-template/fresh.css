@@ -1,0 +1,373 @@
+/*
+ * Fresh — a Doorstop HTML publish template
+ *
+ * Styles ONLY bare semantic tags inside .native-body (h1-h6, p, table, blockquote,
+ * ul/ol, pre/code, a, small, em) because that is exactly what Doorstop's HTML
+ * publisher emits for {{!body}} — doorstop/core/publishers/markdown.py never adds
+ * classes to item content. Do not rely on classes inside .native-body; add bare
+ * tag rules instead.
+ */
+
+:root {
+  --ink: #153243;
+  --ink-soft: #4c6272;
+  --ink-faint: #7c8f9c;
+  --line: #d0d6d9;
+  --line-soft: #e6e9ea;
+  --red: #b41412;
+  --blue: #2ea3f2;
+  --paper: #ffffff;
+  --canvas: #e9ecee;
+  --surface: #f7f8f8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  padding: 26px 16px 48px;
+}
+
+a {
+  color: var(--ink-soft);
+}
+a:hover {
+  color: var(--red);
+}
+
+/* ---- top nav (Index / Traceability matrix) ---- */
+.native-nav {
+  width: 210mm;
+  max-width: 100%;
+  margin: 0 auto 10px;
+  display: flex;
+  gap: 18px;
+  font-family: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+  font-size: 0.78rem;
+}
+.native-nav a {
+  color: var(--ink-soft);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+.native-nav a:hover {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+/* ---- the page itself: fixed A4 width, one continuous flow, no page breaks ---- */
+.native-page {
+  width: 210mm;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+  background: var(--paper);
+  box-shadow: 0 2px 4px rgba(21, 50, 67, 0.08), 0 18px 40px -20px rgba(21, 50, 67, 0.35);
+  padding: 18mm 16mm;
+}
+/* The traceability matrix doesn't need to stay A4-shaped on screen — there's
+   no paper to match, so let it use a wide browser window instead of forcing
+   a 210mm column and a horizontal scrollbar. */
+.native-page:has(table.table) {
+  width: 100%;
+  max-width: 1600px;
+}
+
+.native-head {
+  border-bottom: 3px solid var(--red);
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+}
+.native-head .doctitle {
+  font-family: "Libre Franklin", "Segoe UI", Arial, sans-serif;
+  font-weight: 800;
+  font-size: 1.55rem;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+.native-head .doctitle p {
+  margin: 0;
+}
+.native-head .doctitle em {
+  font-style: italic;
+}
+.native-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  font-family: "IBM Plex Mono", Consolas, "SFMono-Regular", monospace;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+.native-meta b {
+  color: var(--ink-faint);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 4px;
+}
+.native-meta a {
+  color: var(--ink-soft);
+}
+.native-meta a:hover {
+  color: var(--red);
+}
+
+/* ---- table of contents (built from the `toc` list doorstop already generates) ---- */
+.native-toc {
+  margin: 0 0 22px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+}
+.native-toc .lbl {
+  font-family: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 8px;
+}
+.native-toc ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  columns: 2;
+  column-gap: 24px;
+}
+.native-toc li {
+  font-size: 0.82rem;
+  margin-bottom: 5px;
+  break-inside: avoid;
+}
+.native-toc a {
+  color: #26333a;
+  text-decoration: none;
+}
+.native-toc a:hover {
+  color: var(--red);
+}
+.native-toc li.lvl1 > a {
+  font-weight: 700;
+  color: var(--ink);
+}
+.native-toc li.lvl3 {
+  padding-left: 16px;
+}
+.native-toc li.lvl4 {
+  padding-left: 32px;
+}
+
+/* =========================================================
+   .native-body — everything below is Doorstop's generated
+   {{!body}} HTML. No classes are available on it, so every
+   rule here targets a bare tag.
+   ========================================================= */
+
+.native-body {
+  /* The traceability matrix below gets one column per document in the tree
+     and can run wider than the page with several components. There's no way
+     to wrap just that <table> in a scroll container (it's Doorstop's own
+     generated HTML), so the whole body scrolls horizontally if anything
+     inside it is wider than the page — harmless for normal content, which
+     never gets that wide. */
+  overflow-x: auto;
+}
+
+.native-body h1,
+.native-body h2,
+.native-body h3,
+.native-body h4,
+.native-body h5,
+.native-body h6 {
+  font-family: "Libre Franklin", "Segoe UI", Arial, sans-serif;
+  color: var(--ink);
+  break-after: avoid;
+}
+.native-body h1 { font-size: 1.3rem;  margin: 26px 0 10px; }
+.native-body h2 { font-size: 1.1rem;  margin: 22px 0 8px; }
+.native-body h3 { font-size: 0.98rem; margin: 18px 0 7px; }
+.native-body h4,
+.native-body h5,
+.native-body h6 { font-size: 0.9rem; margin: 16px 0 6px; }
+.native-body > h1:first-child,
+.native-body > h2:first-child {
+  margin-top: 0;
+}
+.native-body small {
+  font-weight: 400;
+  color: var(--ink-faint);
+  font-size: 0.78em;
+}
+
+.native-body p {
+  font-size: 0.9rem;
+  line-height: 1.68;
+  color: #26333a;
+  margin: 0 0 10px;
+  break-inside: avoid;
+}
+
+/* "Parent links:" / "Child links:" paragraphs start with an <em> label.
+   Styled via :has() as a progressive enhancement — browsers without :has()
+   still get a perfectly readable plain paragraph. */
+.native-body p:has(> em:first-child) {
+  font-size: 0.84rem;
+  color: var(--ink-soft);
+}
+.native-body p:has(> em:first-child) em {
+  font-style: normal;
+  color: var(--ink-faint);
+}
+
+.native-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 4px 0 18px;
+  font-size: 0.78rem;
+  break-inside: avoid;
+}
+.native-body table th {
+  text-align: left;
+  font-family: "IBM Plex Mono", Consolas, "SFMono-Regular", monospace;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink-faint);
+  border-bottom: 1px solid var(--line);
+  padding: 4px 10px 4px 0;
+}
+.native-body table td {
+  padding: 4px 10px 4px 0;
+  border-bottom: 1px solid var(--line-soft);
+  color: #334752;
+  font-family: "IBM Plex Mono", Consolas, "SFMono-Regular", monospace;
+}
+.native-body table tr.alt td,
+.native-body table tr.alt th {
+  background: var(--surface);
+}
+
+/* The traceability matrix is the only table Doorstop marks with this class
+   (lines_matrix() in html.py) — denser, non-wrapping, and fixed-layout so it
+   is bounded by its container's width (widened above) instead of needing a
+   scrollbar: with table-layout:fixed and the table's own width:100%, it
+   mathematically cannot exceed that width no matter how many documents
+   exist — columns just get proportionally narrower, and content that
+   doesn't fit is visibly truncated with an ellipsis rather than causing
+   overflow or getting silently cut off. */
+.native-body table.table {
+  font-size: 0.68rem;
+  table-layout: fixed;
+}
+.native-body table.table th,
+.native-body table.table td {
+  padding: 4px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.native-body blockquote {
+  border-left: 3px solid var(--line);
+  margin: 0 0 10px;
+  padding: 2px 14px;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+.native-body blockquote code {
+  background: none;
+  padding: 0;
+}
+
+.native-body img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 10px auto 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  break-inside: avoid;
+}
+
+.native-body ul,
+.native-body ol {
+  padding-left: 22px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #26333a;
+}
+.native-body li {
+  margin-bottom: 4px;
+}
+
+.native-body pre {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  padding: 10px 14px;
+  overflow-x: auto;
+  font-family: "IBM Plex Mono", Consolas, "SFMono-Regular", monospace;
+  font-size: 0.78rem;
+}
+.native-body code {
+  font-family: "IBM Plex Mono", Consolas, "SFMono-Regular", monospace;
+  background: #f0f2f2;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 0.9em;
+}
+.native-body pre code {
+  background: none;
+  padding: 0;
+}
+
+.native-end {
+  text-align: center;
+  font-family: "IBM Plex Mono", Consolas, "SFMono-Regular", monospace;
+  font-size: 0.68rem;
+  color: #aab6bc;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 28px 0 0;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 12px;
+}
+
+@media (max-width: 700px) {
+  .native-page { padding: 8mm 6mm; }
+  .native-toc ol { columns: 1; }
+}
+
+@media print {
+  body { background: #fff; padding: 0; }
+  .native-nav { display: none; }
+  .native-page { width: auto; box-shadow: none; padding: 0; }
+  /* overflow-x:auto only makes sense with a scrollbar; print has none, so
+     without this override the matrix stays clipped to the on-screen
+     container width even in the wider landscape page below. */
+  .native-body { overflow-x: visible; }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  @page { margin: 14mm 12mm; }
+
+  /* The traceability matrix (one column per document) needs more width than
+     portrait A4 gives it. Chromium supports CSS named pages: switch just
+     this page to landscape when it contains the matrix table, without
+     affecting normal document pages, which never have table.table.
+     table-layout:fixed and the ellipsis already apply on screen too (see
+     above) — print only needs the extra paper and a smaller/denser font. */
+  @page matrix { size: A4 landscape; margin: 12mm; }
+  body:has(table.table) { page: matrix; }
+  .native-body table.table { font-size: 0.6rem; }
+  .native-body table.table th,
+  .native-body table.table td { padding: 3px 6px; }
+}

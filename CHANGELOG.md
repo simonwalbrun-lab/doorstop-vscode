@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-07
+
+### Added
+
+- **Document View**: edit a whole document as one markdown text; saves only
+  changed items, confirms deletions, quick fix for broken blocks, insert items
+  in place; problems, hover, go to definition, references and call hierarchy
+  work in it
+- **Filter notebooks** (`*.doorstop-filter`): YAML filters (Obsidian Bases
+  style: `and`/`or`/`not`, `hasChild`/`hasParent`, custom attributes) render
+  matching items as a table; `order:` picks columns
+- **Generate Status Report**: `doorstop-status.md` with Mermaid charts of
+  items, problems and weekly volatility from git
+- Publish `all`: every document into one folder, stops at the first failure
+- Timing (`doorstop.timing.enabled`, dev only): command and request durations
+  in the **Doorstop Timing** channel; summary, reset and JSON export
+- Server: `PATCH`/`DELETE /items/{uid}`, `POST /filter`, insert position on
+  `POST /documents/{prefix}/items`, `Server-Timing` header
+
+### Changed
+
+- Faster on large projects: server caches the project for reads until a file
+  changes; overlapping identical requests share one round trip; Explorer loads
+  the tree once
+- Commands show progress and can't run twice at once
+- Server: `GET /tree` returns items in level order
+
+### Fixed
+
+- Linux/macOS: restarting the server waits for the old process to exit
+  instead of racing it for the port
+
 ## [0.1.0] - 2026-09-11
 
 ### Added

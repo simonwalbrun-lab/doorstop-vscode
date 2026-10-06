@@ -1,0 +1,6 @@
+hooks:
+  after_implement:
+    - extension: ponytail
+      command: ponytail:ponytail-review
+      description: Check the implemented diff for over-engineering
+      optional: false

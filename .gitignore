@@ -8,3 +8,5 @@ server/**/__pycache__/
 server/**/*.egg-info/
 *.log
 .env*
+.venv/
+__pycache__/

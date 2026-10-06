@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Doorstop timing export",
+  "type": "object",
+  "required": ["exportedAt", "entries", "summary"],
+  "properties": {
+    "exportedAt": { "type": "string", "format": "date-time" },
+    "entries": {
+      "description": "Retained top-level entries, oldest first.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/entry" }
+    },
+    "summary": {
+      "description": "One row per operation name, sorted by totalMs descending.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "count", "totalMs", "minMs", "avgMs", "p95Ms", "maxMs"],
+        "properties": {
+          "name": { "type": "string" },
+          "count": { "type": "integer" },
+          "totalMs": { "type": "number" },
+          "minMs": { "type": "number" },
+          "avgMs": { "type": "number" },
+          "p95Ms": { "type": "number" },
+          "maxMs": { "type": "number" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": ["name", "source", "start", "durationMs", "outcome", "stages", "children"],
+      "properties": {
+        "name": { "type": "string" },
+        "source": { "enum": ["extension", "server"] },
+        "start": { "type": "string", "format": "date-time" },
+        "durationMs": { "type": "number" },
+        "outcome": { "enum": ["ok", "failed", "cancelled"] },
+        "stages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "durationMs"],
+            "properties": {
+              "name": { "type": "string" },
+              "durationMs": { "type": "number" }
+            }
+          }
+        },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/entry" } }
+      }
+    }
+  }
+}

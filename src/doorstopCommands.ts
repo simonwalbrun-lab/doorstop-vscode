@@ -2,7 +2,10 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { DoorstopServer } from './doorstopServer';
+import { registerCommand } from './timing';
+import { TreeResponse, ValidationResponse } from './doorstopTypes';
 import { DoorstopTreeProvider, RequirementTreeItem } from './requirementTree';
+import { buildStatusReport, parseGitLog, readGitLog, weeklyVolatility } from './statusReport';
 
 export interface AddedItem {
   uid: string;
@@ -149,11 +152,24 @@ function reviewClearTarget(item: RequirementTreeItem | undefined, choice: string
 
 export function registerDoorstopCommands(options: CommandOptions): vscode.Disposable[] {
   const register = (id: string, handler: (...args: any[]) => Promise<void> | void): vscode.Disposable =>
-    vscode.commands.registerCommand(id, handler);
+    registerCommand(id, handler);
 
-  const run = async <T>(op: () => Promise<T>): Promise<T | undefined> => {
+  // Progress and the duplicate-run guard wrap only the server work, never the
+  // prompts (spec 021 FR-008). Guarding the whole handler instead would block
+  // manual Reorder, whose second step re-runs Reorder while the first handler
+  // still waits on its "Apply Reorder" notification.
+  const busy = new Set<string>();
+  const run = async <T>(title: string, op: () => Promise<T>): Promise<T | undefined> => {
+    if (busy.has(title)) {
+      void vscode.window.showInformationMessage(`Doorstop: ${title} is already running.`);
+      return undefined;
+    }
+    busy.add(title);
     try {
-      const result = await op();
+      const result = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `Doorstop: ${title}…` },
+        () => op()
+      );
       options.tree.refresh();
       options.utilities.refresh();
       return result;
@@ -161,6 +177,8 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
       const message = error instanceof Error ? error.message : String(error);
       void vscode.window.showErrorMessage(`Doorstop command failed: ${message}`);
       return undefined;
+    } finally {
+      busy.delete(title);
     }
   };
 
@@ -179,9 +197,13 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     // `null` is the deliberate "root document" choice, which sends no parentPrefix.
     const parentPrefix = await chooseParentPrefix(options.tree);
     if (parentPrefix === undefined) {return;}
-    await run(() => options.server.request('POST', '/documents', {
+    const settings = vscode.workspace.getConfiguration('doorstop.newDocument');
+    await run('Create Document', () => options.server.request('POST', '/documents', {
       prefix,
       path: folders[0].fsPath,
+      itemFormat: settings.get<string>('itemFormat', 'yaml'),
+      separator: settings.get<string>('separator', ''),
+      digits: settings.get<number>('digits', 3),
       ...(parentPrefix === null ? {} : { parentPrefix })
     }));
   });
@@ -203,7 +225,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     } else if (!item) {
       level = await vscode.window.showInputBox({ prompt: 'Enter level (optional)', placeHolder: '1.2.3' });
     }
-    const created = await run(() => options.server.request<AddedItem>('POST', `/documents/${encodeURIComponent(prefix)}/items`, level ? { level } : {}));
+    const created = await run('Add Item', () => options.server.request<AddedItem>('POST', `/documents/${encodeURIComponent(prefix)}/items`, level ? { level } : {}));
     if (created) {
       await vscode.window.showTextDocument(vscode.Uri.file(created.path));
     }
@@ -213,22 +235,27 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     const item = itemArgument(value);
     const choice = item ? undefined : await chooseDocumentOrAll(options.tree);
     const body = reviewClearTarget(item, choice);
-    if (body) {await run(() => options.server.request('POST', '/review', body));}
+    if (body) {await run('Review', () => options.server.request('POST', '/review', body));}
   });
 
   const clear = register('doorstop.clear', async (value?: unknown) => {
     const item = itemArgument(value);
     const choice = item ? undefined : await chooseDocumentOrAll(options.tree);
     const body = reviewClearTarget(item, choice);
-    if (body) {await run(() => options.server.request('POST', '/clear', body));}
+    if (body) {await run('Clear Suspect', () => options.server.request('POST', '/clear', body));}
   });
 
   const link = register('doorstop.link', async (value?: unknown) => {
     const item = itemArgument(value);
+    // The Document View's "Link..." action names the child (spec 019); the
+    // tree row names the parent, and the palette asks for both.
+    const childFromView = !item && value && typeof (value as { childUid?: unknown }).childUid === 'string'
+      ? (value as { childUid: string }).childUid
+      : undefined;
     const parentUid = item?.itemData.uid || await vscode.window.showInputBox({ prompt: 'Enter parent item UID' });
-    const childUid = editorUid() || await vscode.window.showInputBox({ prompt: 'Enter child item UID' });
+    const childUid = childFromView || editorUid() || await vscode.window.showInputBox({ prompt: 'Enter child item UID' });
     if (childUid && parentUid) {
-      await run(() => options.server.request('POST', `/items/${encodeURIComponent(childUid)}/links`, { parentUid: String(parentUid) }));
+      await run('Link Items', () => options.server.request('POST', `/items/${encodeURIComponent(childUid)}/links`, { parentUid: String(parentUid) }));
     }
   });
 
@@ -242,7 +269,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     if (!mode) {return;}
 
     if (mode.value === 'auto') {
-      await run(() => options.server.request('POST', `/documents/${encodeURIComponent(prefix)}/reorder`, { mode: 'auto' }));
+      await run('Reorder Document', () => options.server.request('POST', `/documents/${encodeURIComponent(prefix)}/reorder`, { mode: 'auto' }));
       return;
     }
 
@@ -255,7 +282,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
         void vscode.window.showErrorMessage(`Doorstop: could not save ${path.basename(indexUri.fsPath)}; the reorder was not applied.`);
         return;
       }
-      const result = await run(() =>
+      const result = await run('Reorder Document', () =>
         options.server.request('POST', `/documents/${encodeURIComponent(prefix)}/reorder`, { mode: 'manual' })
       );
       if (!result) {return;}
@@ -293,7 +320,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
         }
         if (choice.value === 'discard') {
           // DELETE answers 204 (no body), so map success to `true` to tell it from run()'s failure `undefined`.
-          const discarded = await run(() =>
+          const discarded = await run('Reorder Document', () =>
             options.server.request('DELETE', `/documents/${encodeURIComponent(prefix)}/reorder/index`).then(() => true)
           );
           if (!discarded) {return;}
@@ -301,7 +328,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
       }
     }
 
-    const indexResult = await run(() =>
+    const indexResult = await run('Reorder Document', () =>
       options.server.request<{ indexPath: string }>('POST', `/documents/${encodeURIComponent(prefix)}/reorder/index`)
     );
     if (!indexResult) {return;}
@@ -328,7 +355,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
       }
     });
     if (files?.[0]) {
-      await run(() => options.server.request('POST', `/documents/${encodeURIComponent(target)}/import`, { sourcePath: files[0].fsPath }));
+      await run('Import', () => options.server.request('POST', `/documents/${encodeURIComponent(target)}/import`, { sourcePath: files[0].fsPath }));
     }
   });
 
@@ -350,7 +377,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
       }
     });
     if (destination) {
-      const result = await run(() => options.server.request<{ path: string }>(
+      const result = await run('Export', () => options.server.request<{ path: string }>(
         'POST', `/documents/${encodeURIComponent(prefix)}/export`, {
           format: format.value,
           destinationPath: destination.fsPath
@@ -363,27 +390,100 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
   });
 
   const publish = register('doorstop.publish', async () => {
-    const prefix = await choosePrefix(options.tree);
+    const prefix = await chooseDocumentOrAll(options.tree);
     if (!prefix) {return;}
     const format = await vscode.window.showQuickPick([
-      { label: 'Markdown', value: 'markdown' as const },
-      { label: 'HTML', value: 'html' as const },
-      { label: 'LaTeX', value: 'latex' as const }
+      { label: 'Markdown', value: 'markdown' as const, extension: '.md' },
+      { label: 'HTML', value: 'html' as const, extension: '.html' },
+      { label: 'LaTeX', value: 'latex' as const, extension: '.tex' }
     ], { placeHolder: 'Select publish format' });
     if (!format) {return;}
-    const destination = await vscode.window.showSaveDialog({ saveLabel: 'Publish' });
-    if (destination) {
-      const result = await run(() => options.server.request<{ path: string }>(
-        'POST', `/documents/${encodeURIComponent(prefix)}/publish`, {
+    // Markdown output takes no template; sending one would fail on any
+    // document without a `template` folder (spec 020 research R5).
+    const configured = vscode.workspace.getConfiguration('doorstop.publish').get<string>('template', '').trim();
+    const template = format.value === 'markdown' ? '' : configured;
+    const publishOne = (documentPrefix: string, destinationPath: string): Promise<{ path: string }> =>
+      options.server.request<{ path: string }>(
+        'POST', `/documents/${encodeURIComponent(documentPrefix)}/publish`, {
           format: format.value,
-          destinationPath: destination.fsPath
+          destinationPath,
+          ...(template ? { template } : {})
         }
-      ));
+      ).catch(error => {
+        if (!template) {throw error;}
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`${message} (template "${template}" from setting doorstop.publish.template)`);
+      });
+
+    if (prefix !== 'all') {
+      const destination = await vscode.window.showSaveDialog({ saveLabel: 'Publish' });
+      if (!destination) {return;}
+      const result = await run('Publish', () => publishOne(prefix, destination.fsPath));
       if (result?.path) {
         await reportWrittenPath('Publish', destination.fsPath, result.path);
       }
+      return;
+    }
+
+    const folders = await vscode.window.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      openLabel: 'Publish All'
+    });
+    if (!folders?.[0]) {return;}
+    const folder = folders[0].fsPath;
+    const prefixes = (await documentRoots(options.tree))
+      .map(root => root.itemData.prefix)
+      .filter((value): value is string => typeof value === 'string' && value.trim() !== '');
+    if (prefixes.length === 0) {
+      void vscode.window.showInformationMessage('No documents to publish.');
+      return;
+    }
+    // Sequential and fail-fast (spec 021 FR-003): the first failing document
+    // ends the run, and run() reports it by name.
+    const count = await run('Publish', async () => {
+      for (const documentPrefix of prefixes) {
+        await publishOne(documentPrefix, path.join(folder, documentPrefix + format.extension)).catch(error => {
+          const message = error instanceof Error ? error.message : String(error);
+          throw new Error(`Publish of ${documentPrefix} failed: ${message}`);
+        });
+      }
+      return prefixes.length;
+    });
+    if (count !== undefined) {
+      void vscode.window.showInformationMessage(`Published ${count} document(s) to ${folder}.`);
     }
   });
 
-  return [createDoc, refresh, add, review, clear, link, reorder, importCommand, exportCommand, publish];
+  const statusReport = register('doorstop.statusReport', async () => {
+    const uri = await run('Generate Status Report', async () => {
+      // Tree and problems come first: if either fails, nothing is written (FR-019).
+      const [tree, validation] = await Promise.all([
+        options.server.request<TreeResponse>('GET', '/tree'),
+        options.server.request<ValidationResponse>('GET', '/validate')
+      ]);
+      const root = options.workspaceFolder.uri.fsPath;
+      // Missing git or history only blanks its own section (FR-017).
+      const volatility = await readGitLog(root).then(
+        output => weeklyVolatility(parseGitLog(output), tree.documents, root, new Date()),
+        (error: unknown) => ({ unavailable: error instanceof Error ? error.message : String(error) })
+      );
+      const markdown = buildStatusReport({
+        projectName: options.workspaceFolder.name,
+        generatedAt: new Date(),
+        documents: tree.documents,
+        issues: validation.issues,
+        volatility
+      });
+      const target = vscode.Uri.joinPath(options.workspaceFolder.uri, 'doorstop-status.md');
+      await vscode.workspace.fs.writeFile(target, Buffer.from(markdown, 'utf8'));
+      return target;
+    });
+    if (uri) {
+      await vscode.window.showTextDocument(uri);
+    }
+  });
+
+  return [createDoc, refresh, add, review, clear, link, reorder, importCommand, exportCommand, publish, statusReport];
 }

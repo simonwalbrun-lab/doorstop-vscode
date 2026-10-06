@@ -5,6 +5,7 @@ import { DoorstopDiagramPanel } from './diagrammPanel';
 import { registerHoverProvider } from './hoverProvider';
 import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
 import { DoorstopServer, installServerPackage, isServerPackageInstalled, SERVER_PACKAGE_NAME } from './doorstopServer';
+import { initTiming, registerCommand } from './timing';
 import { registerDeriveProvider } from './deriveProvider';
 import { registerReviewCodeActionProvider } from './reviewCodeActionProvider';
 import { registerReviewCommands } from './reviewLensProvider';
@@ -13,10 +14,14 @@ import { registerCallHierarchyProvider } from './callHierarchyProvider';
 import { DoorstopCommandsProvider } from './commandsProvider';
 import { registerDoorstopCommands } from './doorstopCommands';
 import { ProblemsProvider, registerProblemsProvider } from './problemsProvider';
+import { DocumentViewHandle, registerDocumentView } from './documentViewProvider';
+import { registerDocumentViewLanguage } from './documentViewLanguage';
+import { registerFilterNotebook } from './filterNotebook';
 interface DoorstopDiagramDocument extends vscode.CustomDocument {
   diagram: unknown;
 }
 export async function activate(context: vscode.ExtensionContext) {
+  initTiming(context);
   console.log('[Doorstop][activate] Extension activation started');
   vscode.window.showInformationMessage('Doorstop VS Code Extension is active!');
 
@@ -68,6 +73,7 @@ export async function activate(context: vscode.ExtensionContext) {
   // workspaceFolder block below assigns it, so the optional calls on it are
   // genuine no-ops during the first server start rather than a dead-zone error.
   let problemsProvider: ProblemsProvider | undefined;
+  let documentView: DocumentViewHandle | undefined;
 
   // Spawns the server process and reports the outcome; split out of
   // startDoorstopServer so the missing-package install flow below can call it
@@ -156,7 +162,7 @@ export async function activate(context: vscode.ExtensionContext) {
     await spawnServerProcess(pythonPath, restart);
   };
 
-  const restartServerCommand = vscode.commands.registerCommand(
+  const restartServerCommand = registerCommand(
     'doorstop.restartServer',
     () => startDoorstopServer(true)
   );
@@ -180,6 +186,9 @@ export async function activate(context: vscode.ExtensionContext) {
     },
     workspaceFolder: workspaceFolder || vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder
   }));
+  // Filter notebooks (spec 022). Registered even without a server: a run then
+  // reports "server not available" in the cell instead of the notebook failing to open.
+  registerFilterNotebook(context, doorstopServer);
   if (workspaceFolder) {
     // Registered first so the providers below can ask it to re-check after a
     // mutation they caused.
@@ -194,10 +203,16 @@ export async function activate(context: vscode.ExtensionContext) {
       void problemsProvider.refreshNow();
     }
     // Forces a full re-check, bypassing the debounce (FR-013).
-    context.subscriptions.push(vscode.commands.registerCommand(
+    context.subscriptions.push(registerCommand(
       'doorstop.recheckProblems',
       () => problemsProvider?.refreshNow()
     ));
+    // A problem kind switched on or off in the settings shows at once (spec 020 FR-004).
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+      if (event.affectsConfiguration('doorstop.problems') && doorstopServer.isRunning) {
+        void problemsProvider?.refreshNow();
+      }
+    }));
     const onChanged = (): void => {
       treeProvider.refresh();
       problemsProvider?.scheduleRefresh();
@@ -211,8 +226,19 @@ export async function activate(context: vscode.ExtensionContext) {
       workspaceFolder
     });
     registerCallHierarchyProvider(context, { server: doorstopServer });
+    // One Doorstop document as a single editable markdown text (spec 019).
+    documentView = registerDocumentView(context, {
+      server: doorstopServer,
+      tree: treeProvider,
+      onChanged
+    });
+    registerDocumentViewLanguage(context, {
+      documentView,
+      problems: problemsProvider,
+      server: doorstopServer
+    });
   }
-  const newDiagramCmd = vscode.commands.registerCommand('doorstop.newDiagram', async () => {
+  const newDiagramCmd = registerCommand('doorstop.newDiagram', async () => {
     const defaultUri = workspaceFolder
       ? vscode.Uri.joinPath(workspaceFolder.uri, 'diagram.doorstop.json')
       : undefined;
@@ -334,7 +360,7 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  const addToDiagramCmd = vscode.commands.registerCommand('doorstop.addToDiagram', (item?: RequirementTreeItem) => {
+  const addToDiagramCmd = registerCommand('doorstop.addToDiagram', (item?: RequirementTreeItem) => {
     if (!item?.resourceUri) {
       return;
     }
@@ -358,7 +384,7 @@ export async function activate(context: vscode.ExtensionContext) {
     showCollapseAll: false
   });
 
-  const activateRequirementCommand = vscode.commands.registerCommand(
+  const activateRequirementCommand = registerCommand(
     'doorstop.activateRequirement',
     async (filePath: string) => {
       console.log('[Doorstop][activateRequirement] Command received:', JSON.stringify(filePath));
@@ -396,19 +422,19 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  const toggleAutoRevealCommand = vscode.commands.registerCommand('doorstop.toggleAutoReveal', async () => {
+  const toggleAutoRevealCommand = registerCommand('doorstop.toggleAutoReveal', async () => {
     autoRevealEnabled = false;
     await context.globalState.update('doorstop.autoRevealEnabled', false);
     await vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', false);
   });
 
-  const enableAutoRevealCommand = vscode.commands.registerCommand('doorstop.enableAutoReveal', async () => {
+  const enableAutoRevealCommand = registerCommand('doorstop.enableAutoReveal', async () => {
     autoRevealEnabled = true;
     await context.globalState.update('doorstop.autoRevealEnabled', true);
     await vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', true);
   });
 
-  const showDiagramCommand = vscode.commands.registerCommand('doorstop.showDiagram', async () => {
+  const showDiagramCommand = registerCommand('doorstop.showDiagram', async () => {
     const [uri] = (await vscode.window.showOpenDialog({
       defaultUri: workspaceFolder?.uri,
       filters: { 'Doorstop Diagram': ['json'] },
@@ -497,7 +523,7 @@ export async function activate(context: vscode.ExtensionContext) {
   // Exported purely for extension-host tests (src/test/extension.test.ts) to
   // observe internal state that has no other public surface; not used by the
   // extension itself or intended for other extensions to depend on.
-  return { treeProvider, problemsProvider };
+  return { treeProvider, problemsProvider, documentView };
 }
 
 export function deactivate() {}

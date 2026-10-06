@@ -54,6 +54,8 @@ code --install-extension doorstop-0.0.1.vsix
 
 ```bash
 # Log in using your Azure DevOps Personal Access Token
+https://marketplace.visualstudio.com/manage/publishers/simonwalbrun
+
 vsce login your-publisher-name
 # Publish to Marketplace
 vsce publish

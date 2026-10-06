@@ -22,6 +22,192 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": [
+      {
+        "title": "Problems",
+        "properties": {
+          "doorstop.problems": {
+            "type": "object",
+            "markdownDescription": "Doorstop problem kinds to show in the Problems panel and the document view. Untick a kind to hide it.",
+            "properties": {
+              "invalid_uid_in_links": {
+                "type": "boolean",
+                "default": true,
+                "description": "invalid UID in links: <UID> — a link entry is not a valid UID."
+              },
+              "linked_to_unknown_item": {
+                "type": "boolean",
+                "default": true,
+                "description": "linked to unknown item: <UID> — a link points to an item that does not exist."
+              },
+              "external_reference_not_found": {
+                "type": "boolean",
+                "default": true,
+                "description": "external reference not found: … — the item's ref was not found in the project files."
+              },
+              "linked_to_non_normative": {
+                "type": "boolean",
+                "default": true,
+                "description": "linked to non-normative item: <UID> — a link points to a non-normative item."
+              },
+              "suspect_link": {
+                "type": "boolean",
+                "default": true,
+                "description": "suspect link: <UID> — the linked item changed since this link was last reviewed."
+              },
+              "non_normative_has_links": {
+                "type": "boolean",
+                "default": true,
+                "description": "non-normative, but has links — a non-normative item carries links."
+              },
+              "no_links_from_child_document": {
+                "type": "boolean",
+                "default": true,
+                "description": "no links from child document: … — no item of a child document links to this item."
+              },
+              "no_links_to_parent_document": {
+                "type": "boolean",
+                "default": true,
+                "description": "no links to parent document: … — the item does not link to its parent document."
+              },
+              "no_items": {
+                "type": "boolean",
+                "default": true,
+                "description": "no items — the document contains no items."
+              },
+              "no_documents": {
+                "type": "boolean",
+                "default": true,
+                "description": "no documents — the tree contains no documents."
+              },
+              "no_text": {
+                "type": "boolean",
+                "default": true,
+                "description": "no text — the item has no text."
+              },
+              "unreviewed_changes": {
+                "type": "boolean",
+                "default": true,
+                "description": "unreviewed changes — the item changed since it was last reviewed."
+              },
+              "duplicate_level": {
+                "type": "boolean",
+                "default": true,
+                "description": "duplicate level: … — several items share the same level."
+              },
+              "skipped_level": {
+                "type": "boolean",
+                "default": true,
+                "description": "skipped level: … — the document skips a level."
+              },
+              "needs_initial_review": {
+                "type": "boolean",
+                "default": true,
+                "description": "needs initial review — the item has never been reviewed."
+              },
+              "prefix_differs_from_document": {
+                "type": "boolean",
+                "default": true,
+                "description": "prefix differs from document (…) — the item's prefix differs from its document's."
+              },
+              "unexpected_parent_prefix": {
+                "type": "boolean",
+                "default": true,
+                "description": "parent is '…', but linked to: <UID> — a link points outside the parent document."
+              },
+              "unknown": {
+                "type": "boolean",
+                "default": true,
+                "description": "A Doorstop message the extension could not classify."
+              }
+            },
+            "additionalProperties": false,
+            "default": {
+              "invalid_uid_in_links": true,
+              "linked_to_unknown_item": true,
+              "external_reference_not_found": true,
+              "linked_to_non_normative": true,
+              "suspect_link": true,
+              "non_normative_has_links": true,
+              "no_links_from_child_document": true,
+              "no_links_to_parent_document": true,
+              "no_items": true,
+              "no_documents": true,
+              "no_text": true,
+              "unreviewed_changes": true,
+              "duplicate_level": true,
+              "skipped_level": true,
+              "needs_initial_review": true,
+              "prefix_differs_from_document": true,
+              "unexpected_parent_prefix": true,
+              "unknown": true
+            }
+          }
+        }
+      },
+      {
+        "title": "New Document",
+        "properties": {
+          "doorstop.newDocument.itemFormat": {
+            "type": "string",
+            "enum": [
+              "yaml",
+              "markdown"
+            ],
+            "enumItemLabels": [
+              "YAML",
+              "Markdown"
+            ],
+            "default": "yaml",
+            "markdownDescription": "File format of the items of documents created with **Create Document**. Applies only to documents created afterwards."
+          },
+          "doorstop.newDocument.separator": {
+            "type": "string",
+            "enum": [
+              "",
+              "-",
+              ".",
+              "_"
+            ],
+            "enumItemLabels": [
+              "None",
+              "- (hyphen)",
+              ". (dot)",
+              "_ (underscore)"
+            ],
+            "default": "",
+            "markdownDescription": "Separator between prefix and number in item UIDs (e.g. `REQ-001`) of documents created with **Create Document**. Applies only to documents created afterwards."
+          },
+          "doorstop.newDocument.digits": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9,
+            "default": 3,
+            "markdownDescription": "Number of digits in item UIDs of documents created with **Create Document**. Applies only to documents created afterwards."
+          }
+        }
+      },
+      {
+        "title": "Publish",
+        "properties": {
+          "doorstop.publish.template": {
+            "type": "string",
+            "default": "",
+            "markdownDescription": "Template used for HTML and LaTeX publishing. Must name a template in the document's `template` folder. Empty = Doorstop's built-in template."
+          }
+        }
+      },
+      {
+        "title": "Timing",
+        "properties": {
+          "doorstop.timing.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Record how long extension operations and server requests take, and print them to the *Doorstop Timing* output channel. Intended for developing the extension."
+          }
+        }
+      }
+    ],
     "viewsContainers": {
       "activitybar": [
         {
@@ -46,6 +232,18 @@
       ]
     },
     "commands": [
+    {
+      "command": "doorstop.timing.showSummary",
+      "title": "Doorstop: Show Timing Summary"
+    },
+    {
+      "command": "doorstop.timing.reset",
+      "title": "Doorstop: Reset Timing Data"
+    },
+    {
+      "command": "doorstop.timing.export",
+      "title": "Doorstop: Export Timing Data…"
+    },
     {
       "command": "doorstop.showDiagram",
       "title": "Doorstop: Open Traceability Graph",
@@ -142,6 +340,16 @@
       "icon": "$(rocket)"
     },
     {
+      "command": "doorstop.statusReport",
+      "title": "Doorstop: Generate Status Report",
+      "icon": "$(graph)"
+    },
+    {
+      "command": "doorstop.newFilterNotebook",
+      "title": "Doorstop: New Filter Notebook",
+      "icon": "$(filter)"
+    },
+    {
       "command": "doorstop.addToDiagram",
       "title": "Doorstop: Add to Diagram",
       "icon": "$(graph)"
@@ -155,6 +363,44 @@
       "command": "doorstop.enableAutoReveal",
       "title": "Doorstop: Enable Auto-Reveal",
       "icon": "$(sync-ignored)"
+    },
+    {
+      "command": "doorstop.openDocumentView",
+      "title": "Doorstop: Open Document View",
+      "icon": "$(book)"
+    },
+    {
+      "command": "doorstop.openAsDocument",
+      "title": "Open as document",
+      "icon": "$(book)"
+    },
+    {
+      "command": "doorstop.insertItemHere",
+      "title": "Doorstop: Insert Item Here"
+    },
+    {
+      "command": "doorstop.documentView.newItemBelow",
+      "title": "+ New item below"
+    },
+    {
+      "command": "doorstop.documentView.cancelPlaceholder",
+      "title": "Cancel"
+    },
+    {
+      "command": "doorstop.documentView.restoreBlock",
+      "title": "Restore block structure"
+    }
+  ],
+  "colors": [
+    {
+      "id": "doorstop.documentView.altBlockBackground",
+      "description": "Background tint of every second item block in a Doorstop document view.",
+      "defaults": {
+        "dark": "#ffffff0a",
+        "light": "#0000000a",
+        "highContrast": "#ffffff1f",
+        "highContrastLight": "#0000001f"
+      }
     }
   ],
   "customEditors": [
@@ -167,6 +413,28 @@
         }
       ],
       "priority": "default"
+    }
+  ],
+  "notebookRenderer": [
+    {
+      "id": "doorstop-filter-results",
+      "displayName": "Doorstop Filter Results",
+      "entrypoint": "./dist/webview/filterResults/renderer.js",
+      "mimeTypes": [
+        "application/vnd.doorstop.filter-results+json"
+      ],
+      "requiresMessaging": "always"
+    }
+  ],
+  "notebooks": [
+    {
+      "type": "doorstop-filter",
+      "displayName": "Doorstop Filter",
+      "selector": [
+        {
+          "filenamePattern": "*.doorstop-filter"
+        }
+      ]
     }
   ],
   "menus": {
@@ -209,6 +477,11 @@
         "group": "inline@1"
       },
       {
+        "command": "doorstop.openAsDocument",
+        "when": "view == doorstop.treeView && viewItem == doorstop.root",
+        "group": "inline@2"
+      },
+      {
         "command": "doorstop.showCallHierarchy",
         "when": "view == doorstop.treeView && viewItem == doorstop.item",
         "group": "inline@3"
@@ -222,6 +495,11 @@
         "command": "doorstop.addToDiagram",
         "when": "view == doorstop.treeView && viewItem == doorstop.item",
         "group": "7_diagram@1"
+      },
+      {
+        "command": "doorstop.openAsDocument",
+        "when": "view == doorstop.treeView && viewItem == doorstop.root",
+        "group": "1_requirement@0"
       },
       {
         "command": "doorstop.add",
@@ -247,6 +525,40 @@
         "command": "doorstop.link",
         "when": "view == doorstop.treeView && viewItem == doorstop.item",
         "group": "1_requirement@5"
+      }
+    ],
+    "commandPalette": [
+      {
+        "command": "doorstop.timing.showSummary",
+        "when": "config.doorstop.timing.enabled"
+      },
+      {
+        "command": "doorstop.timing.reset",
+        "when": "config.doorstop.timing.enabled"
+      },
+      {
+        "command": "doorstop.timing.export",
+        "when": "config.doorstop.timing.enabled"
+      },
+      {
+        "command": "doorstop.openAsDocument",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.documentView.newItemBelow",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.documentView.cancelPlaceholder",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.documentView.restoreBlock",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.insertItemHere",
+        "when": "resourceScheme == doorstop-document"
       }
     ]
   }

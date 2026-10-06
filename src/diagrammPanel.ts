@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 import { DoorstopServer } from './doorstopServer';
+import { measure } from './timing';
 import { DoorstopTreeProvider } from './requirementTree';
 import { choosePrefix, AddedItem } from './doorstopCommands';
 import { LinkInfo, TreeResponse } from './doorstopTypes';
@@ -231,7 +232,8 @@ export class DoorstopDiagramPanel {
             return undefined;
         }
         try {
-            const tree = await this._server.request<TreeResponse>('GET', '/tree');
+            const server = this._server;
+            const tree = await measure('diagram.load', () => server.request<TreeResponse>('GET', '/tree'));
             const meta: Record<string, NodeMeta> = {};
             const documents: Record<string, DocMeta> = {};
             for (const document of tree.documents) {

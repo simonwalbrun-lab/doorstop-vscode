@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { findHeaderLocation, findReferenceLocation, UID_REGEX } from './definitionProvider';
 import { DoorstopIndex, getDocumentUid, IndexedItem, loadDoorstopIndex } from './doorstopIndex';
 import { DoorstopServer } from './doorstopServer';
+import { registerCommand } from './timing';
 
 /**
  * Doorstop's link graph presented through VS Code's built-in peek call
@@ -176,7 +177,7 @@ export function registerCallHierarchyProvider(context: vscode.ExtensionContext, 
 
   context.subscriptions.push(
     vscode.languages.registerCallHierarchyProvider(selector, provider),
-    vscode.commands.registerCommand('doorstop.showCallHierarchy', (arg?: unknown) =>
+    registerCommand('doorstop.showCallHierarchy', (arg?: unknown) =>
       showCallHierarchy(arg, server, reportUnavailable))
   );
 }

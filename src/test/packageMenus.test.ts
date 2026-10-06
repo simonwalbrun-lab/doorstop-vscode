@@ -77,3 +77,45 @@ suite('TreeView Call Hierarchy Icon (018 US1)', () => {
     assert.strictEqual(inlineEntries('doorstop.link').length, 1);
   });
 });
+
+// Spec 019: the Document View's entry points and its themeable colour are
+// manifest contributions too.
+suite('Document View contributions (019)', () => {
+  const manifest = () => JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'));
+  const commandTitle = (id: string): string | undefined =>
+    (manifest().contributes.commands as { command: string; title: string }[]).find(entry => entry.command === id)?.title;
+
+  test('both open commands exist with the spec wording', () => {
+    assert.strictEqual(commandTitle('doorstop.openDocumentView'), 'Doorstop: Open Document View');
+    assert.strictEqual(commandTitle('doorstop.openAsDocument'), 'Open as document');
+    assert.strictEqual(commandTitle('doorstop.insertItemHere'), 'Doorstop: Insert Item Here');
+    assert.strictEqual(commandTitle('doorstop.documentView.restoreBlock'), 'Restore block structure');
+  });
+
+  test('"Open as document" is an inline icon and a context entry on document nodes only', () => {
+    const entries = entriesFor('doorstop.openAsDocument');
+    assert.strictEqual(entries.length, 2);
+    assert.strictEqual(inlineEntries('doorstop.openAsDocument').length, 1, 'one inline icon');
+    assert.ok(entries.some(entry => entry.group?.startsWith('1_requirement')), 'one context-menu entry');
+    for (const entry of entries) {
+      assert.strictEqual(entry.when, 'view == doorstop.treeView && viewItem == doorstop.root');
+    }
+  });
+
+  test('lens-only commands are hidden from the palette', () => {
+    const palette = manifest().contributes.menus.commandPalette as MenuEntry[];
+    for (const id of ['doorstop.openAsDocument', 'doorstop.documentView.newItemBelow', 'doorstop.documentView.cancelPlaceholder', 'doorstop.documentView.restoreBlock']) {
+      assert.strictEqual(palette.find(entry => entry.command === id)?.when, 'false', id);
+    }
+    assert.strictEqual(palette.find(entry => entry.command === 'doorstop.insertItemHere')?.when, 'resourceScheme == doorstop-document');
+  });
+
+  test('the alternating block colour has a default for every theme kind', () => {
+    const colours = manifest().contributes.colors as { id: string; defaults: Record<string, string> }[];
+    const colour = colours.find(entry => entry.id === 'doorstop.documentView.altBlockBackground');
+    assert.ok(colour, 'colour contribution present');
+    for (const kind of ['dark', 'light', 'highContrast', 'highContrastLight']) {
+      assert.match(colour!.defaults[kind], /^#[0-9a-f]{8}$/i, kind);
+    }
+  });
+});
