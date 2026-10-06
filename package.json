@@ -196,6 +196,16 @@
             "markdownDescription": "Template used for HTML and LaTeX publishing. Must name a template in the document's `template` folder. Empty = Doorstop's built-in template."
           }
         }
+      },
+      {
+        "title": "Timing",
+        "properties": {
+          "doorstop.timing.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Record how long extension operations and server requests take, and print them to the *Doorstop Timing* output channel. Intended for developing the extension."
+          }
+        }
       }
     ],
     "viewsContainers": {
@@ -222,6 +232,18 @@
       ]
     },
     "commands": [
+    {
+      "command": "doorstop.timing.showSummary",
+      "title": "Doorstop: Show Timing Summary"
+    },
+    {
+      "command": "doorstop.timing.reset",
+      "title": "Doorstop: Reset Timing Data"
+    },
+    {
+      "command": "doorstop.timing.export",
+      "title": "Doorstop: Export Timing Data…"
+    },
     {
       "command": "doorstop.showDiagram",
       "title": "Doorstop: Open Traceability Graph",
@@ -506,6 +528,18 @@
       }
     ],
     "commandPalette": [
+      {
+        "command": "doorstop.timing.showSummary",
+        "when": "config.doorstop.timing.enabled"
+      },
+      {
+        "command": "doorstop.timing.reset",
+        "when": "config.doorstop.timing.enabled"
+      },
+      {
+        "command": "doorstop.timing.export",
+        "when": "config.doorstop.timing.enabled"
+      },
       {
         "command": "doorstop.openAsDocument",
         "when": "false"

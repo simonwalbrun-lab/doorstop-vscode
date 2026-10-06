@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 
 import { AddedItem, choosePrefix } from './doorstopCommands';
 import { DoorstopServer } from './doorstopServer';
+import { measure, registerCommand } from './timing';
 import { DocumentNode, TreeResponse } from './doorstopTypes';
 import {
   ChangeSet,
@@ -227,14 +228,14 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
     return prefix ? states.get(prefix) : undefined;
   };
 
-  const loadSnapshot = async (prefix: string): Promise<DocumentNode> => {
+  const loadSnapshot = (prefix: string): Promise<DocumentNode> => measure('documentView.load', async () => {
     const tree = await options.server.request<TreeResponse>('GET', '/tree');
     const document = tree.documents.find(candidate => candidate.prefix === prefix);
     if (!document) {
       throw new Error(`no document with prefix ${prefix}`);
     }
     return document;
-  };
+  });
 
   /** Replaces the view's text from a snapshot; returns whether the text changed. */
   const applySnapshot = (state: DocumentViewState, snapshot: DocumentNode, forceBump = false): boolean => {
@@ -616,14 +617,14 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
   context.subscriptions.push(
     vscode.workspace.registerFileSystemProvider(DOCUMENT_VIEW_SCHEME, fs, { isCaseSensitive: true, isReadonly: false }),
 
-    vscode.commands.registerCommand('doorstop.openDocumentView', async () => {
+    registerCommand('doorstop.openDocumentView', async () => {
       const prefix = await choosePrefix(options.tree);
       if (prefix) {
         await openDocumentView(prefix);
       }
     }),
 
-    vscode.commands.registerCommand('doorstop.openAsDocument', async (arg?: unknown) => {
+    registerCommand('doorstop.openAsDocument', async (arg?: unknown) => {
       const node = arg instanceof RequirementTreeItem ? arg : undefined;
       const prefix = node?.itemData.isDoorstopRoot ? node.itemData.prefix : undefined;
       if (typeof prefix !== 'string' || !prefix) {
@@ -633,7 +634,7 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
       await openDocumentView(prefix);
     }),
 
-    vscode.commands.registerCommand('doorstop.insertItemHere', async () => {
+    registerCommand('doorstop.insertItemHere', async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor || !isViewUri(editor.document.uri)) {
         void vscode.window.showInformationMessage('Doorstop: open a document view first (Doorstop: Open Document View).');
@@ -642,14 +643,14 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
       await insertPlaceholder(editor.document, editor.selection.active.line);
     }),
 
-    vscode.commands.registerCommand('doorstop.documentView.newItemBelow', async (arg?: { uri?: string; line?: number }) => {
+    registerCommand('doorstop.documentView.newItemBelow', async (arg?: { uri?: string; line?: number }) => {
       const document = await documentFromArg(arg);
       if (document) {
         await insertPlaceholder(document, arg?.line ?? 0);
       }
     }),
 
-    vscode.commands.registerCommand('doorstop.documentView.cancelPlaceholder', async (arg?: { uri?: string; line?: number }) => {
+    registerCommand('doorstop.documentView.cancelPlaceholder', async (arg?: { uri?: string; line?: number }) => {
       const document = await documentFromArg(arg);
       if (document && arg?.line !== undefined) {
         await cancelPlaceholder(document, arg.line);

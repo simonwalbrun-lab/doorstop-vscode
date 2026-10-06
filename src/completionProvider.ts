@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 
 import { getItemTitle, loadDoorstopIndex } from './doorstopIndex';
 import { DoorstopServer } from './doorstopServer';
+import { measure } from './timing';
 
 /**
  * UID autocompletion inside a requirement's `links:` block.
@@ -75,43 +76,45 @@ export function registerCompletionProvider(
   options: CompletionProviderOptions
 ): void {
   const provider: vscode.CompletionItemProvider = {
-    async provideCompletionItems(document, position) {
-      if (!isInLinksBlock(document, position)) {
-        return undefined;
-      }
+    provideCompletionItems(document, position) {
+      return measure('completion', async () => {
+        if (!isInLinksBlock(document, position)) {
+          return undefined;
+        }
 
-      const range = getReplacementRange(document, position);
-      if (!range) {
-        return undefined;
-      }
+        const range = getReplacementRange(document, position);
+        if (!range) {
+          return undefined;
+        }
 
-      const index = await loadDoorstopIndex(options.server);
-      if (!index) {
-        return undefined;
-      }
+        const index = await loadDoorstopIndex(options.server);
+        if (!index) {
+          return undefined;
+        }
 
-      const recentIndex = (uid: string): number => {
-        const position = recentlyViewedUids.indexOf(uid);
-        return position >= 0 ? position : Number.MAX_SAFE_INTEGER;
-      };
-      const suggestions = index.items.sort((a, b) => recentIndex(a.uid) - recentIndex(b.uid)
-        || a.uid.localeCompare(b.uid));
+        const recentIndex = (uid: string): number => {
+          const position = recentlyViewedUids.indexOf(uid);
+          return position >= 0 ? position : Number.MAX_SAFE_INTEGER;
+        };
+        const suggestions = index.items.sort((a, b) => recentIndex(a.uid) - recentIndex(b.uid)
+          || a.uid.localeCompare(b.uid));
 
-      return suggestions.map(suggestion => {
-        const title = getItemTitle(suggestion);
-        const item = new vscode.CompletionItem(
-          `${suggestion.uid} - ${title}`,
-          vscode.CompletionItemKind.Reference
-        );
-        item.detail = suggestion.path;
-        item.documentation = new vscode.MarkdownString(`**${suggestion.uid}**\n\n${title}`);
-        item.insertText = `${suggestion.uid}: null`;
-        item.range = range;
-        const viewedIndex = recentlyViewedUids.indexOf(suggestion.uid);
-        const sortRank = viewedIndex >= 0 ? viewedIndex : recentlyViewedUids.length + 1;
-        item.sortText = `${String(sortRank).padStart(6, '0')}_${suggestion.uid}`;
-        item.filterText = `${suggestion.uid} ${title}`;
-        return item;
+        return suggestions.map(suggestion => {
+          const title = getItemTitle(suggestion);
+          const item = new vscode.CompletionItem(
+            `${suggestion.uid} - ${title}`,
+            vscode.CompletionItemKind.Reference
+          );
+          item.detail = suggestion.path;
+          item.documentation = new vscode.MarkdownString(`**${suggestion.uid}**\n\n${title}`);
+          item.insertText = `${suggestion.uid}: null`;
+          item.range = range;
+          const viewedIndex = recentlyViewedUids.indexOf(suggestion.uid);
+          const sortRank = viewedIndex >= 0 ? viewedIndex : recentlyViewedUids.length + 1;
+          item.sortText = `${String(sortRank).padStart(6, '0')}_${suggestion.uid}`;
+          item.filterText = `${suggestion.uid} ${title}`;
+          return item;
+        });
       });
     }
   };

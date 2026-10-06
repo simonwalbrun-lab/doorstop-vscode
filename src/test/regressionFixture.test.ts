@@ -15,6 +15,7 @@ import { DoorstopServer, DOORSTOP_SERVER_HOST, DOORSTOP_SERVER_PORT } from '../d
 import { DocumentViewHandle, Prompts } from '../documentViewProvider';
 import { DocumentNode, TreeResponse } from '../doorstopTypes';
 import { DoorstopTreeProvider, RequirementTreeItem } from '../requirementTree';
+import { getEntries, measure, resetTiming, setTimingEnabled } from '../timing';
 
 // Runs against the real testdata/regression fixture, through the real Doorstop
 // server (not a mock), matching the extension's own production code path -
@@ -170,6 +171,45 @@ suite('Regression Fixture Integration Suite', () => {
     assert.strictEqual(byPrefix.get('REQ')!.items.length, 10);
     assert.strictEqual(byPrefix.get('ARCH')!.items.length, 1);
     assert.strictEqual(byPrefix.get('EMPTY')!.items.length, 0, 'EMPTY document should have zero items');
+  });
+
+  test('Timing (023): a server request nests under its operation with wait/load/work stages', async () => {
+    resetTiming();
+    setTimingEnabled(true);
+    try {
+      await measure('e2e', () => server.request<TreeResponse>('GET', '/tree'));
+      const entry = getEntries().at(-1)!;
+      assert.strictEqual(entry.name, 'e2e');
+      assert.strictEqual(entry.children.length, 1);
+      const [child] = entry.children;
+      assert.deepStrictEqual([child.name, child.source, child.outcome], ['GET /tree', 'server', 'ok']);
+      assert.ok(child.durationMs > 0);
+      assert.deepStrictEqual(child.stages.map(stage => stage.name), ['wait', 'load', 'work']);
+    } finally {
+      setTimingEnabled(false);
+      resetTiming();
+    }
+  });
+
+  test('Concurrent identical GETs share one server request, each caller gets its own copy', async () => {
+    resetTiming();
+    setTimingEnabled(true);
+    try {
+      const [first, second] = await measure('shared', () => Promise.all([
+        server.request<TreeResponse>('GET', '/tree'),
+        server.request<TreeResponse>('GET', '/tree')
+      ]));
+      assert.strictEqual(getEntries().at(-1)!.children.length, 1, 'only one GET /tree reaches the server');
+      assert.deepStrictEqual(first, second);
+      assert.notStrictEqual(first, second, 'callers must not share one mutable object');
+
+      // A GET issued after the shared one settled goes to the server again.
+      await measure('fresh', () => server.request<TreeResponse>('GET', '/tree'));
+      assert.strictEqual(getEntries().at(-1)!.children.length, 1);
+    } finally {
+      setTimingEnabled(false);
+      resetTiming();
+    }
   });
 
   test("Item lifecycle: the review command marks REQ-001 as reviewed", async function () {

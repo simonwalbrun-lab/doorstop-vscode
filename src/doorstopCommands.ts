@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { DoorstopServer } from './doorstopServer';
+import { registerCommand } from './timing';
 import { TreeResponse, ValidationResponse } from './doorstopTypes';
 import { DoorstopTreeProvider, RequirementTreeItem } from './requirementTree';
 import { buildStatusReport, parseGitLog, readGitLog, weeklyVolatility } from './statusReport';
@@ -151,7 +152,7 @@ function reviewClearTarget(item: RequirementTreeItem | undefined, choice: string
 
 export function registerDoorstopCommands(options: CommandOptions): vscode.Disposable[] {
   const register = (id: string, handler: (...args: any[]) => Promise<void> | void): vscode.Disposable =>
-    vscode.commands.registerCommand(id, handler);
+    registerCommand(id, handler);
 
   // Progress and the duplicate-run guard wrap only the server work, never the
   // prompts (spec 021 FR-008). Guarding the whole handler instead would block

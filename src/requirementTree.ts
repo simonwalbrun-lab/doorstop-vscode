@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 import { DoorstopServer } from './doorstopServer';
+import { measure } from './timing';
 import { ItemNode, TreeResponse } from './doorstopTypes';
 
 /**
@@ -87,11 +88,17 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
   private parentById = new Map<string, RequirementTreeItem>();
   private roots: RequirementTreeItem[] = [];
   private loaded = false;
+  /** The running load, shared by every caller that arrives meanwhile (getChildren, reveal, ...). */
+  private loading: Promise<void> | undefined;
+  /** Bumped by refresh(): a load started before it must not fill the cleared tree with old data. */
+  private generation = 0;
   private serverErrorShown = false;
 
   constructor(private readonly server: DoorstopServer) {}
 
   refresh(): void {
+    this.generation++;
+    this.loading = undefined;
     this.loaded = false;
     this.items.clear();
     this.childrenByItem.clear();
@@ -142,19 +149,23 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     return item;
   }
 
-  private async loadItems(): Promise<void> {
-    if (this.loaded) {return;}
+  private loadItems(): Promise<void> {
+    if (this.loaded) {return Promise.resolve();}
+    return this.loading ??= this.fetchItems();
+  }
 
+  private async fetchItems(): Promise<void> {
     if (!vscode.workspace.workspaceFolders?.length) {
       this.loaded = true;
       return;
     }
 
-    const start = Date.now();
+    const generation = this.generation;
     let response: TreeResponse;
     try {
-      response = await this.server.request<TreeResponse>('GET', '/tree');
+      response = await measure('tree.load', () => this.server.request<TreeResponse>('GET', '/tree'));
     } catch (error) {
+      if (generation !== this.generation) {return;}
       const message = error instanceof Error ? error.message : String(error);
       console.error('[Doorstop][tree] Failed to load tree from server:', message);
       if (!this.serverErrorShown) {
@@ -164,6 +175,7 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
       this.loaded = true;
       return;
     }
+    if (generation !== this.generation) {return;}
     this.serverErrorShown = false;
 
     for (const document of response.documents) {
@@ -218,7 +230,6 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     this.sortItems(this.roots);
 
     this.loaded = true;
-    console.log(`[Doorstop][tree] loadItems via server took ${Date.now() - start}ms`);
   }
 
   /**

@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Execution timing for development (`doorstop.timing.enabled`, off by
+  default): every command and the main operations are logged with their
+  duration and outcome in the **Doorstop Timing** output channel, server
+  requests nested under the operation that sent them; *Show Timing Summary*
+  (count / total / min / avg / p95 / max), *Reset Timing Data*, *Export
+  Timing Data…* (JSON)
+- Server: every response carries a `Server-Timing` header with `wait`,
+  `load` and `work` durations and the route template
 - Document View: **Open as document** on a document node (or *Doorstop: Open
   Document View*) shows all items of a document as one editable markdown
   text; headings and text write back to the item files on save, only changed

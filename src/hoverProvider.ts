@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 import { DoorstopIndex, getDocumentUid, loadDoorstopIndex } from './doorstopIndex';
 import { DoorstopServer } from './doorstopServer';
+import { measure } from './timing';
 import { DOCUMENT_VIEW_SCHEME } from './documentViewModel';
 
 /**
@@ -86,35 +87,37 @@ export function registerHoverProvider(
 ): void {
   // Also the Document View (spec 019): its separators carry item UIDs.
   const hoverProvider = vscode.languages.registerHoverProvider([{ scheme: 'file' }, { scheme: DOCUMENT_VIEW_SCHEME }], {
-    async provideHover(document, position) {
-      const lineText = document.lineAt(position.line).text;
-      const isDerivedLine = DERIVED_LINE_REGEX.test(lineText);
-      const range = isDerivedLine
-        ? document.lineAt(position.line).range
-        : document.getWordRangeAtPosition(position, UID_REGEX);
-      if (!range) {
-        return undefined;
-      }
+    provideHover(document, position) {
+      return measure('hover', async () => {
+        const lineText = document.lineAt(position.line).text;
+        const isDerivedLine = DERIVED_LINE_REGEX.test(lineText);
+        const range = isDerivedLine
+          ? document.lineAt(position.line).range
+          : document.getWordRangeAtPosition(position, UID_REGEX);
+        if (!range) {
+          return undefined;
+        }
 
-      // Only pay for the tree request once the position is known to be hoverable.
-      const index = await loadDoorstopIndex(options.server);
-      if (!index) {
-        return undefined;
-      }
+        // Only pay for the tree request once the position is known to be hoverable.
+        const index = await loadDoorstopIndex(options.server);
+        if (!index) {
+          return undefined;
+        }
 
-      if (isDerivedLine) {
-        const currentUid = getDocumentUid(document, index);
-        return currentUid
-          ? new vscode.Hover(renderReverseLinks(currentUid, index), range)
-          : undefined;
-      }
+        if (isDerivedLine) {
+          const currentUid = getDocumentUid(document, index);
+          return currentUid
+            ? new vscode.Hover(renderReverseLinks(currentUid, index), range)
+            : undefined;
+        }
 
-      // Inside a `links:` block the upstream list would just restate the
-      // surrounding lines, so it is left out there.
-      const isInsideLinksBlock = LINK_ENTRY_LINE_REGEX.test(lineText)
-        || LINKS_FIELD_LINE_REGEX.test(lineText);
-      const markdown = renderItemPreview(document.getText(range), index, !isInsideLinksBlock);
-      return markdown ? new vscode.Hover(markdown, range) : undefined;
+        // Inside a `links:` block the upstream list would just restate the
+        // surrounding lines, so it is left out there.
+        const isInsideLinksBlock = LINK_ENTRY_LINE_REGEX.test(lineText)
+          || LINKS_FIELD_LINE_REGEX.test(lineText);
+        const markdown = renderItemPreview(document.getText(range), index, !isInsideLinksBlock);
+        return markdown ? new vscode.Hover(markdown, range) : undefined;
+      });
     }
   });
   context.subscriptions.push(hoverProvider);

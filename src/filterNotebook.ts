@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 import { DoorstopApiError, DoorstopServer } from './doorstopServer';
+import { measure, registerCommand } from './timing';
 import { FilterResponse } from './doorstopTypes';
 
 /**
@@ -170,7 +171,7 @@ export function registerFilterNotebook(context: vscode.ExtensionContext, server:
       return;
     }
     try {
-      const response = await server.request<FilterResponse>('POST', '/filter', { query });
+      const response = await measure('filter.execute', () => server.request<FilterResponse>('POST', '/filter', { query }));
       await execution.replaceOutput(resultOutput(response));
       execution.end(true, Date.now());
     } catch (error) {
@@ -198,7 +199,7 @@ export function registerFilterNotebook(context: vscode.ExtensionContext, server:
         void openFilterItem(event.message.path);
       }
     }),
-    vscode.commands.registerCommand('doorstop.newFilterNotebook', async () => {
+    registerCommand('doorstop.newFilterNotebook', async () => {
       const document = await vscode.workspace.openNotebookDocument(
         NOTEBOOK_TYPE,
         new vscode.NotebookData(NEW_NOTEBOOK_CELLS.map(toCellData))

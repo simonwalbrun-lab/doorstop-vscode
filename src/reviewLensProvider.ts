@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { DoorstopServer } from './doorstopServer';
+import { registerCommand } from './timing';
 
 /**
  * The commands and document scan behind Doorstop's review / suspect-link
@@ -205,7 +206,7 @@ export function registerReviewCommands(
   context: vscode.ExtensionContext,
   options: ReviewCommandOptions
 ): void {
-  const doReview = vscode.commands.registerCommand(
+  const doReview = registerCommand(
     'doorstop.doReview',
     async (arg?: ReviewLensContext) => {
       // Also the Command Palette path, where the command is invoked with no argument.
@@ -222,7 +223,7 @@ export function registerReviewCommands(
     }
   );
 
-  const clearAllSuspicions = vscode.commands.registerCommand(
+  const clearAllSuspicions = registerCommand(
     'doorstop.clearAllSuspicions',
     async (arg?: ClearAllLensContext) => {
       if (!arg?.uid) {
@@ -239,7 +240,7 @@ export function registerReviewCommands(
     }
   );
 
-  const clearSuspicion = vscode.commands.registerCommand(
+  const clearSuspicion = registerCommand(
     'doorstop.clearSuspicion',
     async (arg?: ClearOneLensContext) => {
       if (!arg?.uid || !arg.parentUid) {

@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { DoorstopServer } from './doorstopServer';
+import { measure, registerCommand } from './timing';
 import { TreeResponse } from './doorstopTypes';
 import { RequirementTreeItem } from './requirementTree';
 
@@ -211,26 +212,28 @@ export function registerDeriveProvider(
   options: DeriveProviderOptions
 ): void {
   const provider: vscode.CodeLensProvider = {
-    provideCodeLenses(document): vscode.CodeLens[] {
-      const lenses: vscode.CodeLens[] = [];
-      for (let line = 0; line < document.lineCount; line++) {
-        const sourceUid = getSourceUid(document);
-        if (sourceUid && /^\s*derived\s*:/i.test(document.lineAt(line).text)) {
-          lenses.push(new vscode.CodeLens(new vscode.Range(line, 0, line, 0), {
-            command: 'doorstop.deriveRequirement',
-            title: '+ Derive Requirement',
-            arguments: [{
-              sourceUid,
-              sourceUri: document.uri
-            } satisfies DeriveCommandContext]
-          }));
+    provideCodeLenses(document) {
+      return measure('codeLens.derive', () => {
+        const lenses: vscode.CodeLens[] = [];
+        for (let line = 0; line < document.lineCount; line++) {
+          const sourceUid = getSourceUid(document);
+          if (sourceUid && /^\s*derived\s*:/i.test(document.lineAt(line).text)) {
+            lenses.push(new vscode.CodeLens(new vscode.Range(line, 0, line, 0), {
+              command: 'doorstop.deriveRequirement',
+              title: '+ Derive Requirement',
+              arguments: [{
+                sourceUid,
+                sourceUri: document.uri
+              } satisfies DeriveCommandContext]
+            }));
+          }
         }
-      }
-      return lenses;
+        return lenses;
+      });
     }
   };
 
-  const command = vscode.commands.registerCommand(
+  const command = registerCommand(
     'doorstop.deriveRequirement',
     async (arg?: DeriveCommandContext | RequirementTreeItem) => {
       const deriveContext = resolveDeriveContext(arg);

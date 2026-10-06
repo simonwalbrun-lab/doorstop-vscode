@@ -15,6 +15,7 @@ import {
 } from './documentViewModel';
 import { DocumentViewHandle, DocumentViewState, SEPARATOR_HINT } from './documentViewProvider';
 import { DoorstopServer } from './doorstopServer';
+import { measure, registerCommand } from './timing';
 import { ItemNode } from './doorstopTypes';
 import { ProblemsProvider, SEVERITY_BY_NAME } from './problemsProvider';
 import { REVIEW_CHECKS, SUSPECT_LINK_CHECK } from './reviewCodeActionProvider';
@@ -264,51 +265,53 @@ export function registerDocumentViewLanguage(context: vscode.ExtensionContext, o
   const lensProvider: vscode.CodeLensProvider = {
     onDidChangeCodeLenses: lensEmitter.event,
     provideCodeLenses(document) {
-      const state = stateFor(document);
-      const scan = state ? scanOf(document) : undefined;
-      if (!state || !scan) {
-        return [];
-      }
-      const uri = document.uri.toString();
-      const lenses: vscode.CodeLens[] = [];
-      for (const block of scan.blocks) {
-        const line = block.separatorLine;
-        const below: LensArg = { uri, line };
-        if (block.kind === 'document') {
+      return measure('codeLens.documentView', () => {
+        const state = stateFor(document);
+        const scan = state ? scanOf(document) : undefined;
+        if (!state || !scan) {
+          return [];
+        }
+        const uri = document.uri.toString();
+        const lenses: vscode.CodeLens[] = [];
+        for (const block of scan.blocks) {
+          const line = block.separatorLine;
+          const below: LensArg = { uri, line };
+          if (block.kind === 'document') {
+            lenses.push(lens(document, line, '+ New item below', 'doorstop.documentView.newItemBelow', below));
+            continue;
+          }
+          if (block.kind === 'placeholder') {
+            lenses.push(lens(document, line, 'new item'));
+            lenses.push(lens(document, line, 'Cancel', 'doorstop.documentView.cancelPlaceholder', below));
+            continue;
+          }
+          if (block.kind !== 'item' || !block.uid) {
+            continue;
+          }
+          const uid = block.uid;
+          const item = itemOf(state, uid);
+          if (!item) {
+            lenses.push(lens(document, line, uid));
+            lenses.push(lens(document, line, '+ New item below', 'doorstop.documentView.newItemBelow', below));
+            continue;
+          }
+          const itemUri = vscode.Uri.file(item.path);
+          const reviewContext: ReviewLensContext = { uid, documentUri: uri };
+          lenses.push(lens(document, line, uid, 'doorstop.documentView.openItem', { uid, path: item.path }));
+          lenses.push(lens(document, line, 'Open item', 'doorstop.documentView.openItem', { uid, path: item.path }));
+          lenses.push(lens(document, line, scan.needsReview.has(uid) ? 'Do Review' : 'Review', 'doorstop.doReview', reviewContext));
+          lenses.push(lens(document, line, 'Derive', 'doorstop.deriveRequirement', { sourceUid: uid, sourceUri: itemUri }));
+          lenses.push(lens(document, line, 'Link...', 'doorstop.link', { childUid: uid }));
+          const count = item.links.length;
+          const linksTitle = count === 0 ? 'no links' : count === 1 ? '1 link' : `${count} links`;
+          lenses.push(lens(document, line, linksTitle, 'doorstop.showCallHierarchy', { resourceUri: itemUri, itemData: { uid } }));
+          if (scan.suspect.has(uid)) {
+            lenses.push(lens(document, line, 'Clear suspect link', 'doorstop.clearAllSuspicions', { uid, documentUri: uri } satisfies ClearAllLensContext));
+          }
           lenses.push(lens(document, line, '+ New item below', 'doorstop.documentView.newItemBelow', below));
-          continue;
         }
-        if (block.kind === 'placeholder') {
-          lenses.push(lens(document, line, 'new item'));
-          lenses.push(lens(document, line, 'Cancel', 'doorstop.documentView.cancelPlaceholder', below));
-          continue;
-        }
-        if (block.kind !== 'item' || !block.uid) {
-          continue;
-        }
-        const uid = block.uid;
-        const item = itemOf(state, uid);
-        if (!item) {
-          lenses.push(lens(document, line, uid));
-          lenses.push(lens(document, line, '+ New item below', 'doorstop.documentView.newItemBelow', below));
-          continue;
-        }
-        const itemUri = vscode.Uri.file(item.path);
-        const reviewContext: ReviewLensContext = { uid, documentUri: uri };
-        lenses.push(lens(document, line, uid, 'doorstop.documentView.openItem', { uid, path: item.path }));
-        lenses.push(lens(document, line, 'Open item', 'doorstop.documentView.openItem', { uid, path: item.path }));
-        lenses.push(lens(document, line, scan.needsReview.has(uid) ? 'Do Review' : 'Review', 'doorstop.doReview', reviewContext));
-        lenses.push(lens(document, line, 'Derive', 'doorstop.deriveRequirement', { sourceUid: uid, sourceUri: itemUri }));
-        lenses.push(lens(document, line, 'Link...', 'doorstop.link', { childUid: uid }));
-        const count = item.links.length;
-        const linksTitle = count === 0 ? 'no links' : count === 1 ? '1 link' : `${count} links`;
-        lenses.push(lens(document, line, linksTitle, 'doorstop.showCallHierarchy', { resourceUri: itemUri, itemData: { uid } }));
-        if (scan.suspect.has(uid)) {
-          lenses.push(lens(document, line, 'Clear suspect link', 'doorstop.clearAllSuspicions', { uid, documentUri: uri } satisfies ClearAllLensContext));
-        }
-        lenses.push(lens(document, line, '+ New item below', 'doorstop.documentView.newItemBelow', below));
-      }
-      return lenses;
+        return lenses;
+      });
     }
   };
 
@@ -463,8 +466,8 @@ export function registerDocumentViewLanguage(context: vscode.ExtensionContext, o
     lensEmitter,
     vscode.languages.registerCodeLensProvider(selector, lensProvider),
     vscode.languages.registerCodeActionsProvider(selector, codeActionProvider, { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }),
-    vscode.commands.registerCommand('doorstop.documentView.restoreBlock', restoreBlock),
-    vscode.commands.registerCommand('doorstop.documentView.openItem', openItem),
+    registerCommand('doorstop.documentView.restoreBlock', restoreBlock),
+    registerCommand('doorstop.documentView.openItem', openItem),
 
     vscode.workspace.onDidChangeTextDocument(event => {
       const state = stateFor(event.document);

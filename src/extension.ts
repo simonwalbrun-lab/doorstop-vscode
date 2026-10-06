@@ -5,6 +5,7 @@ import { DoorstopDiagramPanel } from './diagrammPanel';
 import { registerHoverProvider } from './hoverProvider';
 import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
 import { DoorstopServer, installServerPackage, isServerPackageInstalled, SERVER_PACKAGE_NAME } from './doorstopServer';
+import { initTiming, registerCommand } from './timing';
 import { registerDeriveProvider } from './deriveProvider';
 import { registerReviewCodeActionProvider } from './reviewCodeActionProvider';
 import { registerReviewCommands } from './reviewLensProvider';
@@ -20,6 +21,7 @@ interface DoorstopDiagramDocument extends vscode.CustomDocument {
   diagram: unknown;
 }
 export async function activate(context: vscode.ExtensionContext) {
+  initTiming(context);
   console.log('[Doorstop][activate] Extension activation started');
   vscode.window.showInformationMessage('Doorstop VS Code Extension is active!');
 
@@ -160,7 +162,7 @@ export async function activate(context: vscode.ExtensionContext) {
     await spawnServerProcess(pythonPath, restart);
   };
 
-  const restartServerCommand = vscode.commands.registerCommand(
+  const restartServerCommand = registerCommand(
     'doorstop.restartServer',
     () => startDoorstopServer(true)
   );
@@ -201,7 +203,7 @@ export async function activate(context: vscode.ExtensionContext) {
       void problemsProvider.refreshNow();
     }
     // Forces a full re-check, bypassing the debounce (FR-013).
-    context.subscriptions.push(vscode.commands.registerCommand(
+    context.subscriptions.push(registerCommand(
       'doorstop.recheckProblems',
       () => problemsProvider?.refreshNow()
     ));
@@ -236,7 +238,7 @@ export async function activate(context: vscode.ExtensionContext) {
       server: doorstopServer
     });
   }
-  const newDiagramCmd = vscode.commands.registerCommand('doorstop.newDiagram', async () => {
+  const newDiagramCmd = registerCommand('doorstop.newDiagram', async () => {
     const defaultUri = workspaceFolder
       ? vscode.Uri.joinPath(workspaceFolder.uri, 'diagram.doorstop.json')
       : undefined;
@@ -358,7 +360,7 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  const addToDiagramCmd = vscode.commands.registerCommand('doorstop.addToDiagram', (item?: RequirementTreeItem) => {
+  const addToDiagramCmd = registerCommand('doorstop.addToDiagram', (item?: RequirementTreeItem) => {
     if (!item?.resourceUri) {
       return;
     }
@@ -382,7 +384,7 @@ export async function activate(context: vscode.ExtensionContext) {
     showCollapseAll: false
   });
 
-  const activateRequirementCommand = vscode.commands.registerCommand(
+  const activateRequirementCommand = registerCommand(
     'doorstop.activateRequirement',
     async (filePath: string) => {
       console.log('[Doorstop][activateRequirement] Command received:', JSON.stringify(filePath));
@@ -420,19 +422,19 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  const toggleAutoRevealCommand = vscode.commands.registerCommand('doorstop.toggleAutoReveal', async () => {
+  const toggleAutoRevealCommand = registerCommand('doorstop.toggleAutoReveal', async () => {
     autoRevealEnabled = false;
     await context.globalState.update('doorstop.autoRevealEnabled', false);
     await vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', false);
   });
 
-  const enableAutoRevealCommand = vscode.commands.registerCommand('doorstop.enableAutoReveal', async () => {
+  const enableAutoRevealCommand = registerCommand('doorstop.enableAutoReveal', async () => {
     autoRevealEnabled = true;
     await context.globalState.update('doorstop.autoRevealEnabled', true);
     await vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', true);
   });
 
-  const showDiagramCommand = vscode.commands.registerCommand('doorstop.showDiagram', async () => {
+  const showDiagramCommand = registerCommand('doorstop.showDiagram', async () => {
     const [uri] = (await vscode.window.showOpenDialog({
       defaultUri: workspaceFolder?.uri,
       filters: { 'Doorstop Diagram': ['json'] },
