@@ -4,44 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-07
+
 ### Added
 
-- Execution timing for development (`doorstop.timing.enabled`, off by
-  default): every command and the main operations are logged with their
-  duration and outcome in the **Doorstop Timing** output channel, server
-  requests nested under the operation that sent them; *Show Timing Summary*
-  (count / total / min / avg / p95 / max), *Reset Timing Data*, *Export
-  Timing Data…* (JSON)
-- Server: every response carries a `Server-Timing` header with `wait`,
-  `load` and `work` durations and the route template
-- Document View: **Open as document** on a document node (or *Doorstop: Open
-  Document View*) shows all items of a document as one editable markdown
-  text; headings and text write back to the item files on save, only changed
-  items are written, deletions ask for confirmation, and broken block
-  structure is flagged with a **Restore block structure** quick fix;
-  **+ New item below** / *Doorstop: Insert Item Here* create items in place;
-  Doorstop's problems and quick fixes, hover, go to definition, references
-  and the call hierarchy work on the block separators; theme colour
-  `doorstop.documentView.altBlockBackground` tints every second block
-- Server: `PATCH /items/{uid}` (header/text), `DELETE /items/{uid}`,
-  `after`/`header`/`text` on `POST /documents/{prefix}/items`; `GET /tree`
-  returns items in Doorstop's level order
-- Publish: choose `all` to publish every document into one folder; the run
-  stops at the first document that fails and names it
-- Commands show a progress notification while they work, and the same
-  command can't run twice at once
-- **Generate Status Report** (Commands view / *Doorstop: Generate Status
-  Report*) writes `doorstop-status.md` with Mermaid bar charts of items per
-  document, problems per type per document, and weekly requirement volatility
-  from git history
-- **Filter notebooks** (*Doorstop: New Filter Notebook*, `*.doorstop-filter`):
-  each cell is a YAML filter shaped like Obsidian Bases filters - nested
-  `and`/`or`/`not`, `hasChild`/`hasParent`, conditions on built-in and custom
-  attributes, `isNotEmpty()` - and shows the matching items as a table with
-  clickable UIDs; `filters:` + `order: [...]` picks the table columns; also in
-  the Commands panel
-- Server: `POST /filter` evaluates such a filter against the tree and returns
-  the chosen column values; malformed filters return `INVALID_FILTER`
+- **Document View**: edit a whole document as one markdown text; saves only
+  changed items, confirms deletions, quick fix for broken blocks, insert items
+  in place; problems, hover, go to definition, references and call hierarchy
+  work in it
+- **Filter notebooks** (`*.doorstop-filter`): YAML filters (Obsidian Bases
+  style: `and`/`or`/`not`, `hasChild`/`hasParent`, custom attributes) render
+  matching items as a table; `order:` picks columns
+- **Generate Status Report**: `doorstop-status.md` with Mermaid charts of
+  items, problems and weekly volatility from git
+- Publish `all`: every document into one folder, stops at the first failure
+- Timing (`doorstop.timing.enabled`, dev only): command and request durations
+  in the **Doorstop Timing** channel; summary, reset and JSON export
+- Server: `PATCH`/`DELETE /items/{uid}`, `POST /filter`, insert position on
+  `POST /documents/{prefix}/items`, `Server-Timing` header
+
+### Changed
+
+- Faster on large projects: server caches the project for reads until a file
+  changes; overlapping identical requests share one round trip; Explorer loads
+  the tree once
+- Commands show progress and can't run twice at once
+- Server: `GET /tree` returns items in level order
 
 ## [0.1.0] - 2026-09-11
 
