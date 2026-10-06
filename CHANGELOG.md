@@ -31,6 +31,11 @@ All notable changes to this project will be documented in this file.
 - Commands show progress and can't run twice at once
 - Server: `GET /tree` returns items in level order
 
+### Fixed
+
+- Linux/macOS: restarting the server waits for the old process to exit
+  instead of racing it for the port
+
 ## [0.1.0] - 2026-09-11
 
 ### Added

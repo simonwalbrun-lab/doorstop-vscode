@@ -1505,7 +1505,7 @@ suite('Regression Fixture Integration Suite', () => {
       await replaceInView(document, 'The system shall have minimal text.', 'Never written.');
       const errors: string[] = [];
       documentView.prompts.reportError = message => errors.push(message);
-      server.dispose();
+      await server.dispose();
       try {
         assert.strictEqual(await document.save(), false, 'save is refused');
         assert.strictEqual(document.isDirty, true);

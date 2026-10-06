@@ -130,8 +130,8 @@ export class DoorstopServer {
     return this.startPromise;
   }
 
-  restart(projectPath: string, pythonPath: string): Promise<void> {
-    this.stopProcess();
+  async restart(projectPath: string, pythonPath: string): Promise<void> {
+    await this.stopProcess();
     this.disposed = false;
     this.startPromise = undefined;
     return this.start(projectPath, pythonPath);
@@ -197,17 +197,30 @@ export class DoorstopServer {
     }
   }
 
-  dispose(): void {
+  /** Resolves once the process has exited and the port is free. */
+  dispose(): Promise<void> {
     this.disposed = true;
-    this.stopProcess();
+    return this.stopProcess();
   }
 
-  private stopProcess(): void {
+  /**
+   * On POSIX kill() is a SIGTERM and uvicorn keeps serving while it shuts down
+   * gracefully, so callers wait for the exit; SIGKILL if it takes too long.
+   */
+  private stopProcess(): Promise<void> {
     const child = this.process;
     this.process = undefined;
-    if (child && child.exitCode === null && !child.killed) {
-      child.kill();
+    if (!child || child.exitCode !== null || child.signalCode !== null) {
+      return Promise.resolve();
     }
+    return new Promise(resolve => {
+      const force = setTimeout(() => child.kill('SIGKILL'), 5000);
+      child.once('exit', () => {
+        clearTimeout(force);
+        resolve();
+      });
+      child.kill();
+    });
   }
 
   private async waitForHealthy(): Promise<void> {
