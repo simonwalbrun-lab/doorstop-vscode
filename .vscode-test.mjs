@@ -47,6 +47,11 @@ export default defineConfig([
 		files: 'out/test/timing.test.js',
 	},
 	{
+		// Delayed progress notifications (spec 026). No fixture workspace, no server.
+		label: 'progress',
+		files: 'out/test/progress.test.js',
+	},
+	{
 		// Needs the fixture workspace (so the extension activates and its CodeLens
 		// providers register) but deliberately starts no Doorstop server — lens
 		// provision must be a pure text scan.

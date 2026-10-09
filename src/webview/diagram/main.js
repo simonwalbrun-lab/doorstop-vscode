@@ -70,32 +70,9 @@
 
   const options = {
     physics: PHYSICS_OFF,
-    interaction: { dragNodes: true, dragView: true, zoomView: true },
-    manipulation: {
-      enabled: true,
-      addNode: false,
-      editNode: false,
-      editEdge: false,
-      deleteNode: function (data, callback) {
-        callback(data);
-        state.saveGraphState(network);
-        messaging.send('diagramChanged', { diagram: state.getDiagramData(network) });
-      },
-      deleteEdge: function (data, callback) {
-        callback(data);
-        state.saveGraphState(network);
-        messaging.send('diagramChanged', { diagram: state.getDiagramData(network) });
-      },
-      addEdge: function (edgeData, callback) {
-        const { from, to } = edgeData;
-        if (from === to) {
-          callback(null);
-          return;
-        }
-        pendingLinkOps.set(`${from}->${to}`, callback);
-        messaging.send('addLink', { from, to });
-      }
-    }
+    // No `manipulation` block (spec 025 FR-012): vis's default keeps its "Edit"
+    // toolbar off. All editing goes through the toolbar buttons and context menu.
+    interaction: { dragNodes: true, dragView: true, zoomView: true }
   };
   const network = new vis.Network(container, data, options);
 
@@ -439,8 +416,11 @@
       // and overrides dragging while it's on. Turn it on only long enough to read the
       // coordinates it computes, then turn it off and bake those coordinates in as
       // ordinary node positions.
+      // Spacing from the measured node sizes, taken before vis takes over positioning:
+      // vis spaces centre to centre and would overlap wide (heading) labels (FR-015).
+      const spacing = layout.hierarchicalSpacing(nodeExtents(ids));
       network.setOptions({
-        layout: { hierarchical: { enabled: true, direction: 'UD', sortMethod: 'directed' } }
+        layout: { hierarchical: { enabled: true, direction: 'UD', sortMethod: 'directed', ...spacing } }
       });
       const positions = network.getPositions(ids);
       network.setOptions({ layout: { hierarchical: { enabled: false } } });
@@ -477,15 +457,11 @@
       if (ids.length === 0) {
         return;
       }
-      const extents = nodeExtents(ids);
-      // Pitch comes from the *largest* node, which is what keeps the no-overlap
-      // guarantee true once the heading toggle widens every label (FR-018).
-      const cellWidth = Math.max(...extents.map(e => e.width)) + layout.GAP;
-      const cellHeight = Math.max(...extents.map(e => e.height)) + layout.GAP;
+      // Measured now, so the sizes reflect the current heading toggle (spec 025 FR-016);
+      // each column/row is sized to its own nodes.
       applyPositions(layout.gridPositions({
-        ids,
-        cellWidth,
-        cellHeight,
+        extents: nodeExtents(ids),
+        gap: layout.GAP,
         center: network.getViewPosition()
       }));
     });
@@ -556,12 +532,11 @@
       .filter(node => !state.ghostMeta.has(node.id))
       .map(node => {
         const meta = state.nodeMeta.get(node.id) || {};
-        const badge = meta.documentPrefix !== undefined && meta.documentPrefix !== null ? render.buildBadge(meta) : '';
-        return { id: node.id, label: render.buildLabel(node.id, meta.header, badge) };
+        return { id: node.id, label: render.buildLabel(node.id, meta.header) };
       });
     const ghostUpdates = Array.from(state.ghostMeta.entries()).map(([id, item]) => ({
       id,
-      label: render.buildLabel(id, item.header, render.buildBadge(item))
+      label: render.buildLabel(id, item.header)
     }));
     if (bodyUpdates.length > 0) { state.visNodes.update(bodyUpdates); }
     if (ghostUpdates.length > 0) { state.visNodes.update(ghostUpdates); }

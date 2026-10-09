@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { brokenReferenceMessage, resolveDefinitionAt } from '../definitionProvider';
 import { chooseParentPrefix } from '../doorstopCommands';
 import { getDeriveTargets } from '../deriveProvider';
+import { DoorstopDiagramPanel } from '../diagrammPanel';
 import { loadDoorstopIndex } from '../doorstopIndex';
 import { ProblemsProvider, registerProblemsProvider } from '../problemsProvider';
 import { DoorstopServer, DOORSTOP_SERVER_HOST, DOORSTOP_SERVER_PORT } from '../doorstopServer';
@@ -276,6 +277,40 @@ suite('Regression Fixture Integration Suite', () => {
     assert.strictEqual(restoredLink?.suspect, true, 'REQ-007 should be suspect again once the fixture file is restored');
   });
 
+  // Spec 025 (Constitution VI): the server/extension seam end to end - a real move on
+  // disk, the real server's /tree, then the path the diagram file would be saved with.
+  // The handleReady wiring (dirty flag, toasts) needs the webview, which loads
+  // vis-network from a CDN, so it stays a manual quickstart step.
+  test('Diagram: a moved item is found again by UID and saved with its new path', async function () {
+    this.timeout(15000);
+    const oldPath = path.join(FIXTURE_ROOT, 'REQ-001.yml');
+    const movedDir = path.join(FIXTURE_ROOT, 'moved-025');
+    const newPath = path.join(movedDir, 'REQ-001.yml');
+
+    await fs.mkdir(movedDir, { recursive: true });
+    await fs.rename(oldPath, newPath);
+    try {
+      const tree = await server.request<TreeResponse>('GET', '/tree');
+      const meta: Record<string, { path: string }> = {};
+      for (const item of tree.documents.flatMap(doc => doc.items)) {
+        meta[item.uid] = { path: item.path };
+      }
+
+      const result = DoorstopDiagramPanel.reconcilePaths(
+        { nodes: [{ id: 'REQ-001', fileUri: oldPath, x: 0, y: 0 }], edges: [] },
+        meta
+      );
+
+      assert.strictEqual(result.corrected.length, 1, 'REQ-001 should be reported as moved');
+      assert.deepStrictEqual(result.unresolved, []);
+      const saved = JSON.parse(Buffer.from(DoorstopDiagramPanel.serializeDiagram(result.diagram)).toString('utf8'));
+      assert.strictEqual(saved.nodes[0].fileUri, 'moved-025/REQ-001.yml');
+    } finally {
+      await fs.rename(newPath, oldPath);
+      await fs.rm(movedDir, { recursive: true, force: true });
+    }
+  });
+
   /** The item node for `uid` as the server currently reports it. */
   async function itemNode(uid: string) {
     const tree = await server.request<TreeResponse>('GET', '/tree');
@@ -497,6 +532,53 @@ suite('Regression Fixture Integration Suite', () => {
     assert.strictEqual(resolution.location, undefined, 'REQ-999 does not exist, so there is nowhere to go');
     assert.strictEqual(resolution.brokenUid, 'REQ-999', 'the broken UID must be reported, not swallowed');
     assert.ok(brokenReferenceMessage('REQ-999').includes('REQ-999'), 'the message must name the UID');
+  });
+
+  test('Publish offers both "all" modes and the combined run publishes every document (024)', async function () {
+    this.timeout(30000);
+    await withTempDir(async dir => {
+      let offered: string[] = [];
+      await withStubbedDialogs(
+        {
+          openDialog: [vscode.Uri.file(dir)],
+          quickPick: items => {
+            const labels = items.map(labelOf);
+            // First prompt is the document picker, the second the format.
+            if (labels.includes('Markdown')) {return items.find(item => labelOf(item) === 'Markdown');}
+            offered = labels;
+            return items.find(item => labelOf(item) === 'All documents - combined run');
+          }
+        },
+        () => vscode.commands.executeCommand('doorstop.publish') as Promise<void>
+      );
+
+      assert.ok(offered.includes('All documents - one file each'));
+      assert.ok(offered.includes('All documents - combined run'));
+      assert.ok(!offered.includes('all'), 'the single "all" entry was replaced');
+      const tree = await server.request<TreeResponse>('GET', '/tree');
+      for (const document of tree.documents) {
+        await fs.access(path.join(dir, `${document.prefix}.md`));
+      }
+    });
+  });
+
+  test('Publish "one file each" writes one file per document (024)', async function () {
+    this.timeout(30000);
+    await withTempDir(async dir => {
+      await withStubbedDialogs(
+        {
+          openDialog: [vscode.Uri.file(dir)],
+          quickPick: items =>
+            items.find(item => ['Markdown', 'All documents - one file each'].includes(labelOf(item)))
+        },
+        () => vscode.commands.executeCommand('doorstop.publish') as Promise<void>
+      );
+
+      const tree = await server.request<TreeResponse>('GET', '/tree');
+      for (const document of tree.documents) {
+        await fs.access(path.join(dir, `${document.prefix}.md`));
+      }
+    });
   });
 
   // ---------------------------------------------------------------------

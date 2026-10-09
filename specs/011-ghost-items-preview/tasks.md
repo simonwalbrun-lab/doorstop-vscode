@@ -120,7 +120,7 @@ Single VS Code extension project (no new top-level directories): extension host 
 
 - [X] T029 [P] Run `npm run check-types` and `npm run lint` again across all files touched by T002–T028 and fix any violations (Constitution Principle V) — also ran `npm run compile` (full esbuild bundle + webview asset copy) to confirm the build succeeds end-to-end; all clean
 - [X] T030 [P] Add a `CHANGELOG.md` entry for Ghost Items Preview under `[Unreleased]`, following this project's established entry style
-- [ ] T031 Execute all scenarios in `specs/011-ghost-items-preview/quickstart.md` end-to-end in the Extension Development Host and confirm each passes — **not run**: this sandboxed session has no display/VS Code Extension Development Host available to launch `F5` interactively. Left unchecked deliberately rather than falsely marked done; see completion report for what full type-check/lint/build verification *did* cover, and hand this off as the one remaining manual step. (Note: `quickstart.md` was revised by Phase 8/T039 — it now has 6 scenarios, the former hover scenario removed.)
+- [X] T031 (manual — passed by user 2026-10-09) Execute all scenarios in `specs/011-ghost-items-preview/quickstart.md` end-to-end in the Extension Development Host and confirm each passes — **not run**: this sandboxed session has no display/VS Code Extension Development Host available to launch `F5` interactively. Left unchecked deliberately rather than falsely marked done; see completion report for what full type-check/lint/build verification *did* cover, and hand this off as the one remaining manual step. (Note: `quickstart.md` was revised by Phase 8/T039 — it now has 6 scenarios, the former hover scenario removed.)
 
 ---
 

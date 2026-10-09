@@ -18,7 +18,8 @@ export class DoorstopCommandsProvider implements vscode.TreeDataProvider<vscode.
     this.createNode('Export Document', 'save', 'doorstop.export'),
     this.createNode('Publish Document', 'rocket', 'doorstop.publish'),
     this.createNode('Generate Status Report', 'graph', 'doorstop.statusReport'),
-    this.createNode('New Filter Notebook', 'filter', 'doorstop.newFilterNotebook')
+    this.createNode('New Filter Notebook', 'filter', 'doorstop.newFilterNotebook'),
+    this.createNode('New Diagram', 'new-file', 'doorstop.newDiagram')
   ];
 
   refresh(): void {

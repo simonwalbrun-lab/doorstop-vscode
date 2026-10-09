@@ -4,6 +4,7 @@ import * as fs from 'fs';
 
 import { DoorstopServer } from './doorstopServer';
 import { measure } from './timing';
+import { withDelayedProgress } from './progress';
 import { DoorstopTreeProvider } from './requirementTree';
 import { choosePrefix, AddedItem } from './doorstopCommands';
 import { LinkInfo, TreeResponse } from './doorstopTypes';
@@ -11,11 +12,6 @@ import { LinkInfo, TreeResponse } from './doorstopTypes';
 interface NodeMeta {
     path: string;
     documentPrefix: string;
-    active: boolean;
-    normative: boolean;
-    derived: boolean;
-    reviewed: boolean;
-    cleared: boolean;
     links: LinkInfo[];
     header: string | null;
 }
@@ -37,11 +33,6 @@ interface GhostNode {
     header: string | null;
     documentPrefix: string;
     tethers: GhostTether[];
-    active: boolean;
-    normative: boolean;
-    derived: boolean;
-    reviewed: boolean;
-    cleared: boolean;
 }
 
 interface DocMeta {
@@ -68,6 +59,7 @@ export class DoorstopDiagramPanel {
     private readonly _treeProvider?: DoorstopTreeProvider;
     private _itemMeta: Record<string, NodeMeta> = {};
     private _metaWarningShown = false;
+    private _unresolvedWarningShown = false;
     private _disposables: vscode.Disposable[] = [];
 
       public static async createForCustomEditor(
@@ -197,27 +189,81 @@ export class DoorstopDiagramPanel {
         if (!currentDiagram) {
             return;
         }
-        // Metadata enrichment (status/colors/authoritative edges) must never prevent the
+        // Metadata enrichment (colors/authoritative edges/path repair) must never prevent the
         // diagram from loading: if the server is unreachable, unhealthy, or running an
         // older/mismatched response shape (e.g. not yet restarted after a server update),
         // fall back to rendering exactly what is on disk rather than showing nothing.
-        let meta: Record<string, NodeMeta> = {};
-        let documents: Record<string, DocMeta> = {};
-        let diagram = currentDiagram;
-        try {
-            ({ meta, documents } = await this.fetchTreeMeta());
-            diagram = this.withAuthoritativeEdges(currentDiagram, meta);
-        } catch (e) {
-            console.warn('[Doorstop][diagram] Falling back to on-disk diagram without server metadata:', e);
+        // A failed fetch must stay distinguishable from an empty tree: treating it as
+        // empty would report every node as unresolved.
+        const loaded = await withDelayedProgress('Doorstop: Loading diagram…', () => this.refreshItemMeta());
+        if (!loaded) {
             if (!this._metaWarningShown) {
                 this._metaWarningShown = true;
                 vscode.window.showWarningMessage(
-                    'Doorstop diagram: could not load link/status data from the server (colors, badges and edges may be incomplete). ' +
-                    'If you recently updated the extension, try "Doorstop: Restart Server".'
+                    'Doorstop diagram: could not load link data from the server (colors and edges may be incomplete). ' +
+                    'Item paths were not verified. If you recently updated the extension, try "Doorstop: Restart Server".'
                 );
             }
+            this._panel.webview.postMessage({ command: 'loadDiagram', diagram: currentDiagram, meta: {}, documents: {} });
+            return;
         }
+        const { meta, documents } = loaded;
+
+        // Spec 025: an item moved on disk is found again by its UID. The correction only
+        // dirties the document - it is persisted by the normal Save, never written here.
+        const { diagram: reconciled, corrected, unresolved } = DoorstopDiagramPanel.reconcilePaths(currentDiagram, meta);
+        if (corrected.length > 0) {
+            this._onDiagramChanged?.(reconciled);
+            vscode.window.showInformationMessage(
+                `Doorstop diagram: updated ${corrected.length} moved item path(s). Save to keep the changes.`
+            );
+        }
+        // `ready` fires on every tab re-show; nagging about the same UIDs each time helps nobody.
+        if (unresolved.length > 0 && !this._unresolvedWarningShown) {
+            this._unresolvedWarningShown = true;
+            vscode.window.showWarningMessage(
+                `Doorstop diagram: could not find item(s) ${unresolved.join(', ')} in the project; kept as stored.`
+            );
+        }
+
+        const diagram = this.withAuthoritativeEdges(reconciled, meta);
         this._panel.webview.postMessage({ command: 'loadDiagram', diagram, meta, documents });
+    }
+
+    /**
+     * Matches every node's stored `fileUri` against the server's current path for its
+     * UID. `path.relative`, not `===`: on Windows it ignores case, and the server and
+     * `path.resolve` can disagree on the drive letter's (`c:` vs `C:`). Returns the
+     * input object itself when nothing changed, so callers can skip dirtying the document.
+     */
+    public static reconcilePaths(
+        diagram: any,
+        meta: Record<string, { path: string }>
+    ): { diagram: any; corrected: { uid: string; from: string; to: string }[]; unresolved: string[] } {
+        const corrected: { uid: string; from: string; to: string }[] = [];
+        const unresolved: string[] = [];
+        const nodes: any[] = Array.isArray(diagram?.nodes) ? diagram.nodes : [];
+        const reconciledNodes = nodes.map(node => {
+            const uid = node?.id ?? node?.uid;
+            if (typeof uid !== 'string') {
+                return node;
+            }
+            const current = meta[uid]?.path;
+            if (typeof current !== 'string') {
+                unresolved.push(uid);
+                return node;
+            }
+            if (typeof node.fileUri === 'string' && path.relative(node.fileUri, current) === '') {
+                return node;
+            }
+            corrected.push({ uid, from: node.fileUri, to: current });
+            return { ...node, fileUri: current };
+        });
+        return {
+            diagram: corrected.length > 0 ? { ...diagram, nodes: reconciledNodes } : diagram,
+            corrected,
+            unresolved
+        };
     }
 
     /**
@@ -242,11 +288,6 @@ export class DoorstopDiagramPanel {
                     meta[item.uid] = {
                         path: item.path,
                         documentPrefix: document.prefix,
-                        active: item.active,
-                        normative: item.normative,
-                        derived: item.derived,
-                        reviewed: item.reviewed,
-                        cleared: item.cleared,
                         // Defensive default: an older/mismatched server response (e.g. before
                         // a server restart picked up a schema change) may omit this field.
                         links: Array.isArray(item.links) ? item.links : [],
@@ -260,10 +301,6 @@ export class DoorstopDiagramPanel {
             console.warn('[Doorstop][diagram] Failed to fetch /tree metadata:', e);
             return undefined;
         }
-    }
-
-    private async fetchTreeMeta(): Promise<{ meta: Record<string, NodeMeta>; documents: Record<string, DocMeta> }> {
-        return (await this.refreshItemMeta()) ?? { meta: {}, documents: {} };
     }
 
     /**
@@ -303,11 +340,6 @@ export class DoorstopDiagramPanel {
                 header: meta.header,
                 documentPrefix: meta.documentPrefix,
                 tethers: [{ bodyUid, ghostIsParent }],
-                active: meta.active,
-                normative: meta.normative,
-                derived: meta.derived,
-                reviewed: meta.reviewed,
-                cleared: meta.cleared
             });
         };
 
@@ -417,7 +449,7 @@ export class DoorstopDiagramPanel {
                     const key = `${nodeId}->${link.uid}`;
                     if (!seen.has(key)) {
                         seen.add(key);
-                        edges.push({ from: nodeId, to: link.uid, arrows: 'to', suspect: link.suspect });
+                        edges.push({ from: nodeId, to: link.uid, arrows: 'to' });
                     }
                 }
             }
@@ -446,7 +478,9 @@ export class DoorstopDiagramPanel {
             return;
         }
         try {
-            await this._server.request('POST', `/items/${encodeURIComponent(from)}/links`, { parentUid: to });
+            const server = this._server;
+            await withDelayedProgress('Doorstop: Add Link…', () =>
+                server.request('POST', `/items/${encodeURIComponent(from)}/links`, { parentUid: to }));
             this._panel.webview.postMessage({ command: 'linkAddResult', from, to, success: true });
             await vscode.commands.executeCommand('doorstop.refresh');
         } catch (e) {
@@ -463,7 +497,9 @@ export class DoorstopDiagramPanel {
             return;
         }
         try {
-            await this._server.request('DELETE', `/items/${encodeURIComponent(from)}/links/${encodeURIComponent(to)}`);
+            const server = this._server;
+            await withDelayedProgress('Doorstop: Remove Link…', () =>
+                server.request('DELETE', `/items/${encodeURIComponent(from)}/links/${encodeURIComponent(to)}`));
             this._panel.webview.postMessage({ command: 'linkRemoveResult', from, to, success: true });
             await vscode.commands.executeCommand('doorstop.refresh');
         } catch (e) {
@@ -488,8 +524,12 @@ export class DoorstopDiagramPanel {
             return;
         }
         try {
-            const created = await this._server.request<AddedItem>('POST', `/documents/${encodeURIComponent(prefix)}/items`, {});
-            await this._server.request('POST', `/items/${encodeURIComponent(created.uid)}/links`, { parentUid: sourceUid });
+            const server = this._server;
+            const created = await withDelayedProgress('Doorstop: Create Linked Item…', async () => {
+                const item = await server.request<AddedItem>('POST', `/documents/${encodeURIComponent(prefix)}/items`, {});
+                await server.request('POST', `/items/${encodeURIComponent(item.uid)}/links`, { parentUid: sourceUid });
+                return item;
+            });
 
             this._panel.webview.postMessage({
                 command: 'addNode',
@@ -500,11 +540,6 @@ export class DoorstopDiagramPanel {
                     links: [sourceUid],
                     pointer: pointer || { x: 0, y: 0 },
                     documentPrefix: prefix,
-                    active: true,
-                    normative: true,
-                    derived: false,
-                    reviewed: false,
-                    cleared: true
                 }
             });
 
@@ -533,6 +568,24 @@ export class DoorstopDiagramPanel {
         // only it can, since node extents don't exist on this side.
         await this.handleDroppedData(fileUri, { x: 0, y: 0 }, true);
     }
+
+            /**
+             * After a crash or reload VS Code hands back the backup it last took, and the
+             * editor must reopen from that hot-exit copy rather than from the (stale)
+             * file on disk - otherwise every unsaved diagram edit is silently lost.
+             * backupCustomDocument returns the destination URI as the backup id.
+             * A missing or unreadable backup falls back to the saved file.
+             */
+            public static async readDiagramOrBackup(uri: vscode.Uri, backupId?: string): Promise<any> {
+              if (backupId) {
+                try {
+                  return await DoorstopDiagramPanel.readDiagram(vscode.Uri.parse(backupId));
+                } catch (e) {
+                  console.warn('[Doorstop][diagram] Backup could not be read, falling back to the saved file:', e);
+                }
+              }
+              return DoorstopDiagramPanel.readDiagram(uri);
+            }
 
             public static async readDiagram(uri: vscode.Uri): Promise<any> {
               const content = await vscode.workspace.fs.readFile(uri);
@@ -666,11 +719,6 @@ export class DoorstopDiagramPanel {
                     pointer,
                     autoPlace,
                     documentPrefix: knownMeta?.documentPrefix,
-                    active: knownMeta?.active,
-                    normative: knownMeta?.normative,
-                    derived: knownMeta?.derived,
-                    reviewed: knownMeta?.reviewed,
-                    cleared: knownMeta?.cleared
                 }
             });
               console.log('[Doorstop][drop] addNode delivered:', delivered);

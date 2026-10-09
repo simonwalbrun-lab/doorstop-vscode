@@ -72,7 +72,7 @@ before this feature existed.
 ### Implementation for User Story 2
 
 - [X] T007 [US2] In `src/extension.ts` (depends on T002; same file as T003-T005, sequential), register the `doorstop.enableAutoReveal` command: set the local cached variable to `true`, call `context.globalState.update('doorstop.autoRevealEnabled', true)`, and mirror it via `setContext`. This is the only new code US2 needs — the guards added in US1 (T004/T005) already check this same variable, so flipping it back to `true` restores reveal behavior with no further changes.
-- [ ] T008 [US2] Manually run `quickstart.md` Scenario 3 and confirm reveal-on-navigate is restored after toggling back on.
+- [X] T008 (manual — passed by user 2026-10-09) [US2] Manually run `quickstart.md` Scenario 3 and confirm reveal-on-navigate is restored after toggling back on.
 
 **Checkpoint**: both directions of the toggle now work end-to-end.
 
@@ -93,7 +93,7 @@ complementary `when` clauses were already declared in T001, and only one of
 the two commands is ever visible at a time by construction (VS Code's menu
 `when`-clause filtering). The only remaining work is confirming it:
 
-- [ ] T009 [US3] Manually run `quickstart.md` Scenario 4 (and re-check Scenario 1's baseline icon) and confirm the icon swap is immediate and unambiguous on every toggle.
+- [X] T009 (manual — passed by user 2026-10-09) [US3] Manually run `quickstart.md` Scenario 4 (and re-check Scenario 1's baseline icon) and confirm the icon swap is immediate and unambiguous on every toggle.
 
 **Checkpoint**: visual feedback confirmed with no code changes needed beyond Foundational.
 
@@ -112,7 +112,7 @@ This story also needs no new code: T003/T007 already persist the
 preference via `context.globalState.update`, and T002 already reads it back
 at activation. The only remaining work is confirming the round trip:
 
-- [ ] T010 [US4] Manually run `quickstart.md` Scenario 5: toggle off, run **Developer: Reload Window**, and confirm the preference and the button's icon are both still showing "off" afterward.
+- [X] T010 (manual — passed by user 2026-10-09) [US4] Manually run `quickstart.md` Scenario 5: toggle off, run **Developer: Reload Window**, and confirm the preference and the button's icon are both still showing "off" afterward.
 
 **Checkpoint**: all four user stories now verified end-to-end.
 
@@ -121,8 +121,8 @@ at activation. The only remaining work is confirming the round trip:
 ## Final Phase: Polish & Cross-Cutting Concerns
 
 - [X] T011 Run `npm run compile` (check-types + lint + build) and confirm it passes with no new errors/warnings — required by Constitution Principle V before this change ships.
-- [ ] T012 [P] Manually run `quickstart.md` Scenario 6 (toggling works even before the tree/server has finished loading — FR-007) — a cross-cutting robustness check that doesn't belong to any single story.
-- [ ] T013 [P] Manually run `quickstart.md` Scenario 1 as a final regression check: on a fresh run with no prior toggle use, confirm auto-reveal is on by default and behavior is unchanged from before this feature existed.
+- [X] T012 (manual — passed by user 2026-10-09) [P] Manually run `quickstart.md` Scenario 6 (toggling works even before the tree/server has finished loading — FR-007) — a cross-cutting robustness check that doesn't belong to any single story.
+- [X] T013 (manual — passed by user 2026-10-09) [P] Manually run `quickstart.md` Scenario 1 as a final regression check: on a fresh run with no prior toggle use, confirm auto-reveal is on by default and behavior is unchanged from before this feature existed.
 
 ---
 

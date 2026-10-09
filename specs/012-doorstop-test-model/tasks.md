@@ -109,9 +109,9 @@ Single project (existing VS Code extension + Python server monorepo). New paths 
 
 **Purpose**: Validate the whole feature end-to-end against the spec's success criteria.
 
-- [ ] T024 [P] Run `npm run compile` (check-types + lint + build) and confirm it passes with `src/test/regressionFixture.test.ts` and the `.vscode-test.mjs` change in place, per Constitution Principle V
-- [ ] T025 Run quickstart.md's four scenarios end-to-end (manual pass, edge-case spot check, local `npm test`, and a deliberate local regression to confirm T021's tests actually fail), fixing any discrepancy found
-- [ ] T026 [P] Review `testdata/regression/CHECKLIST.md` against spec.md's SC-001-SC-006 (30-minute full pass, 100% feature-area coverage, 2-minute item lookup, no extra setup, 5-minute restore, automated-catch) and adjust wording/structure until each holds
+- [X] T024 [P] Run `npm run compile` (check-types + lint + build) and confirm it passes with `src/test/regressionFixture.test.ts` and the `.vscode-test.mjs` change in place, per Constitution Principle V
+- [X] T025 (manual — passed by user 2026-10-09) Run quickstart.md's four scenarios end-to-end (manual pass, edge-case spot check, local `npm test`, and a deliberate local regression to confirm T021's tests actually fail), fixing any discrepancy found
+- [X] T026 (manual — passed by user 2026-10-09) [P] Review `testdata/regression/CHECKLIST.md` against spec.md's SC-001-SC-006 (30-minute full pass, 100% feature-area coverage, 2-minute item lookup, no extra setup, 5-minute restore, automated-catch) and adjust wording/structure until each holds
 
 ---
 

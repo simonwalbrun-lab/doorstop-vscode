@@ -6,6 +6,7 @@ import { registerHoverProvider } from './hoverProvider';
 import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
 import { DoorstopServer, installServerPackage, isServerPackageInstalled, SERVER_PACKAGE_NAME } from './doorstopServer';
 import { initTiming, registerCommand } from './timing';
+import { withDelayedProgress } from './progress';
 import { registerDeriveProvider } from './deriveProvider';
 import { registerReviewCodeActionProvider } from './reviewCodeActionProvider';
 import { registerReviewCommands } from './reviewLensProvider';
@@ -81,11 +82,12 @@ export async function activate(context: vscode.ExtensionContext) {
   // duplicating the spawn/report logic.
   const spawnServerProcess = async (pythonPath: string, restart: boolean): Promise<void> => {
     try {
-      if (restart) {
-        await doorstopServer.restart(workspaceFolder!.uri.fsPath, pythonPath);
-      } else {
-        await doorstopServer.start(workspaceFolder!.uri.fsPath, pythonPath);
-      }
+      await withDelayedProgress(
+        restart ? 'Restarting Doorstop server…' : 'Starting Doorstop server…',
+        () => restart
+          ? doorstopServer.restart(workspaceFolder!.uri.fsPath, pythonPath)
+          : doorstopServer.start(workspaceFolder!.uri.fsPath, pythonPath)
+      );
       console.log('[Doorstop][server] Server is ready at 127.0.0.1:7867');
       void vscode.window.showInformationMessage('Doorstop server is ready.');
       // A restart means the tree may have changed underneath us; on the first
@@ -205,7 +207,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // Forces a full re-check, bypassing the debounce (FR-013).
     context.subscriptions.push(registerCommand(
       'doorstop.recheckProblems',
-      () => problemsProvider?.refreshNow()
+      () => withDelayedProgress('Doorstop: Checking requirements…', () => problemsProvider?.refreshNow() ?? Promise.resolve())
     ));
     // A problem kind switched on or off in the settings shows at once (spec 020 FR-004).
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
@@ -266,22 +268,9 @@ export async function activate(context: vscode.ExtensionContext) {
   const diagramEditorProvider: vscode.CustomEditorProvider<DoorstopDiagramDocument> = {
     onDidChangeCustomDocument: documentChangeEvent.event,
     async openCustomDocument(uri, openContext) {
-      // After a crash or reload VS Code hands back the backup it last took, and the
-      // editor must reopen from that hot-exit copy rather than from the (stale)
-      // file on disk - otherwise every unsaved diagram edit is silently lost.
-      // backupCustomDocument returns the destination URI as the backup id.
-      const backupUri = openContext.backupId ? vscode.Uri.parse(openContext.backupId) : undefined;
-      let diagram;
-      if (backupUri) {
-        try {
-          diagram = await DoorstopDiagramPanel.readDiagram(backupUri);
-        } catch (e) {
-          console.warn('[Doorstop][diagram] Backup could not be read, falling back to the saved file:', e);
-        }
-      }
       return {
         uri,
-        diagram: diagram ?? await DoorstopDiagramPanel.readDiagram(uri),
+        diagram: await DoorstopDiagramPanel.readDiagramOrBackup(uri, openContext.backupId),
         dispose() { }
       };
     },
@@ -365,7 +354,7 @@ export async function activate(context: vscode.ExtensionContext) {
       return;
     }
     if (!DoorstopDiagramPanel.currentPanel) {
-      vscode.window.showInformationMessage('Open the Doorstop Traceability Graph first (Doorstop: Open Traceability Graph).');
+      vscode.window.showInformationMessage('Open a diagram file (*.doorstop.json) or create one with "New Diagram" first.');
       return;
     }
     DoorstopDiagramPanel.currentPanel.addRequirementToDiagram(item.resourceUri.fsPath);
@@ -434,23 +423,9 @@ export async function activate(context: vscode.ExtensionContext) {
     await vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', true);
   });
 
-  const showDiagramCommand = registerCommand('doorstop.showDiagram', async () => {
-    const [uri] = (await vscode.window.showOpenDialog({
-      defaultUri: workspaceFolder?.uri,
-      filters: { 'Doorstop Diagram': ['json'] },
-      canSelectMany: false,
-      openLabel: 'Open Diagram'
-    })) ?? [];
-    if (!uri) {
-      return;
-    }
-    await vscode.commands.executeCommand('vscode.openWith', uri, 'doorstop.diagram');
-  });
-
   context.subscriptions.push(
     treeView,
     commandsView,
-    showDiagramCommand,
     activateRequirementCommand,
     toggleAutoRevealCommand,
     enableAutoRevealCommand

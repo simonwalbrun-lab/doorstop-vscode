@@ -1,6 +1,44 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 1.2.0 → 1.3.0
+Rationale for 1.3.0: MINOR — Principle VII's trigger was redefined from
+"expected to take longer than one second" (toast shown at start) to "still
+running after one second" (toast shown by the 1 s mark at the latest), decided
+at spec 026 clarification. Added explicit rules for user-input wait time and
+exempt background/editor-native work. No principle was removed.
+
+Modified principles:
+  - VII. Long-Running Operations Are Always Visible (trigger redefined)
+
+Added sections: none
+Removed sections: none
+Deferred / TODO placeholders: none.
+
+---
+Prior report (1.2.0, superseded by the above):
+Version change: 1.1.0 → 1.2.0
+Rationale for 1.2.0: MINOR — a new principle (VII. Long-Running Operations Are
+Always Visible) was added. No existing principle was removed or redefined.
+
+Added principles:
+  - VII. Long-Running Operations Are Always Visible
+
+Modified principles: none
+Added sections: none
+Removed sections: none
+
+Deferred / TODO placeholders: none.
+
+Templates requiring follow-up: none updated by this command per the Scope Guard —
+downstream templates (plan/spec/tasks) read this file at runtime.
+
+Follow-up (non-governance): existing commands have not been audited for
+compliance with Principle VII; some already use vscode.window.withProgress
+(src/extension.ts, src/doorstopCommands.ts), others may not.
+
+---
+Prior report (1.1.0, superseded by the above):
 Version change: 1.0.1 → 1.1.0
 Rationale for 1.1.0: MINOR — a new principle (VI. Every Feature Ships With a
 CI-Runnable Test) was added and the Development Workflow section was materially
@@ -183,6 +221,40 @@ that runs solely on the author's machine does not prevent the next regression,
 so the CI-runnable property is part of the requirement rather than a separate
 concern.
 
+### VII. Long-Running Operations Are Always Visible
+
+The user MUST always be able to tell that a longer-running operation is in
+progress. Any command or user-triggered operation whose work is still running
+one second after it started MUST show a VS Code progress notification (toast,
+via `vscode.window.withProgress` with `ProgressLocation.Notification`) until
+it finishes. Whether a toast is needed is decided by the actual run time, not
+by a list of commands judged slow in advance, because the same operation can be
+fast on a small project and slow on a large one. Concretely:
+
+- The toast MUST be visible no later than one second after the work started,
+  and MUST stay visible until the operation finishes, whether it succeeds,
+  fails, or is cancelled. It MUST NOT be dismissed early while work is still
+  running in the background.
+- Work that finishes within one second MUST NOT show a toast, so fast
+  operations cause no flicker. An operation that always takes longer than one
+  second (e.g. installing the server package) MAY show its toast immediately.
+- Time spent waiting for user input (prompts, pickers, confirmations) MUST NOT
+  count towards the one second and MUST NOT be covered by a toast.
+- The toast MUST name the operation in user-facing terms (e.g. "Publishing
+  requirements…"), not an internal command ID.
+- When the operation fails, the toast MUST close and the failure MUST be
+  reported per Principle III; a progress toast never replaces an error message.
+- Operations that can be safely aborted SHOULD offer cancellation through the
+  toast.
+- Background work the user did not explicitly trigger (e.g. a debounced
+  re-check after an edit) and editor-native features that already show their
+  own running indicator (hover, completion, notebook cells) are exempt.
+
+Rationale: several commands round-trip through the Python server and Doorstop
+and can take seconds; without visible feedback the user cannot tell a slow
+operation from a hung or ignored command and is likely to trigger it again,
+which can lead to duplicate mutations.
+
 ## Additional Constraints
 
 - Stack: the extension is TypeScript on the VS Code Extension API, bundled
@@ -228,4 +300,4 @@ Unjustified complexity, or a deliberate deviation from a principle, MUST be
 called out explicitly (e.g. in the PR/commit description) rather than left
 implicit.
 
-**Version**: 1.1.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-09-10
+**Version**: 1.3.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-10-09

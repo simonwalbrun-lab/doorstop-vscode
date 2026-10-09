@@ -56,10 +56,10 @@ the backup, confirm the diagram still opens showing the last saved state).
 
 ### Implementation for User Story 1
 
-- [ ] T001 [US1] In `src/extension.ts`, change the `diagramEditorProvider.openCustomDocument` method's signature from `async openCustomDocument(uri)` to `async openCustomDocument(uri, openContext)`, and when `openContext.backupId` is truthy, attempt `await DoorstopDiagramPanel.readDiagram(vscode.Uri.file(openContext.backupId))` and use its result as the returned document's `diagram` field on success (research.md Decision 1).
-- [ ] T002 [US1] In the same method (depends on T001, same file/function), wrap the backup read from T001 in try/catch: on any failure (backup missing despite `backupId` being set, unreadable, or fails `readDiagram`'s existing "Invalid diagram format" check) or when `openContext.backupId` is absent, fall back to today's unchanged behavior — `await DoorstopDiagramPanel.readDiagram(uri)` — so the diagram always still opens (research.md Decision 2; Constitution Principle III).
-- [ ] T003 [P] [US1] In `src/test/extension.test.ts`, replace the placeholder `Sample test` with a real test that opens the `doorstop.diagram` custom editor for a temp `*.doorstop.json` file while passing a synthetic `openContext.backupId` pointing at a second temp diagram file with different node positions, and assert the opened document's `diagram` reflects the backup's positions, not the main file's (research.md Decision 3; different file from T001/T002 so parallelizable with those).
-- [ ] T004 [US1] In `src/test/extension.test.ts` (depends on T003, same file), add a second test case: set `openContext.backupId` to a path that is missing or contains invalid JSON, and assert `openCustomDocument` still resolves successfully with `diagram` read from the original `uri` instead of throwing (research.md Decision 2 / quickstart.md Scenario 3).
+- [X] T001 [US1] In `src/extension.ts`, change the `diagramEditorProvider.openCustomDocument` method's signature from `async openCustomDocument(uri)` to `async openCustomDocument(uri, openContext)`, and when `openContext.backupId` is truthy, attempt `await DoorstopDiagramPanel.readDiagram(vscode.Uri.file(openContext.backupId))` and use its result as the returned document's `diagram` field on success (research.md Decision 1).
+- [X] T002 [US1] In the same method (depends on T001, same file/function), wrap the backup read from T001 in try/catch: on any failure (backup missing despite `backupId` being set, unreadable, or fails `readDiagram`'s existing "Invalid diagram format" check) or when `openContext.backupId` is absent, fall back to today's unchanged behavior — `await DoorstopDiagramPanel.readDiagram(uri)` — so the diagram always still opens (research.md Decision 2; Constitution Principle III).
+- [X] T003 [P] [US1] (done via T007) In `src/test/extension.test.ts`, replace the placeholder `Sample test` with a real test that opens the `doorstop.diagram` custom editor for a temp `*.doorstop.json` file while passing a synthetic `openContext.backupId` pointing at a second temp diagram file with different node positions, and assert the opened document's `diagram` reflects the backup's positions, not the main file's (research.md Decision 3; different file from T001/T002 so parallelizable with those).
+- [X] T004 [US1] (done via T007) In `src/test/extension.test.ts` (depends on T003, same file), add a second test case: set `openContext.backupId` to a path that is missing or contains invalid JSON, and assert `openCustomDocument` still resolves successfully with `diagram` read from the original `uri` instead of throwing (research.md Decision 2 / quickstart.md Scenario 3).
 
 **Checkpoint**: Run `quickstart.md` Scenarios 1, 2, and 3 by hand in the
 Extension Development Host; all three MUST behave as that document describes
@@ -69,10 +69,10 @@ before considering this story done.
 
 ## Final Phase: Polish & Cross-Cutting Concerns
 
-- [ ] T005 Run `npm run compile` (check-types + lint + build) and confirm it
+- [X] T005 Run `npm run compile` (check-types + lint + build) and confirm it
   passes with no new errors/warnings — required by Constitution Principle V
   before this change ships.
-- [ ] T006 [P] Manually execute `quickstart.md` Scenarios 1, 2, and 3
+- [X] T006 (manual — passed by user 2026-10-09) [P] Manually execute `quickstart.md` Scenarios 1, 2, and 3
   end-to-end in a real Extension Development Host session (distinct from the
   narrower unit-level assertions in T003/T004) and record the outcome.
 
@@ -134,3 +134,7 @@ Task: "Add backup-restore test in src/test/extension.test.ts"
   scoped that way first — see the earlier plan-scope decision.
 - Commit after T002 (the fix itself) and again after T004 (tests), so the
   fix and its test coverage are each reviewable on their own.
+
+## Phase 4: Convergence
+
+- [X] T007 CRITICAL: Cover hot-exit backup recovery with a CI-runnable test. Move the body of `openCustomDocument` in `src/extension.ts` into an exported `loadDiagramDocument(uri: vscode.Uri, backupId?: string)` (the provider calls it with `openContext.backupId`, behaviour unchanged; the id is `destination.toString()`, so keep `vscode.Uri.parse`). In `src/test/extension.test.ts`, replace the placeholder `Sample test` with two tests on temp `*.doorstop.json` files: (1) a `backupId` pointing at a second diagram with different node positions → returned `diagram` has the backup's positions; (2) a `backupId` that is missing or holds invalid JSON → resolves without throwing, with `diagram` read from `uri`. This supersedes T003/T004, which cannot reach the provider because it is created inside `activate()`. Per Constitution VI, US1 (missing)

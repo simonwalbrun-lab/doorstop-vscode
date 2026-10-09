@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Publish has two "all" entries: **All documents - one file each** (a template
+  kept next to one document is lent to the others during the run and removed
+  again) and **All documents - combined run** (one Doorstop run with index and
+  traceability matrix; Doorstop allows only one template folder there)
+- Server: `POST /publish` (all documents in one run), `sharedTemplate` option on
+  `POST /documents/{prefix}/publish`
+- Diagram: items moved on disk are found again by UID when a diagram is opened;
+  the corrected paths are saved with the next Save
+
+### Changed
+
+- Progress notifications appear for any Doorstop operation still running after
+  one second - now also server start/restart, Refresh, Recheck Problems,
+  document view open/save, diagram load and canvas link actions, Derive, and
+  the review lenses - and no longer flash for operations that finish sooner
+- Diagram: **New Diagram** moved to the Doorstop Commands panel (palette title
+  "Doorstop: New Diagram"); existing diagrams open by clicking the
+  `*.doorstop.json` file
+- Diagram: Grid and Hierarchical Layout account for each node's size; long
+  headings wrap after about 30 characters
+
+### Removed
+
+- Diagram: "Open Traceability Graph" command and the diagram buttons in the
+  TreeView title bar
+- Diagram: the "Edit" toolbar on the canvas (use the toolbar buttons and the
+  context menu)
+- Diagram: status icons (reviewed, suspect, derived, inactive, non-normative)
+  and the red suspect border
+
+### Fixed
+
+- Publishing all documents with a custom template failed for every document
+  that had no `template` folder of its own
+
 ## [0.2.0] - 2026-10-07
 
 ### Added

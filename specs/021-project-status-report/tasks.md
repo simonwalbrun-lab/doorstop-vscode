@@ -149,7 +149,7 @@ There is nothing to set up. The project, the build and the test runner already e
 ## Phase 7: Polish & Cross-Cutting
 
 - [X] T012 [P] Add an entry for feature 021 to `CHANGELOG.md` covering Publish All, the running indicator and the status report, and add a line about the status-report command to the Commands panel section of `README.md`.
-- [ ] T013 (automated part done 2026-10-04: compile + all 6 vscode-test suites green; manual quickstart scenarios still open) Run `npm run compile` and `npm test`, then work through every scenario in [quickstart.md](quickstart.md). All must pass before the feature is done (Principle VI).
+- [X] T013 (manual — passed by user 2026-10-09) (automated part done 2026-10-04: compile + all 6 vscode-test suites green; manual quickstart scenarios still open) Run `npm run compile` and `npm test`, then work through every scenario in [quickstart.md](quickstart.md). All must pass before the feature is done (Principle VI).
 
 ---
 
@@ -183,5 +183,5 @@ Story order: Foundational → US1 → US2 → US3 → US4 → Polish.
 ## Phase 8: Convergence
 
 - [X] T014 (done by user edit: assertion is now `!markdown.includes('xychart')`) In `src/test/statusReport.test.ts`, change the "no documents" assertion from `!markdown.includes('xychart-beta')` so it fails if an empty project gets a chart, now that `src/statusReport.ts` emits the keyword `xychart`, per US3 edge case "zero documents" / T006 (partial)
-- [ ] T015 Generate `doorstop-status.md` for `testdata/regression` and confirm all charts render with the `xychart` keyword on GitHub (e.g. a gist or PR preview) and in VS Code's Mermaid preview; if either rejects it, switch `barChart` in `src/statusReport.ts` back to `xychart-beta`, per SC-006 (partial)
+- [X] T015 (manual — passed by user 2026-10-09) Generate `doorstop-status.md` for `testdata/regression` and confirm all charts render with the `xychart` keyword on GitHub (e.g. a gist or PR preview) and in VS Code's Mermaid preview; if either rejects it, switch `barChart` in `src/statusReport.ts` back to `xychart-beta`, per SC-006 (partial)
 - [X] T016 Add the `config.xyChart.height: 200` Mermaid frontmatter that `barChart` in `src/statusReport.ts` emits to each chart block in `specs/021-project-status-report/contracts/status-report-format.md`, or remove it from the code, per plan: contracts/status-report-format.md (unrequested)

@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 
 import { AddedItem, choosePrefix } from './doorstopCommands';
 import { DoorstopServer } from './doorstopServer';
+import { withDelayedProgress } from './progress';
 import { measure, registerCommand } from './timing';
 import { DocumentNode, TreeResponse } from './doorstopTypes';
 import {
@@ -356,7 +357,7 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
   const openDocumentView = async (prefix: string): Promise<void> => {
     let snapshot: DocumentNode;
     try {
-      snapshot = await loadSnapshot(prefix);
+      snapshot = await withDelayedProgress(`Doorstop: Opening document ${prefix}…`, () => loadSnapshot(prefix));
     } catch (error) {
       prompts.reportError(`Doorstop: cannot open ${prefix} as document: ${errorMessage(error)}`);
       return;
@@ -447,7 +448,7 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
     try {
       let snapshot: DocumentNode;
       try {
-        snapshot = await loadSnapshot(state.prefix);
+        snapshot = await withDelayedProgress(`Doorstop: Saving document ${state.prefix}…`, () => loadSnapshot(state.prefix));
       } catch (error) {
         return refuse(`Doorstop server unavailable: ${errorMessage(error)}`);
       }
@@ -486,40 +487,43 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
 
       const failed: FailedWrite[] = [];
       const total = updates.length + plan.creations.length + deletions.length;
-      for (const update of updates) {
-        try {
-          await options.server.request('PATCH', `/items/${encodeURIComponent(update.uid)}`, {
-            ...(update.header !== undefined ? { header: update.header } : {}),
-            ...(update.text !== undefined ? { text: update.text } : {})
-          });
-        } catch (error) {
-          failed.push({ uid: update.uid, line: update.line, message: errorMessage(error) });
+      // Only the writes: every confirmation above has been answered (spec 026 FR-005).
+      await withDelayedProgress(`Doorstop: Saving document ${state.prefix}…`, async () => {
+        for (const update of updates) {
+          try {
+            await options.server.request('PATCH', `/items/${encodeURIComponent(update.uid)}`, {
+              ...(update.header !== undefined ? { header: update.header } : {}),
+              ...(update.text !== undefined ? { text: update.text } : {})
+            });
+          } catch (error) {
+            failed.push({ uid: update.uid, line: update.line, message: errorMessage(error) });
+          }
         }
-      }
-      for (const creation of plan.creations) {
-        try {
-          // No block above means "before the current first item"; only an
-          // empty document falls through to Doorstop's plain append.
-          const position = creation.afterUid
-            ? { after: creation.afterUid }
-            : snapshot.items.some(item => item.active) ? { first: true } : {};
-          await options.server.request<AddedItem>('POST', `/documents/${encodeURIComponent(state.prefix)}/items`, {
-            ...position,
-            header: creation.header,
-            text: creation.text
-          });
-        } catch (error) {
-          failed.push({ afterUid: creation.afterUid, line: creation.line, message: errorMessage(error) });
+        for (const creation of plan.creations) {
+          try {
+            // No block above means "before the current first item"; only an
+            // empty document falls through to Doorstop's plain append.
+            const position = creation.afterUid
+              ? { after: creation.afterUid }
+              : snapshot.items.some(item => item.active) ? { first: true } : {};
+            await options.server.request<AddedItem>('POST', `/documents/${encodeURIComponent(state.prefix)}/items`, {
+              ...position,
+              header: creation.header,
+              text: creation.text
+            });
+          } catch (error) {
+            failed.push({ afterUid: creation.afterUid, line: creation.line, message: errorMessage(error) });
+          }
         }
-      }
-      for (const uid of deletions) {
-        try {
-          await options.server.request('DELETE', `/items/${encodeURIComponent(uid)}`);
-        } catch (error) {
-          const block = blocks.find(candidate => candidate.uid === uid);
-          failed.push({ uid, line: block?.separatorLine ?? 0, message: errorMessage(error) });
+        for (const uid of deletions) {
+          try {
+            await options.server.request('DELETE', `/items/${encodeURIComponent(uid)}`);
+          } catch (error) {
+            const block = blocks.find(candidate => candidate.uid === uid);
+            failed.push({ uid, line: block?.separatorLine ?? 0, message: errorMessage(error) });
+          }
         }
-      }
+      });
 
       if (total > 0) {
         options.onChanged();
@@ -527,7 +531,7 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
 
       let fresh: DocumentNode;
       try {
-        fresh = await loadSnapshot(state.prefix);
+        fresh = await withDelayedProgress(`Doorstop: Saving document ${state.prefix}…`, () => loadSnapshot(state.prefix));
       } catch (error) {
         // Written, but the state cannot be confirmed: keep the user's text.
         state.text = text;

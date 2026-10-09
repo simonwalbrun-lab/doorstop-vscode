@@ -97,7 +97,7 @@ description: "Task list for Filter Notebooks (MVP)"
 
 - [X] T014 [P] [US2] In `src/test/filterNotebook.test.ts`, assert that each UID cell of `renderResults` is `[UID](<vscode.Uri.file(path).toString()>)`, including a path containing spaces
 - [X] T015 [US2] In `renderResults` in `src/filterNotebook.ts`, render the UID as `[${uid}](${vscode.Uri.file(item.path).toString()})`
-- [ ] T016 [US2] Manually run quickstart step 3 in the Extension Development Host. If clicking does nothing, apply research R7's fallback: a `command:` link to a new internal `doorstop.filter.openItem` command that runs `vscode.window.showTextDocument(vscode.Uri.file(path))` and shows `showWarningMessage('Item no longer exists: …')` when the file is missing. Record the result in a `ponytail:` comment above `renderResults`
+- [X] T016 (manual — passed by user 2026-10-09) [US2] Manually run quickstart step 3 in the Extension Development Host. If clicking does nothing, apply research R7's fallback: a `command:` link to a new internal `doorstop.filter.openItem` command that runs `vscode.window.showTextDocument(vscode.Uri.file(path))` and shows `showWarningMessage('Item no longer exists: …')` when the file is missing. Record the result in a `ponytail:` comment above `renderResults`
 
 **Checkpoint**: US1 + US2 together cover the MVP.
 
@@ -151,7 +151,7 @@ description: "Task list for Filter Notebooks (MVP)"
   - Serialized JSON contains no `outputs` even when the cell data has outputs.
   - Empty bytes → zero cells.
   - Invalid JSON and `{}` → throws.
-- [ ] T022 [US5] Manually run quickstart step 7. Save As from an untitled notebook must offer/keep the `.doorstop-filter` extension; if it doesn't, document the filename in the markdown help cell in `NEW_NOTEBOOK_CELLS` in `src/filterNotebook.ts`
+- [X] T022 (manual — passed by user 2026-10-09) [US5] Manually run quickstart step 7. Save As from an untitled notebook must offer/keep the `.doorstop-filter` extension; if it doesn't, document the filename in the markdown help cell in `NEW_NOTEBOOK_CELLS` in `src/filterNotebook.ts`
 
 ---
 
@@ -160,7 +160,7 @@ description: "Task list for Filter Notebooks (MVP)"
 - [X] T023 [P] Add a "Filter notebooks" section to `README.md`: the command, the syntax summary with 2–3 examples from [contracts/filter-syntax.md](contracts/filter-syntax.md), and the limits (no `!`/`&&`/`||`, direct relations only)
 - [X] T024 [P] Add a spec-022 entry to `CHANGELOG.md` in the existing style
 - [X] T025 Run `npm run compile` (type-check + lint + build), `pytest server/tests` and `npm test`; fix any failures
-- [ ] T026 Run the remaining manual checks in [quickstart.md](quickstart.md) (steps 1, 2, 4–6), including the server-down error
+- [X] T026 (manual — passed by user 2026-10-09) Run the remaining manual checks in [quickstart.md](quickstart.md) (steps 1, 2, 4–6), including the server-down error
 
 ---
 

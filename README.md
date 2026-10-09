@@ -139,7 +139,7 @@ Search for "Doorstop" in the VS Code settings:
 
 - **Problems:** one checkbox per kind of Doorstop problem; unticked kinds are hidden from the Problems panel and the document view (all on by default)
 - **New Document:** item format (YAML / Markdown), UID separator (none, `-`, `.`, `_`) and number of digits used by **Create Document** (defaults: YAML, none, 3)
-- **Publish:** template name for HTML and LaTeX publishing, taken from the document's `template` folder (empty = Doorstop's built-in template)
+- **Publish:** template name for HTML and LaTeX publishing, taken from the document's `template` folder (empty = Doorstop's built-in template). *Publish* offers each document plus **All documents - one file each** (a template kept next to one document is lent to the others for the run) and **All documents - combined run** (one Doorstop run with index and traceability matrix; at most one document may own a `template` folder)
 - **Timing:** `doorstop.timing.enabled` (off by default, meant for developing the extension) records how long each command, tree load, document view load, validation, filter run, hover, CodeLens and completion takes, with the server requests they trigger split into *wait / load / work*, in the **Doorstop Timing** output channel. *Doorstop: Show Timing Summary* lists count, total, min, avg, p95 and max per operation; *Doorstop: Reset Timing Data* clears it; *Doorstop: Export Timing Data…* saves everything as JSON
 
 ## Requirements

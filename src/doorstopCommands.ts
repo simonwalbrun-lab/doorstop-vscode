@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { DoorstopServer } from './doorstopServer';
+import { withDelayedProgress } from './progress';
 import { registerCommand } from './timing';
 import { TreeResponse, ValidationResponse } from './doorstopTypes';
 import { DoorstopTreeProvider, RequirementTreeItem } from './requirementTree';
@@ -85,6 +86,39 @@ export async function chooseParentPrefix(
   return choice === noParent || choice.label === noParent.label ? null : choice.label;
 }
 
+type PublishTarget =
+  | { kind: 'document'; prefix: string }
+  | { kind: 'each' }
+  | { kind: 'together' };
+
+/** Publish picker: every document, then the two "all" modes (spec 024). */
+async function choosePublishTarget(tree: DoorstopTreeProvider): Promise<PublishTarget | undefined> {
+  const roots = await documentRoots(tree);
+  const choices: Array<vscode.QuickPickItem & { target: PublishTarget }> = roots
+    .filter(root => typeof root.itemData.prefix === 'string' && root.itemData.prefix.trim())
+    .map(root => ({
+      label: root.itemData.prefix as string,
+      description: root.resourceUri.fsPath,
+      target: { kind: 'document', prefix: root.itemData.prefix as string }
+    }));
+  choices.push(
+    {
+      label: 'All documents - one file each',
+      description: 'Publish every document separately; a shared template is supplied to documents without one',
+      target: { kind: 'each' }
+    },
+    {
+      label: 'All documents - combined run',
+      description: 'Publish all documents together with index and traceability matrix',
+      target: { kind: 'together' }
+    }
+  );
+  const choice = await vscode.window.showQuickPick(choices, {
+    placeHolder: 'Select a Doorstop document or how to publish all documents'
+  });
+  return choice?.target;
+}
+
 async function chooseDocumentOrAll(tree: DoorstopTreeProvider): Promise<string | undefined> {
   const roots = await documentRoots(tree);
   const choices = roots
@@ -121,15 +155,21 @@ function nextLevel(level: unknown): string | undefined {
  * one - Doorstop's HTML publisher, for instance, nests the output in a directory
  * of its own - so the reported path is the server's, never the requested one.
  */
-async function reportWrittenPath(action: string, requestedPath: string, writtenPath: string): Promise<void> {
+async function reportWrittenPath(action: string, requestedPath: string, writtenPath: string, summary?: string): Promise<void> {
   const differs = path.normalize(requestedPath) !== path.normalize(writtenPath);
-  const message = differs
+  const message = summary ?? (differs
     ? `${action} complete. Doorstop wrote to ${writtenPath} (instead of the requested ${requestedPath}).`
-    : `${action} complete: ${writtenPath}`;
+    : `${action} complete: ${writtenPath}`);
+  const uri = vscode.Uri.file(writtenPath);
+  const isFile = (await vscode.workspace.fs.stat(uri).then(stat => stat.type === vscode.FileType.File, () => false));
+  const open = 'Open';
   const reveal = 'Reveal in Explorer';
-  const choice = await vscode.window.showInformationMessage(message, reveal);
-  if (choice === reveal) {
-    await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(writtenPath));
+  const choice = await vscode.window.showInformationMessage(message, ...(isFile ? [open, reveal] : [reveal]));
+  if (choice === open) {
+    // Published HTML is meant to be viewed rendered, everything else read as text.
+    await (path.extname(writtenPath) === '.html' ? vscode.env.openExternal(uri) : vscode.commands.executeCommand('vscode.open', uri));
+  } else if (choice === reveal) {
+    await vscode.commands.executeCommand('revealFileInOS', uri);
   }
 }
 
@@ -166,10 +206,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     }
     busy.add(title);
     try {
-      const result = await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: `Doorstop: ${title}…` },
-        () => op()
-      );
+      const result = await withDelayedProgress(`Doorstop: ${title}…`, op);
       options.tree.refresh();
       options.utilities.refresh();
       return result;
@@ -208,10 +245,13 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     }));
   });
 
-  const refresh = register('doorstop.refresh', () => {
+  // Awaiting getChildren shares the load VS Code starts for the view, so the
+  // notification covers the real reload (spec 026).
+  const refresh = register('doorstop.refresh', () => withDelayedProgress('Doorstop: Refresh…', async () => {
     options.tree.refresh();
     options.utilities.refresh();
-  });
+    await options.tree.getChildren();
+  }));
 
   const add = register('doorstop.add', async (value?: unknown) => {
     const item = itemArgument(value);
@@ -390,8 +430,8 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
   });
 
   const publish = register('doorstop.publish', async () => {
-    const prefix = await chooseDocumentOrAll(options.tree);
-    if (!prefix) {return;}
+    const target = await choosePublishTarget(options.tree);
+    if (!target) {return;}
     const format = await vscode.window.showQuickPick([
       { label: 'Markdown', value: 'markdown' as const, extension: '.md' },
       { label: 'HTML', value: 'html' as const, extension: '.html' },
@@ -402,23 +442,27 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     // document without a `template` folder (spec 020 research R5).
     const configured = vscode.workspace.getConfiguration('doorstop.publish').get<string>('template', '').trim();
     const template = format.value === 'markdown' ? '' : configured;
+    const withTemplateHint = (error: unknown): never => {
+      if (!template) {throw error;}
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`${message} (template "${template}" from setting doorstop.publish.template)`);
+    };
     const publishOne = (documentPrefix: string, destinationPath: string): Promise<{ path: string }> =>
       options.server.request<{ path: string }>(
         'POST', `/documents/${encodeURIComponent(documentPrefix)}/publish`, {
           format: format.value,
           destinationPath,
-          ...(template ? { template } : {})
+          ...(template ? { template } : {}),
+          // "One file each": documents without their own template folder borrow
+          // another document's, server-side (spec 024).
+          ...(template && target.kind === 'each' ? { sharedTemplate: true } : {})
         }
-      ).catch(error => {
-        if (!template) {throw error;}
-        const message = error instanceof Error ? error.message : String(error);
-        throw new Error(`${message} (template "${template}" from setting doorstop.publish.template)`);
-      });
+      ).catch(error => withTemplateHint(error));
 
-    if (prefix !== 'all') {
+    if (target.kind === 'document') {
       const destination = await vscode.window.showSaveDialog({ saveLabel: 'Publish' });
       if (!destination) {return;}
-      const result = await run('Publish', () => publishOne(prefix, destination.fsPath));
+      const result = await run('Publish', () => publishOne(target.prefix, destination.fsPath));
       if (result?.path) {
         await reportWrittenPath('Publish', destination.fsPath, result.path);
       }
@@ -433,6 +477,20 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     });
     if (!folders?.[0]) {return;}
     const folder = folders[0].fsPath;
+    if (target.kind === 'together') {
+      const result = await run('Publish', () => options.server.request<{ path: string }>(
+        'POST', '/publish', {
+          format: format.value,
+          destinationPath: folder,
+          ...(template ? { template } : {})
+        }
+      ).catch(error => withTemplateHint(error)));
+      if (result?.path) {
+        // The server reports index.html for HTML; that is where it was meant to go.
+        await reportWrittenPath('Publish', path.dirname(result.path) === folder ? result.path : folder, result.path);
+      }
+      return;
+    }
     const prefixes = (await documentRoots(options.tree))
       .map(root => root.itemData.prefix)
       .filter((value): value is string => typeof value === 'string' && value.trim() !== '');
@@ -452,7 +510,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
       return prefixes.length;
     });
     if (count !== undefined) {
-      void vscode.window.showInformationMessage(`Published ${count} document(s) to ${folder}.`);
+      await reportWrittenPath('Publish', folder, folder, `Published ${count} document(s) to ${folder}.`);
     }
   });
 

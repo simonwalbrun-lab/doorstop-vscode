@@ -237,10 +237,10 @@ description: "Task list for 023 Execution Timing"
   - **Server**: `Server-Timing` header with `wait`/`load`/`work` on every response.
 - [X] T039 Run `npm run compile` (type-check + lint + build) and fix every issue.
 - [X] T040 Run `pytest server/tests` and `npm test`. Both must be green, with no new skips (Constitution VI).
-- [ ] T041 Walk through [quickstart.md](quickstart.md) steps 1–9 in the Extension Development Host. In particular, confirm step 8: with the setting disabled, the channel stays silent and the three commands are hidden. Also check these two targets by hand (spec Clarifications 2026-10-06):
+- [X] T041 (manual — passed by user 2026-10-09) Walk through [quickstart.md](quickstart.md) steps 1–9 in the Extension Development Host. In particular, confirm step 8: with the setting disabled, the channel stays silent and the three commands are hidden. Also check these two targets by hand (spec Clarifications 2026-10-06):
   - **SC-003**: with timing disabled, time 5 tree loads, 5 document view opens and 5 validation runs on this branch and on `main`. The medians must differ by less than 2 %.
   - **SC-004**: with timing enabled, the `(h)` run from T006 averages under 1 ms per call. Note the measured figures in the PR description.
-- [ ] T042 Commit the server changes (T026, T029–T031) inside the `server/` submodule, then commit the bumped submodule pointer together with the extension changes in this repo.
+- [X] T042 Commit the server changes (T026, T029–T031) inside the `server/` submodule, then commit the bumped submodule pointer together with the extension changes in this repo.
 
 ---
 

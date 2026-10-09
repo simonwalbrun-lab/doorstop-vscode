@@ -58,7 +58,7 @@ Single project (VS Code extension). All paths are repository-root-relative:
 ### Implementation for User Story 1
 
 - [X] T004 [US1] In `src/extension.ts`, inside `startDoorstopServer` (after `getActivePythonPath()` resolves, before the existing `doorstopServer.start`/`restart` call): call `isServerPackageInstalled(pythonPath)`. When it resolves `true`, fall through to the existing start/restart call unchanged (FR-003). When it resolves `false`, call `vscode.window.showWarningMessage` naming `doorstop-vscode-server` as not installed in the selected interpreter, with `'Install'` and `'Dismiss'` actions, and `return` without calling `doorstopServer.start`/`restart` (FR-002, FR-009) — leave the `'Install'` branch of the resolved selection as the integration point User Story 2 completes (T008); for now it is equivalent to Dismiss (server stays stopped either way).
-- [ ] T005 [US1] Run the manual US1 walkthrough in [quickstart.md](./quickstart.md) against both an interpreter missing the package and one that has it; confirm the notification appears/doesn't appear as expected and Dismiss leaves the server stopped. Depends on T004.
+- [X] T005 (manual — passed by user 2026-10-09) [US1] Run the manual US1 walkthrough in [quickstart.md](./quickstart.md) against both an interpreter missing the package and one that has it; confirm the notification appears/doesn't appear as expected and Dismiss leaves the server stopped. Depends on T004.
 
 **Checkpoint**: At this point, User Story 1 is fully functional and independently testable per its Independent Test above — run the manual US1 walkthrough in [quickstart.md](./quickstart.md).
 
@@ -101,7 +101,7 @@ Single project (VS Code extension). All paths are repository-root-relative:
 
 - [X] T011 [P] Run `npm run compile` (check-types + lint + esbuild) and fix any reported issues.
 - [X] T012 [P] Run `npm test` and confirm the new `serverPackageInstall` suite passes alongside the existing `unit`, `regressionFixture`, `diagramLayout`, and `reviewLensScan` suites.
-- [ ] T013 Walk through the remaining "Regression checks" section of [quickstart.md](./quickstart.md) end-to-end (package-already-installed path unchanged; unrelated startup failures like a taken port still use the existing error path, not the install flow).
+- [X] T013 (manual — passed by user 2026-10-09) Walk through the remaining "Regression checks" section of [quickstart.md](./quickstart.md) end-to-end (package-already-installed path unchanged; unrelated startup failures like a taken port still use the existing error path, not the install flow).
 
 ---
 

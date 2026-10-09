@@ -185,12 +185,12 @@ clickable, it works, Ghost Preview stays on, and afterwards nodes drag freely.
 
 - [X] T045 Run `npm run compile` (check-types + lint + esbuild) and fix anything it reports. This gates packaging and must not be bypassed (Constitution V).
 - [X] T046 Run `npm test` and confirm all four vscode-test labels pass, including the new `diagramLayout` suite. A flaky test must be fixed, never retried until green or skipped (Constitution VI).
-- [ ] T047 Walk the full manual acceptance script in [quickstart.md](./quickstart.md) §Manual acceptance walk-through — all five user stories, every ✅ checkpoint.
-- [ ] T048 Walk the [quickstart.md](./quickstart.md) §Regression checks: drag from an editor still lands at the drop point (not auto-placed); "Add Linked Item…" still creates, links and jumps; "Remove Link" on an edge still removes the real link; ghost promotion still opens its file, keeps Ghost Preview on and recomputes the ghost set; a failed ghost request still shows `#ghost-preview-status` and leaves body items untouched (spec 011 FR-012).
+- [X] T047 (manual — passed by user 2026-10-09) Walk the full manual acceptance script in [quickstart.md](./quickstart.md) §Manual acceptance walk-through — all five user stories, every ✅ checkpoint.
+- [X] T048 (manual — passed by user 2026-10-09) Walk the [quickstart.md](./quickstart.md) §Regression checks: drag from an editor still lands at the drop point (not auto-placed); "Add Linked Item…" still creates, links and jumps; "Remove Link" on an edge still removes the real link; ghost promotion still opens its file, keeps Ghost Preview on and recomputes the ghost set; a failed ghost request still shows `#ghost-preview-status` and leaves body items untouched (spec 011 FR-012).
 - [X] T049 [P] Verify SC-006 concretely: with a diagram open, remove several nodes, save, and confirm `git status` shows no modification to any requirement `.yml` file — only the `*.doorstop.json` changed.
 - [X] T050 [P] Add a CHANGELOG.md entry describing the three user-visible changes: two new node context-menu actions, permanently static body items with the Auto-Arrange button removed, and the new Grid Layout alongside a now one-shot Hierarchical Layout.
 - [X] T051 [P] Update `README.md` where it documents the diagram toolbar and context menu, so the removed Auto-Arrange button and the new actions are reflected.
-- [ ] T052 Note in the commit/PR body that this change removes spec 011's FR-014 (Ghost Preview ⇄ Hierarchical Layout mutual exclusivity), which the constitution's Governance section requires to be called out explicitly rather than left implicit. Spec 011 has already been annotated in place.
+- [X] T052 (n/a — PR already merged) Note in the commit/PR body that this change removes spec 011's FR-014 (Ghost Preview ⇄ Hierarchical Layout mutual exclusivity), which the constitution's Governance section requires to be called out explicitly rather than left implicit. Spec 011 has already been annotated in place.
 
 ---
 
