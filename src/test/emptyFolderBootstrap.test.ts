@@ -53,8 +53,12 @@ suite('Empty-Folder Bootstrap (029)', () => {
 
   // Spec 029 FR-001
   test('the extension activates from the Doorstop view or Create Document, without a project marker', () => {
-    assert.ok(manifest.activationEvents.includes('onView:doorstop.commandsView'));
-    assert.ok(manifest.activationEvents.includes('onCommand:doorstop.createDoc'));
+    // VS Code derives onView/onCommand activation from these contributions
+    // (engines.vscode >= 1.74), so no explicit activationEvents are declared.
+    const views: { id: string }[] = Object.values<{ id: string }[]>(manifest.contributes.views).flat();
+    const commands: { command: string }[] = manifest.contributes.commands;
+    assert.ok(views.some(v => v.id === 'doorstop.commandsView'));
+    assert.ok(commands.some(c => c.command === 'doorstop.createDoc'));
   });
 
   // Spec 029 FR-009
