@@ -201,7 +201,7 @@ export class DoorstopDiagramPanel {
                 this._metaWarningShown = true;
                 vscode.window.showWarningMessage(
                     'Doorstop diagram: could not load link data from the server (colors and edges may be incomplete). ' +
-                    'Item paths were not verified. If you recently updated the extension, try "Doorstop: Restart Server".'
+                    'Item paths were not verified. If you recently updated the extension, try "Doorstop: Restart Extension".'
                 );
             }
             this._panel.webview.postMessage({ command: 'loadDiagram', diagram: currentDiagram, meta: {}, documents: {} });
@@ -699,7 +699,7 @@ export class DoorstopDiagramPanel {
             console.warn('[Doorstop][drop] No server metadata for UID:', JSON.stringify(uid));
             vscode.window.showWarningMessage(
                 `Der Doorstop-Server kennt "${uid}" nicht. Bitte den Baum aktualisieren ` +
-                'oder "Doorstop: Restart Server" ausführen.'
+                'oder "Doorstop: Restart Extension" ausführen.'
             );
             return;
         }

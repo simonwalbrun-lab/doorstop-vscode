@@ -124,8 +124,7 @@ ready, then disappears and the existing "server is ready" message appears.
   today (Create Document, Add Item, Review, Clear, Link, Reorder, Import,
   Export, Publish, Generate Status Report) MUST switch to the 1-second rule of
   FR-001/FR-002; their other behavior (duplicate-run guard, error message,
-  refresh afterwards) MUST stay unchanged. Install Server Package always takes
-  several seconds and keeps its immediate notification.
+  refresh afterwards) MUST stay unchanged. Install Server Package and the PDF tooling/browser install (spec 027) always take several seconds and keep their immediate notification.
 - **FR-008**: Starting the same command again while it is still running MUST
   NOT stack a second notification.
 - **FR-009**: Commands that do no server work (toggles, timing commands,
@@ -149,9 +148,9 @@ including at least:
 | Saving the document view | Doorstop: Saving document &lt;prefix&gt;… |
 | Show Diagram / Add to Diagram / opening a diagram file | Doorstop: Loading diagram… |
 | Derive Requirement; add/remove link and create linked item on the diagram canvas | Doorstop: &lt;action&gt;… |
-| Review / Clear Suspect actions above a requirement | Doorstop: &lt;action&gt;… |
+| Review / Clear Suspect actions (Quick Fix, tree context menu) | Doorstop: &lt;action&gt;… |
 | Create Document, Add Item, Review, Clear, Link, Reorder, Import, Export, Publish, Generate Status Report | Doorstop: &lt;action&gt;… (unchanged text, now after 1 s per FR-007) |
-| Install Server Package | Installing … (unchanged, immediate per FR-007) |
+| Install Server Package; PDF tooling/browser install (spec 027) | Installing … (unchanged, immediate per FR-007) |
 
 ## Success Criteria *(mandatory)*
 

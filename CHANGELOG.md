@@ -6,12 +6,35 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- The server starts only with the interpreter of the Python environment VS Code has
+  activated: it waits (with a one-time notice) until one is active, never falls back
+  to another interpreter, restarts when the environment changes, and re-checks the
+  environment before installing the server package
+- **Doorstop: Restart Extension** replaces **Doorstop: Restart Server**: it re-resolves
+  the Python environment, re-checks the package, restarts the server and refreshes the views
+- Start a project from an empty folder: the Doorstop view and **Create Document**
+  now work without an existing `.doorstop.yml`. A folder that is not under git
+  version control gets a clear error instead
+- **Create Document** moved from the Explorer toolbar to the Commands view (still
+  in the command palette); its folder dialog opens in the workspace folder
 - Publish has two "all" entries: **All documents - one file each** (a template
   kept next to one document is lent to the others during the run and removed
   again) and **All documents - combined run** (one Doorstop run with index and
   traceability matrix; Doorstop allows only one template folder there)
 - Server: `POST /publish` (all documents in one run), `sharedTemplate` option on
   `POST /documents/{prefix}/publish`
+- Publish as **PDF**: one A4 PDF per document, plus a landscape
+  `traceability.pdf` for all documents, printed from Doorstop's HTML by a
+  headless-browser script that the first PDF publish adds to the workspace
+  (`doorstop-pdf/`), so CI pipelines run the very same script
+- Published traceability matrix and item child links include cross-document
+  links (links that skip a document level or cross branches), which Doorstop
+  itself drops. Settings `doorstop.publish.traceability` (`complete` /
+  `doorstop`, matrix only) and `doorstop.publish.noChildLinks` (Doorstop's
+  `--no-child-links`)
+- Server: `traceability` and `childLinks` options on both publish endpoints;
+  `python -m doorstop_server.publish` runs `doorstop publish` with the same
+  links for CI
 - Diagram: items moved on disk are found again by UID when a diagram is opened;
   the corrected paths are saved with the next Save
 

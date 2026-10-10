@@ -154,3 +154,10 @@ Single project (VS Code extension). All paths are repository-root-relative:
 - [Story] label maps each task to its user story for traceability back to spec.md.
 - This feature does not fit the "stories are independent" ideal perfectly: US2 and US3 build directly on the notification/progress UI US1 and US2 introduce in `src/extension.ts`, because there is only one control-flow decision point (`startDoorstopServer`) for all three stories to extend. Each story is still independently *testable* per its Independent Test in spec.md, even though later stories are not independently *implementable* without the earlier ones' code.
 - Commit after each task or logical group; stop at any checkpoint to validate a story independently.
+
+## Phase 7: Convergence
+
+- [ ] T014 Add `// Spec 016 FR-NNN` trace comments to the existing tests in `src/test/serverPackageInstall.test.ts`: isServerPackageInstalled tests -> FR-001; success/failure output tests -> FR-007; onOutput streaming test -> FR-005; concurrent-call tests -> FR-008; retry test -> FR-007/FR-010 per Constitution VIII (partial)
+- [ ] T015 Add a unit test in `src/test/serverPackageInstall.test.ts` asserting `installServerPackage` spawns `<python> -m pip install doorstop-vscode-server` (inspect fake spawn `calls`), tagged `// Spec 016 FR-004` per FR-004 (missing)
+- [ ] T016 Extract the `startDoorstopServer` decision logic in `src/extension.ts` (package-missing prompt, Install, success start, failure error, dismiss) into a testable function with injectable vscode/server/install deps, and add automated tests tagged `// Spec 016 FR-002`, `FR-003`, `FR-006`, `FR-007` (no start on failure), `FR-009` (dismiss leaves server stopped, no install) per Constitution VIII (missing)
+- [ ] T017 Add an automated test tagged `// Spec 016 FR-010` that the presence check runs on every start attempt (two starts with different pythonPath -> check called twice, no caching) per FR-010 (missing)

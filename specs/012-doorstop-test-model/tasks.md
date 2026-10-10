@@ -202,3 +202,18 @@ With multiple contributors:
 - Commit after each task or logical group
 - Stop at any checkpoint to validate a story independently
 - Avoid: vague fixture item content, CHECKLIST.md rewrite conflicts between US1/US2 (append, don't restructure), cross-story dependencies that would block US1 or US2 from shipping alone
+
+---
+
+## Phase 7: Convergence
+
+Constitution v1.4.0 Principle VIII: every FR needs an automated CI-run test carrying a `Spec 012 FR-NNN` trace comment. Today no test carries a `Spec 012` comment.
+
+- [ ] T027 CRITICAL Add `// Spec 012 FR-001`, `FR-003`, `FR-004`, `FR-005` trace comments to the existing `src/test/regressionFixture.test.ts` tests that already cover them (explorer loads REQ/ARCH/EMPTY; clear-suspect on REQ-007; dangling link REQ-009; empty document EMPTY) per Constitution VIII (partial)
+- [ ] T028 CRITICAL Add a fixture-integrity test in `src/test/regressionFixture.test.ts` tagged `Spec 012 FR-001`/`FR-010`: the fixture loads from the fixed `testdata/regression` path with a root document and at least two child documents per Constitution VIII (missing)
+- [ ] T029 CRITICAL Add a test tagged `Spec 012 FR-002`: the fixture contains a plain item, an upstream-linked item, a derived-linked item, a heading item, an unreviewed item, a reviewed item and an item with a cleared suspect link, checked via the server/item files per Constitution VIII (missing)
+- [ ] T030 CRITICAL Add a test tagged `Spec 012 FR-006`: the fixture holds both a near-empty text item and a long multi-paragraph text item per Constitution VIII (missing)
+- [ ] T031 CRITICAL Add a test tagged `Spec 012 FR-007`: `testdata/regression/diagram.doorstop.json` parses and references a mix of existing fixture UIDs per Constitution VIII (missing)
+- [ ] T032 CRITICAL Add a test tagged `Spec 012 FR-008`/`FR-009`/`FR-011`: `testdata/regression/CHECKLIST.md` exists, maps each shipped feature area to a fixture document/item with an expected outcome, and states the feature areas it covers per Constitution VIII (missing)
+- [ ] T033 CRITICAL Add a test tagged `Spec 012 FR-013`/`FR-014`: `.github/workflows/ci.yml` contains the `extension-integration-tests` job, runs `npm test` and has no `continue-on-error` per Constitution VIII (missing)
+- [ ] T034 CRITICAL Tag the integration suite itself (`suite('Regression Fixture Integration Suite'...)` in `src/test/regressionFixture.test.ts`) with `Spec 012 FR-012` per Constitution VIII (partial)

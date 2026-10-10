@@ -185,3 +185,11 @@ Task: "Add reveal-suppressed-when-off test in src/test/extension.test.ts"
   reviewable on their own.
 - US3 and US4 having no dedicated implementation tasks is expected, not a
   gap — see the Organization note at the top of this file.
+
+## Phase 8: Convergence
+
+- [ ] T014 Add trace comments `// Spec 010 FR-002` and `// Spec 010 FR-003` to the existing test 'Auto-reveal toggle suppresses reveal on both gated paths' in `src/test/extension.test.ts` per Constitution VIII (partial)
+- [ ] T015 [P] Add automated test in `src/test/extension.test.ts` asserting `package.json` contributes `doorstop.toggleAutoReveal`/`doorstop.enableAutoReveal` as `view/title` navigation entries for `doorstop.treeView`, with complementary `when` clauses and distinct icons, tagged `// Spec 010 FR-001` and `// Spec 010 FR-005` per FR-001, FR-005 (missing)
+- [ ] T016 [P] Add automated test in `src/test/extension.test.ts` asserting that with auto-reveal off, an explicit tree-item open command still opens the file, tagged `// Spec 010 FR-004` per FR-004 (missing)
+- [ ] T017 [P] Add automated test in `src/test/extension.test.ts` asserting toggle/enable commands write `doorstop.autoRevealEnabled` to `globalState` (and default is `true` when unset), tagged `// Spec 010 FR-006` per FR-006 (missing)
+- [ ] T018 [P] Add automated test in `src/test/extension.test.ts` asserting the toggle commands succeed without a running Doorstop server/loaded tree, tagged `// Spec 010 FR-007` per FR-007 (missing)

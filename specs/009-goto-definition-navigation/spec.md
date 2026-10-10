@@ -177,3 +177,4 @@ file and cursor position are restored.
 - Back-navigation is provided by the editor's built-in "Go Back" behavior,
   which requires no additional persistence as long as definition/reference
   jumps are registered as standard navigation events.
+- Also applies to the virtual documents of the Document View (spec 019 FR-036/FR-037).

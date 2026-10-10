@@ -581,6 +581,64 @@ suite('Regression Fixture Integration Suite', () => {
     });
   });
 
+  /** Runs the Publish command as a combined run in `format` into `dir`. */
+  async function publishCombined(format: string, dir: string): Promise<void> {
+    await withStubbedDialogs(
+      {
+        openDialog: [vscode.Uri.file(dir)],
+        quickPick: items => items.find(item => [format, 'All documents - combined run'].includes(labelOf(item)))
+      },
+      () => vscode.commands.executeCommand('doorstop.publish') as Promise<void>
+    );
+  }
+
+  // Spec 028 FR-011
+  test('Publish honours doorstop.publish.traceability (028)', async function () {
+    this.timeout(60000);
+    const settings = vscode.workspace.getConfiguration('doorstop.publish');
+    assert.strictEqual(settings.inspect('traceability')?.defaultValue, 'complete');
+    // The fixture has no cross-branch link: add MD-001 -> ARCH-001 (siblings
+    // under REQ) for this test and put the file back byte for byte afterwards.
+    const mdItem = path.join(FIXTURE_ROOT, 'children', 'MD', 'MD-001.md');
+    const original = await fs.readFile(mdItem);
+    const crossRow = (csv: string) => csv.split(/\r?\n/).some(line => line.includes('ARCH-001') && line.includes('MD-001'));
+    try {
+      await server.request('POST', '/items/MD-001/links', { parentUid: 'ARCH-001' });
+      await withTempDir(async dir => {
+        await publishCombined('HTML', dir);
+        assert.ok(crossRow(await fs.readFile(path.join(dir, 'traceability.csv'), 'utf8')), 'complete matrix has the cross row');
+      });
+      await settings.update('traceability', 'doorstop', vscode.ConfigurationTarget.Global);
+      await withTempDir(async dir => {
+        await publishCombined('HTML', dir);
+        assert.ok(!crossRow(await fs.readFile(path.join(dir, 'traceability.csv'), 'utf8')), "Doorstop's matrix drops it");
+      });
+    } finally {
+      await settings.update('traceability', undefined, vscode.ConfigurationTarget.Global);
+      await fs.writeFile(mdItem, original);
+    }
+  });
+
+  // Spec 028 FR-012
+  test('Publish honours doorstop.publish.noChildLinks (028)', async function () {
+    this.timeout(60000);
+    const settings = vscode.workspace.getConfiguration('doorstop.publish');
+    assert.strictEqual(settings.inspect('noChildLinks')?.defaultValue, false);
+    try {
+      await settings.update('noChildLinks', true, vscode.ConfigurationTarget.Global);
+      await withTempDir(async dir => {
+        await publishCombined('Markdown', dir);
+        for (const name of (await fs.readdir(dir)).filter(name => name.endsWith('.md'))) {
+          assert.ok(!(await fs.readFile(path.join(dir, name), 'utf8')).includes('Child links'), `${name} has no child links`);
+        }
+        // ARCH-001 links to a REQ item; REQ items have no parents.
+        assert.ok((await fs.readFile(path.join(dir, 'ARCH.md'), 'utf8')).includes('Links:'));
+      });
+    } finally {
+      await settings.update('noChildLinks', undefined, vscode.ConfigurationTarget.Global);
+    }
+  });
+
   // ---------------------------------------------------------------------
   // Export / Publish report the location Doorstop actually wrote (004 FR-008).
   // ---------------------------------------------------------------------
@@ -1491,6 +1549,7 @@ suite('Regression Fixture Integration Suite', () => {
       await closeViews();
     });
 
+    // Spec 019 FR-002 FR-003 FR-004 FR-005 FR-006 FR-007 FR-008 FR-045
     test('opens REQ as a markdown document with one block per item in level order (US1)', async function () {
       this.timeout(30000);
       const document = await openView('REQ');
@@ -1518,6 +1577,7 @@ suite('Regression Fixture Integration Suite', () => {
       assert.strictEqual(empty?.getText(), '<!-- doorstop document EMPTY · keep this line -->\n');
     });
 
+    // Spec 019 FR-015 FR-019 FR-020 FR-028
     test('saves edited text and header through the server and regenerates the view (US2)', async function () {
       this.timeout(60000);
       await withRestoredFixture(async () => {
@@ -1578,6 +1638,7 @@ suite('Regression Fixture Integration Suite', () => {
       });
     });
 
+    // Spec 019 FR-021
     test('a save with the server unreachable fails and keeps the edits (US2)', async function () {
       this.timeout(60000);
       if (!startedOwnServer) {
@@ -1599,6 +1660,7 @@ suite('Regression Fixture Integration Suite', () => {
       assert.ok(!original.includes('Never written.'));
     });
 
+    // Spec 019 FR-009 FR-013
     test('an edit inside a separator line is reverted with a hint (US3)', async function () {
       this.timeout(30000);
       const document = await openView('REQ');
@@ -1613,6 +1675,7 @@ suite('Regression Fixture Integration Suite', () => {
       assert.deepStrictEqual(hints, ['This line is managed by Doorstop - use the actions above it']);
     });
 
+    // Spec 019 FR-022 FR-023 FR-024
     test('a missing block asks Delete / Keep / Cancel before anything is removed (US3)', async function () {
       this.timeout(60000);
       await withRestoredFixture(async () => {
@@ -1646,6 +1709,7 @@ suite('Regression Fixture Integration Suite', () => {
       });
     });
 
+    // Spec 019 FR-025 FR-026 FR-027
     test('a duplicated separator refuses the save and offers Restore block structure (US3)', async function () {
       this.timeout(60000);
       await withRestoredFixture(async () => {
@@ -1679,6 +1743,7 @@ suite('Regression Fixture Integration Suite', () => {
       });
     });
 
+    // Spec 019 FR-025 FR-027 FR-029
     test('a pasted separator from another document is refused and removable (US3, FR-025)', async function () {
       this.timeout(60000);
       await withRestoredFixture(async () => {
@@ -1722,6 +1787,7 @@ suite('Regression Fixture Integration Suite', () => {
       });
     });
 
+    // Spec 019 FR-027
     test('a stray separator on the very last line is removable too (FR-027)', async function () {
       this.timeout(60000);
       await withRestoredFixture(async () => {
@@ -1757,6 +1823,55 @@ suite('Regression Fixture Integration Suite', () => {
       });
     });
 
+    // Spec 019 FR-005
+    test('standard editing works: undo restores the text before an edit', async function () {
+      this.timeout(30000);
+      const document = await openView('REQ');
+      const original = document.getText();
+      await replaceInView(document, 'The system shall have minimal text.', 'Typed and undone.');
+      assert.ok(document.getText().includes('Typed and undone.'));
+      await vscode.commands.executeCommand('undo');
+      assert.strictEqual(document.getText(), original);
+    });
+
+    // Spec 019 FR-014 FR-038 FR-043 FR-044
+    test('a moved block keeps its action line, and saving it changes nothing on disk', async function () {
+      this.timeout(60000);
+      await withRestoredFixture(async () => {
+        const before = new Map<string, Buffer>();
+        for (const file of await listFiles(FIXTURE_ROOT)) {
+          before.set(file, await fs.readFile(file));
+        }
+        const document = await openView('REQ');
+        // Cut REQ-010's block (separator through its text) and paste it above REQ-009.
+        const lines = document.getText().split('\n');
+        const from = lineOf(document, REQ_SEPARATOR('REQ-010', '1.9'));
+        const block = lines.slice(from, lines.length - 1).join('\n') + '\n\n';
+        const edit = new vscode.WorkspaceEdit();
+        edit.delete(document.uri, new vscode.Range(from - 1, 0, document.lineCount - 1, 0));
+        edit.insert(document.uri, new vscode.Position(lineOf(document, REQ_SEPARATOR('REQ-009', '1.8')), 0), block);
+        assert.ok(await vscode.workspace.applyEdit(edit));
+
+        const moved = lineOf(document, REQ_SEPARATOR('REQ-010', '1.9'));
+        assert.ok(moved < lineOf(document, REQ_SEPARATOR('REQ-009', '1.8')), 'REQ-010 now precedes REQ-009');
+        // The action line follows the block once typing pauses.
+        await waitFor(async () => {
+          const lenses = await vscode.commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', document.uri);
+          return lenses.some(lens => lens.range.start.line === moved && lens.command?.title === 'REQ-010');
+        }, 'action line on the moved block');
+
+        // Block order is informational: levels and files stay as they were.
+        assert.strictEqual(await document.save(), true);
+        for (const [file, bytes] of before) {
+          assert.ok((await fs.readFile(file)).equals(bytes), `${path.basename(file)} unchanged`);
+        }
+        const items = await reqItems();
+        assert.strictEqual(items.get('REQ-010')?.level, '1.9');
+        assert.strictEqual(items.get('REQ-009')?.level, '1.8');
+      });
+    });
+
+    // Spec 019 FR-028
     test('a deleted heading line triggers the header confirmation (US3)', async function () {
       this.timeout(60000);
       await withRestoredFixture(async () => {
@@ -1776,6 +1891,7 @@ suite('Regression Fixture Integration Suite', () => {
       });
     });
 
+    // Spec 019 FR-030 FR-031 FR-031a
     test('+ New item below creates an item after the block, renumbering its followers (US4)', async function () {
       this.timeout(60000);
       await withRestoredFixture(async () => {
@@ -1830,6 +1946,7 @@ suite('Regression Fixture Integration Suite', () => {
       });
     });
 
+    // Spec 019 FR-034 FR-035 FR-036 FR-037
     test('action line, projected problems and navigation work on the separators (US5)', async function () {
       this.timeout(60000);
       await withRestoredFile(path.join(FIXTURE_ROOT, 'REQ-001.yml'), async () => {
@@ -1881,6 +1998,7 @@ suite('Regression Fixture Integration Suite', () => {
       });
     });
 
+    // Spec 019 FR-031 FR-031a
     test('a placeholder above the first block becomes the first item (US4)', async function () {
       this.timeout(60000);
       await withRestoredFixture(async () => {
@@ -1910,6 +2028,7 @@ suite('Regression Fixture Integration Suite', () => {
       });
     });
 
+    // Spec 019 FR-021a
     test('a failed write is reported and keeps that block dirty (US2, FR-021a)', async function () {
       this.timeout(60000);
       await withRestoredFixture(async () => {
@@ -1948,6 +2067,7 @@ suite('Regression Fixture Integration Suite', () => {
       });
     });
 
+    // Spec 019 FR-041 FR-042
     test('changes on disk refresh a clean view and ask before touching a dirty one (US6)', async function () {
       this.timeout(60000);
       await withRestoredFixture(async () => {

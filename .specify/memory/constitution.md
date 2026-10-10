@@ -1,6 +1,33 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 1.3.0 → 1.4.0
+Rationale for 1.4.0: MINOR — a new principle (VIII. Every Functional
+Requirement Has a Traceable Automated Test) was added, raising the test floor
+from one test per feature to one test per functional requirement, with a
+mandatory trace comment linking each test to its spec and requirement ID.
+No principle was removed.
+
+Added principles:
+  - VIII. Every Functional Requirement Has a Traceable Automated Test (NON-NEGOTIABLE)
+
+Modified principles:
+  - VI. Every Feature Ships With a CI-Runnable Test: the "Basic is the floor"
+    bullet now points to Principle VIII for the per-requirement floor.
+
+Modified sections:
+  - Development Workflow: feature completeness now also requires every FR ID
+    in the spec to appear in at least one test trace comment.
+
+Added sections: none
+Removed sections: none
+Deferred / TODO placeholders: none.
+
+Follow-up (non-governance): existing tests are not retrofitted by this
+amendment; specs 001–026 predate Principle VIII.
+
+---
+Prior report (1.3.0, superseded by the above):
 Version change: 1.2.0 → 1.3.0
 Rationale for 1.3.0: MINOR — Principle VII's trigger was redefined from
 "expected to take longer than one second" (toast shown at start) to "still
@@ -208,7 +235,8 @@ unattended in CI on every pull request. Concretely:
   left red or retried until green, and MUST NOT be silenced with a skip marker
   to unblock a merge.
 - "Basic" is the floor, not the ceiling: one test proving the feature actually
-  works is required. Broader edge-case coverage is encouraged where the
+  works is required, and Principle VIII additionally requires a test per
+  functional requirement. Broader edge-case coverage is encouraged where the
   feature's failure modes warrant it, and Principle III's error paths SHOULD
   be covered whenever the failure behavior is user-visible.
 - A feature MAY ship without a new test only when an existing CI test already
@@ -255,6 +283,36 @@ and can take seconds; without visible feedback the user cannot tell a slow
 operation from a hung or ignored command and is likely to trigger it again,
 which can lead to duplicate mutations.
 
+### VIII. Every Functional Requirement Has a Traceable Automated Test (NON-NEGOTIABLE)
+
+Every functional requirement (`FR-NNN`) in a feature spec MUST be covered by at
+least one automated test, and every such test MUST state in a comment which
+spec and requirement ID(s) it is derived from. Concretely:
+
+- The test MUST meet all rules of Principle VI (lives in a CI-run suite,
+  headless, deterministic, self-contained fixtures).
+- The trace comment MUST sit directly above or at the start of the test
+  function and use the form `Spec <NNN> FR-<NNN>`, where `<NNN>` is the
+  numeric prefix of the `specs/<NNN>-<name>/` directory, e.g.
+  `# Spec 026 FR-001` (Python) or `// Spec 026 FR-001, FR-003` (TypeScript).
+  The form is fixed so coverage can be checked by plain text search.
+- One test MAY cover several requirements and one requirement MAY be covered
+  by several tests; each such test lists every FR ID it verifies.
+- When a requirement is changed, renumbered, or removed, the trace comments
+  that reference it MUST be updated in the same change. A trace comment MUST
+  NOT reference an FR ID that no longer exists in its spec.
+- A requirement that cannot be checked by an automated test is a defect in
+  the spec: it MUST be reworded until it is testable, not left uncovered.
+- This applies to every spec whose implementation starts on or after
+  2026-10-10. Tests for older specs are not retrofitted, but a test added or
+  changed for an older spec's requirement MUST carry a trace comment.
+
+Rationale: a single happy-path test per feature (Principle VI) leaves most
+requirements unverified, so a regression in any of them goes unnoticed. A
+test per requirement, with a searchable trace back to the spec, shows at a
+glance which requirements are covered and which tests must change when a
+requirement does.
+
 ## Additional Constraints
 
 - Stack: the extension is TypeScript on the VS Code Extension API, bundled
@@ -279,7 +337,9 @@ which can lead to duplicate mutations.
   A change MUST NOT be merged while any of those jobs is failing, and CI jobs
   MUST NOT be disabled or narrowed to make a change pass.
 - A feature is not complete until its Principle VI test exists and passes in
-  CI. Deferring that test to a follow-up change does not satisfy this.
+  CI, and every `FR-NNN` ID in its `spec.md` appears in at least one test's
+  Principle VIII trace comment. Deferring those tests to a follow-up change
+  does not satisfy this.
 - Prefer the smallest change that satisfies Principles I–IV; new abstraction
   layers or dependencies must be justified against those principles, not
   added speculatively.
@@ -300,4 +360,4 @@ Unjustified complexity, or a deliberate deviation from a principle, MUST be
 called out explicitly (e.g. in the PR/commit description) rather than left
 implicit.
 
-**Version**: 1.3.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-10-09
+**Version**: 1.4.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-10-10

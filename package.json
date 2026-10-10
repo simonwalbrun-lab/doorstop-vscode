@@ -194,6 +194,24 @@
             "type": "string",
             "default": "",
             "markdownDescription": "Template used for HTML and LaTeX publishing. Must name a template in the document's `template` folder. Empty = Doorstop's built-in template. When publishing all documents one file each, a template kept next to one document is lent to the others."
+          },
+          "doorstop.publish.traceability": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "doorstop"
+            ],
+            "enumDescriptions": [
+              "Matrix includes every declared link, also links that skip a document level or cross branches.",
+              "Matrix exactly as Doorstop's own publish produces it."
+            ],
+            "default": "complete",
+            "markdownDescription": "Traceability matrix (`traceability.html`/`.csv`) produced when publishing all documents. Affects the matrix only; item child links always include cross-document links."
+          },
+          "doorstop.publish.noChildLinks": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Publish without child links on items (Doorstop's `--no-child-links`). Parent links are then labelled *Links:*. Does not change the traceability matrix."
           }
         }
       },
@@ -255,8 +273,8 @@
       "icon": "$(checklist)"
     },
     {
-      "command": "doorstop.restartServer",
-      "title": "Doorstop: Restart Server",
+      "command": "doorstop.restartExtension",
+      "title": "Doorstop: Restart Extension",
       "icon": "$(refresh)"
     },
     {
@@ -432,13 +450,14 @@
       ]
     }
   ],
+    "viewsWelcome": [
+      {
+        "view": "doorstop.treeView",
+        "contents": "No Doorstop document yet. Use **Create Document** in the Commands view below."
+      }
+    ],
   "menus": {
     "view/title": [
-      {
-        "command": "doorstop.createDoc",
-        "when": "view == doorstop.treeView",
-        "group": "navigation"
-      },
       {
         "command": "doorstop.refresh",
         "when": "view == doorstop.treeView",

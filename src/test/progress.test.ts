@@ -14,6 +14,7 @@ interface Shown {
   atMs: number;
   options: vscode.ProgressOptions;
   settled: boolean;
+  messages: string[];
 }
 
 suite('Delayed progress (026)', function () {
@@ -25,10 +26,10 @@ suite('Delayed progress (026)', function () {
     shown = [];
     start = Date.now();
     setProgressForTest(async (options, task) => {
-      const call: Shown = { atMs: Date.now() - start, options, settled: false };
+      const call: Shown = { atMs: Date.now() - start, options, settled: false, messages: [] };
       shown.push(call);
       try {
-        return await task({ report: () => undefined }, new vscode.CancellationTokenSource().token);
+        return await task({ report: value => { call.messages.push(value.message ?? ''); } }, new vscode.CancellationTokenSource().token);
       } finally {
         call.settled = true;
       }
@@ -49,6 +50,17 @@ suite('Delayed progress (026)', function () {
     assert.strictEqual(shown[0].options.location, vscode.ProgressLocation.Notification);
     assert.strictEqual(shown[0].options.title, 'Doorstop: Slow…');
     assert.ok(shown[0].settled);
+  });
+
+  test('reported messages reach the notification once it shows (027)', async () => {
+    await withDelayedProgress('Doorstop: Report…', async report => {
+      report('REQ.pdf');
+      await sleep(1200);
+      report('SYS.pdf');
+      await sleep(100);
+    });
+    assert.strictEqual(shown.length, 1);
+    assert.deepStrictEqual(shown[0].messages, ['REQ.pdf', 'SYS.pdf']);
   });
 
   test('fast work shows no notification', async () => {

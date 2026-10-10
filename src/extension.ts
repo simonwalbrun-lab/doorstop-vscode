@@ -18,6 +18,7 @@ import { ProblemsProvider, registerProblemsProvider } from './problemsProvider';
 import { DocumentViewHandle, registerDocumentView } from './documentViewProvider';
 import { registerDocumentViewLanguage } from './documentViewLanguage';
 import { registerFilterNotebook } from './filterNotebook';
+import { getActiveInterpreter, PythonEnvironmentsApi, sameInterpreter, watchInterpreter } from './pythonEnvironment';
 interface DoorstopDiagramDocument extends vscode.CustomDocument {
   diagram: unknown;
 }
@@ -37,38 +38,25 @@ export async function activate(context: vscode.ExtensionContext) {
   void vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', autoRevealEnabled);
 
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-  const findDoorstopMarker = async (): Promise<boolean> => {
-    if (!workspaceFolder) {
-      return false;
-    }
-    const markers = await vscode.workspace.findFiles(
-      new vscode.RelativePattern(workspaceFolder, '**/.doorstop.yml'),
-      '**/{node_modules,.git,out,dist,.venv,venv}/**',
-      1
-    );
-    return markers.length > 0;
-  };
-
-  const getActivePythonPath = async (): Promise<string> => {
+  // Spec 029 FR-011/FR-012: only the interpreter of the Python environment VS Code
+  // has activated is ever used; no fallback. null while the extension is missing.
+  const getPythonApi = async (): Promise<PythonEnvironmentsApi | undefined> => {
     const pythonExtension = vscode.extensions.getExtension('ms-python.python');
     if (!pythonExtension) {
-      throw new Error('The Python extension is not installed.');
+      return undefined;
     }
     if (!pythonExtension.isActive) {
       await pythonExtension.activate();
     }
-
-    const api = pythonExtension.exports as {
-      environments?: {
-        getActiveEnvironmentPath(uri?: vscode.Uri): Promise<{ path?: string } | undefined>;
-      };
-    };
-    const environment = await api.environments?.getActiveEnvironmentPath(workspaceFolder?.uri);
-    if (!environment?.path) {
-      throw new Error('No active Python environment was selected for this workspace.');
-    }
-    return environment.path;
+    const exports = pythonExtension.exports as { ready?: Promise<void>; environments?: PythonEnvironmentsApi };
+    await exports.ready;
+    return exports.environments;
   };
+  const getActivePythonPath = async (): Promise<string | undefined> => {
+    const api = await getPythonApi();
+    return api ? getActiveInterpreter(api, workspaceFolder?.uri) : undefined;
+  };
+  let refreshViews: () => void = () => undefined;
 
   // Declared before every closure that uses it. It stays undefined until the
   // workspaceFolder block below assigns it, so the optional calls on it are
@@ -116,6 +104,13 @@ export async function activate(context: vscode.ExtensionContext) {
       return;
     }
 
+    // FR-013: the prompt may have been open while the environment changed. Install
+    // nothing into the old one; the environment watcher below restarts the check
+    // for the new one.
+    if (!sameInterpreter(await getActivePythonPath(), pythonPath)) {
+      return;
+    }
+
     const outcome = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
@@ -131,7 +126,7 @@ export async function activate(context: vscode.ExtensionContext) {
     } else {
       console.error('[Doorstop][server] Package install failed:', outcome.output);
       // Nothing is recorded here beyond this call returning, so the next
-      // server-start or "Doorstop: Restart Server" attempt re-checks and
+      // server-start or "Doorstop: Restart Extension" attempt re-checks and
       // re-prompts rather than remembering this as a permanent failure (FR-007).
       void vscode.window.showErrorMessage(
         `Failed to install ${SERVER_PACKAGE_NAME}: ${outcome.output.trim() || 'unknown error'}`
@@ -139,18 +134,8 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  const startDoorstopServer = async (restart = false): Promise<void> => {
-    if (!workspaceFolder || !(await findDoorstopMarker())) {
-      void vscode.window.showWarningMessage('No .doorstop.yml project was found in the workspace.');
-      return;
-    }
-
-    let pythonPath: string;
-    try {
-      pythonPath = await getActivePythonPath();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      void vscode.window.showWarningMessage(`Doorstop server unavailable: ${message}`);
+  const startDoorstopServer = async (pythonPath: string, restart = false): Promise<void> => {
+    if (!workspaceFolder) {
       return;
     }
 
@@ -164,18 +149,53 @@ export async function activate(context: vscode.ExtensionContext) {
     await spawnServerProcess(pythonPath, restart);
   };
 
-  const restartServerCommand = registerCommand(
-    'doorstop.restartServer',
-    () => startDoorstopServer(true)
-  );
-  context.subscriptions.push(restartServerCommand);
+  let waitingNoticeShown = false;
+  const notifyWaitingForPython = (): void => {
+    if (!waitingNoticeShown) {
+      waitingNoticeShown = true;
+      void vscode.window.showInformationMessage(
+        'Doorstop: waiting for the Python environment to be activated. The server starts as soon as it is.'
+      );
+    }
+  };
+
+  // Spec 029 FR-014: re-resolve the environment, re-check the package, restart the
+  // server and refresh the views.
+  const restartExtensionCommand = registerCommand('doorstop.restartExtension', async () => {
+    const pythonPath = await getActivePythonPath();
+    if (pythonPath) {
+      await startDoorstopServer(pythonPath, true);
+    } else {
+      notifyWaitingForPython();
+    }
+    refreshViews();
+  });
+  context.subscriptions.push(restartExtensionCommand);
 
   if (workspaceFolder) {
-    await startDoorstopServer();
+    // Starts now if an environment is active, otherwise as soon as one becomes
+    // active (FR-011, FR-012); a later switch restarts with the new interpreter.
+    // Only the first start is awaited so activation never blocks on the wait.
+    let started = false;
+    const api = await getPythonApi();
+    if (!api) {
+      void vscode.window.showWarningMessage('Doorstop server unavailable: The Python extension is not installed.');
+    } else {
+      context.subscriptions.push(await watchInterpreter(api, workspaceFolder.uri, async pythonPath => {
+        const restart = started;
+        started = true;
+        await startDoorstopServer(pythonPath, restart);
+      }, notifyWaitingForPython));
+    }
   }
 
   const treeProvider = new DoorstopTreeProvider(doorstopServer);
   const commandsProvider = new DoorstopCommandsProvider();
+  refreshViews = () => {
+    treeProvider.refresh();
+    commandsProvider.refresh();
+    problemsProvider?.scheduleRefresh();
+  };
   context.subscriptions.push(...registerDoorstopCommands({
     context,
     server: doorstopServer,

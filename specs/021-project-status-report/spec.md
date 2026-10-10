@@ -18,6 +18,8 @@
 
 ### User Story 1 - Publish all documents at once (Priority: P1)
 
+(Superseded in part by spec 024: the single "All" picker entry is replaced by "All documents - one file each" and "All documents - combined run" (024 FR-001). The scenarios below describe the "one file each" mode; there files are named `<PREFIX>.<ext>`.)
+
 As a requirements engineer preparing a release, I want to pick "All" in the
 Publish document picker so every document in the project is published in one
 run, instead of repeating Publish once per document.
@@ -59,14 +61,18 @@ finishes, so I know the extension is working and do not launch it twice.
 re-click and start duplicate runs against the same repository.
 
 **Independent Test**: Launch Publish → "All" on a project large enough to take
-a few seconds; confirm a running indicator is visible from the moment the work
-starts until the result message appears, and disappears afterwards.
+a few seconds; confirm a running indicator is visible from 1 second after the
+work starts (spec 026) until the result message appears, and disappears afterwards.
 
 **Acceptance Scenarios**:
 
-1. **Given** any Doorstop command from the Commands panel has started its
-   work (after the user answered its prompts), **When** the work is in
-   progress, **Then** a running indicator naming the command is visible.
+1. **Given** any Doorstop command from the Commands panel that sends work to
+   the server has started its work (after the user answered its prompts),
+   **When** the work has been running for 1 second, **Then** a running
+   indicator naming the command is visible. (Amended by spec 026
+   FR-001/FR-002/FR-007/FR-009: work finishing within 1 second shows none;
+   commands without server work, e.g. New Diagram and New Filter Notebook,
+   show none.)
 2. **Given** a command is running, **When** it finishes successfully or with an
    error, **Then** the indicator disappears.
 3. **Given** a command is running, **When** the user tries to launch the same
@@ -163,7 +169,8 @@ Report" row exists and clicking it runs the command.
 
 - **FR-001**: The Publish command's document picker MUST offer an "All" entry,
   in addition to every individual document, in the same picker Review and
-  Clear Suspect already use.
+  Clear Suspect already use. (Superseded by spec 024 FR-001: two entries,
+  "All documents - one file each" and "All documents - combined run".)
 - **FR-002**: When "All" is chosen, the system MUST ask for the publish format
   once and a destination folder once, then publish every document of the
   project into that folder in that format.
@@ -176,9 +183,12 @@ Report" row exists and clicking it runs the command.
 
 #### Running indication
 
-- **FR-006**: Every command offered in the Commands panel MUST show a visible
-  running indicator, labelled with the command's name, from the start of its
-  work until it completes, fails, or is cancelled.
+- **FR-006**: Every command offered in the Commands panel that sends work to
+  the server MUST show a visible running indicator, labelled with the
+  command's name, from 1 second after the start of its work until it
+  completes, fails, or is cancelled. (Amended by spec 026
+  FR-001/FR-002/FR-007/FR-009: faster work shows none; commands without
+  server work, e.g. New Diagram and New Filter Notebook, show none.)
 - **FR-007**: While a command is running, launching the same command again MUST
   NOT start a second parallel run; the user MUST be informed it is already
   running.
@@ -235,8 +245,9 @@ Report" row exists and clicking it runs the command.
 ### Measurable Outcomes
 
 - **SC-001**: Publishing every document of a project takes one command run and
-  at most three user choices (document "All", format, folder), regardless of
-  the number of documents.
+  at most three user choices (document "All" - since spec 024 one of the two
+  "All documents" entries -, format, folder), regardless of the number of
+  documents.
 - **SC-002**: For 100% of Commands panel commands, a running indicator is
   visible within 1 second of the work starting and gone within 1 second of it
   ending.
@@ -262,7 +273,8 @@ Report" row exists and clicking it runs the command.
   editor; no custom UI is needed.
 - For Publish "All", outputs land in one chosen folder, using each document's
   default published file name (one file or sub-folder per document, as the
-  publisher produces).
+  publisher produces). (Since spec 024, "one file each" names files
+  `<PREFIX>.<ext>`; the combined run keeps Doorstop's own layout.)
 - The existing `doorstop.publish.template` setting applies to "All" the same
   way it applies to a single-document publish.
 - Users view the report with a Mermaid-capable Markdown viewer; the extension

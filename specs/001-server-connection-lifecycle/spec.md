@@ -27,10 +27,8 @@ without running any command manually.
 
 1. **Given** a workspace containing a `.doorstop.yml` marker and a Python interpreter
    selected via the Python extension, **When** the extension activates, **Then** it
-   starts the local server pointed at the workspace and waits until its health
-   endpoint responds before other features query it.
-2. **Given** a workspace with no `.doorstop.yml` marker anywhere, **When** the
-   extension activates, **Then** no server is started and no error is shown.
+   starts the local server pointed at the workspace and waits until its health endpoint responds before other features query it. (Amended by spec 026: if startup takes longer than 1 second a "Starting Doorstop server…" progress notification is shown; on success the user sees "Doorstop server is ready.")
+2. **Given** a workspace with no `.doorstop.yml` marker anywhere, **When** the extension is not activated by the marker (activation event `workspaceContains:**/.doorstop.yml`), **Then** no server is started and nothing is shown. (Amended: if the user runs "Doorstop: Restart Server" anyway, a warning "No .doorstop.yml project was found in the workspace." is shown and no server is started, per FR-004.)
 3. **Given** a workspace with a marker but no Python interpreter selected, **When**
    the extension activates, **Then** the user sees a warning explaining a Python
    environment must be selected, and no crash occurs.
@@ -77,7 +75,7 @@ not left running (port free for the next session).
 ### Edge Cases
 
 - How does the system handle the fixed server port already being in use by another
-  process?
+  process? Answer: startup fails with the recent server output plus an explicit "port already in use" hint telling the user to close the other server and run "Doorstop: Restart Server"; there is no fallback port.
 - What prevents multiple server processes/workers from ever running against the same
   project at once (which would break the single-writer guarantee other features rely
   on)?
@@ -86,8 +84,7 @@ not left running (port free for the next session).
   single root document, or more than one? Doorstop refuses to build a tree in this
   case: the server process itself stays up and `/health` still reports healthy (it
   never touches the tree), but every other request fails with a structured error
-  the moment it tries to build the tree, because the tree is rebuilt fresh on every
-  request rather than once at startup.
+  the moment it tries to build the tree, because the tree is built when a request needs it, not once at startup.
 
 ## Requirements *(mandatory)*
 
@@ -116,8 +113,7 @@ not left running (port free for the next session).
   than an unhandled exception, distinguishing domain errors (e.g. unknown
   document/item) from unexpected internal errors.
 - **FR-011**: Health checks MUST reflect only "the server process is running", not
-  "the Doorstop tree is valid" — the tree is rebuilt fresh from disk on every
-  data-bearing request (by design, so hand-edits made outside VS Code are always
+  "the Doorstop tree is valid" — the tree is re-read from disk whenever any project file has changed (detected by modification time and size; always freshly built for requests that change the project) (by design, so hand-edits made outside VS Code are always
   picked up), so a workspace with no single root document (zero or more than one
   document with no `parent:`) still reports a healthy server, but every other
   request MUST fail with a structured error rather than succeeding against a
@@ -154,6 +150,6 @@ not left running (port free for the next session).
 - Exactly one Doorstop server process is expected per workspace/session;
   multi-root workspaces with multiple Doorstop projects are not explicitly handled
   today.
-- The fixed server port is assumed free; no port-conflict fallback exists today.
+- The fixed server port is assumed free; no port-conflict fallback exists today (a port-in-use hint is shown on failure, see Edge Cases).
 - Python and the `doorstop`/`fastapi`/`uvicorn` packages are assumed already
-  installed per the README's setup instructions before first use.
+  installed per the README's setup instructions before first use. (Superseded by spec 016: before spawning the server the extension checks that `doorstop-vscode-server` is importable in the selected interpreter and, if not, offers an "Install" action; restart re-checks.)

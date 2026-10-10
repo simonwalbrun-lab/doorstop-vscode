@@ -15,9 +15,20 @@ export function setProgressForTest(fn: typeof vscode.window.withProgress | undef
   progress = fn ?? native;
 }
 
-/** Runs `work` now; resolves or rejects exactly like it. */
-export function withDelayedProgress<T>(title: string, work: () => Promise<T>): Promise<T> {
-  const running = work();
+/** Updates the notification's message, e.g. the document currently being worked on. */
+export type ProgressReport = (message: string) => void;
+
+/**
+ * Runs `work` now; resolves or rejects exactly like it. Messages `work` reports
+ * before the notification appears are kept, so it opens with the latest one.
+ */
+export function withDelayedProgress<T>(title: string, work: (report: ProgressReport) => Promise<T>): Promise<T> {
+  let latest: string | undefined;
+  let forward: ProgressReport | undefined;
+  const running = work(message => {
+    latest = message;
+    forward?.(message);
+  });
   const timer = setTimeout(() => {
     if (showing.has(title)) {
       return;
@@ -25,7 +36,13 @@ export function withDelayedProgress<T>(title: string, work: () => Promise<T>): P
     showing.add(title);
     // The notification closes when the work settles; its copy of a failure is
     // dropped here because the caller already receives the original one.
-    void Promise.resolve(progress({ location: vscode.ProgressLocation.Notification, title }, () => running))
+    void Promise.resolve(progress({ location: vscode.ProgressLocation.Notification, title }, notification => {
+      forward = message => notification.report({ message });
+      if (latest !== undefined) {
+        forward(latest);
+      }
+      return running;
+    }))
       .catch(() => undefined)
       .then(() => showing.delete(title));
   }, DELAY_MS);

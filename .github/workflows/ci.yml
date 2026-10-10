@@ -42,6 +42,29 @@ jobs:
       - run: npm ci
       - run: xvfb-run -a npm test
 
+  # PDF export end to end (spec 027/028): Doorstop HTML publish -> in-repo export
+  # script -> PDFs. Chromium is downloaded here, during setup, not by the test.
+  pdf-export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The server package brings Doorstop and the spec 028 publish command.
+      - run: pip install ./server
+      - name: Install PDF tooling
+        working-directory: media/pdf-export
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - run: node --test src/test/pdf/exportPdf.test.mjs
+
   server-tests:
     runs-on: ubuntu-latest
     steps:

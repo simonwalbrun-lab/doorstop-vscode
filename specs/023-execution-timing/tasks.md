@@ -321,3 +321,15 @@ Task: "T026 server/tests/test_timing.py"
 - `[P]` = different file and no dependency on an incomplete task.
 - **Timing never changes results**: every bookkeeping path is guarded (FR-012). If you see a timing bug change a command's behaviour, that is a defect in T003/T009.
 - **No new npm or pip dependencies** (Constitution IV).
+
+---
+
+## Phase 8: Convergence
+
+Constitution VIII: every FR needs an automated CI test carrying a `Spec 023 FR-NNN` trace comment.
+
+- [ ] T043 Add a trace comment `// Spec 023 FR-NNN` (one per FR the test exercises) to every existing test in `src/test/timing.test.ts` and to the end-to-end case in `src/test/regressionFixture.test.ts`; add `# Spec 023 FR-NNN` to every test in `server/tests/test_timing.py`. Mapping: FR-002 (US1 cases, command-wrapper scan), FR-003/FR-005 (e2e nesting), FR-004 (py wait/load/work, queued wait), FR-007/FR-008 (US2 summary/reset), FR-009 (US4 export), FR-010 (eviction), FR-011 (disabled / overhead cases) per Constitution VIII (partial)
+- [ ] T044 Add a test for the enable setting: default is disabled and toggling the `doorstop` timing setting enables/disables recording, traced `Spec 023 FR-001` per FR-001 (missing)
+- [ ] T045 Add a test that recorded entries are written to the timing log channel as they happen with operation name, duration and outcome (and nothing is written while disabled), traced `Spec 023 FR-006` / `FR-011` per FR-006 (missing)
+- [ ] T046 Add a test that a throwing/broken timing internal (e.g. failing log sink or summary update) does not fail or alter the measured operation's result, traced `Spec 023 FR-012` per FR-012 (missing)
+- [ ] T047 Add a test (or extend the T007 source scan) asserting no ad-hoc timing `console.log`/`console.time` lines remain under `src/` outside `src/timing.ts`, traced `Spec 023 FR-013` per FR-013 (missing)

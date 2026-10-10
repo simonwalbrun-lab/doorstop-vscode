@@ -109,7 +109,8 @@ that explain the difference, so I can choose without reading documentation.
   individual documents, two distinct entries replacing the former single "all"
   entry: "All documents - one file each" and "All documents - combined run".
 - **FR-002**: "One file each" MUST publish every document separately, as the
-  extension does today.
+  extension does today. (For PDF output, spec 027 applies: both "All" entries
+  use one combined Doorstop run; see Assumptions.)
 - **FR-003**: When a template name is configured, the output format is not
   Markdown, and a document in a "one file each" run has no template folder of
   its own, the extension MUST temporarily provide a copy of the shared template
@@ -165,3 +166,8 @@ that explain the difference, so I can choose without reading documentation.
   the project; the extension surfaces that error rather than working around it.
 - Markdown publishing never uses a template, as today; the workaround applies
   to HTML and LaTeX output only.
+- For PDF output (spec 027) both "All" entries run one combined Doorstop
+  publish into a temporary folder and then convert it, because only the
+  combined run writes the traceability matrix. Per-document template lending
+  (FR-003/FR-004) does not apply; the combined-run limit of one template
+  folder does.

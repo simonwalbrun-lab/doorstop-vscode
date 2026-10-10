@@ -288,3 +288,15 @@ T001 → T002 → T003 → T004, then validate with quickstart Manual steps 2–
 ## Phase 9: Convergence
 
 - [X] T025 Make the `titleFor` fallback in src/webview/diagram/state.js rebuild the full heading from every label line after the identifier (`node.label.split('\n').slice(1).join(' ')`), so a wrapped heading is not saved to the diagram file as just its first line, and add a Node-runnable check or test that a wrapped label round-trips to the original heading per FR-017 / plan: diagram persistence constraint (partial)
+
+---
+
+## Phase 10: Convergence
+
+- [ ] T026 CRITICAL: Add the trace comment `// Spec 025 FR-NNN` (one per covered FR) to every existing spec 025 test: the `Diagram path reconciliation (spec 025)` and `Diagram entry point (spec 025)` suites in src/test/extension.test.ts, the `Size-aware layout and heading wrap`, `Canvas surface cleanup` and `Saved title survives heading wrap` suites in src/test/diagramLayout.test.ts, and the moved-item test in src/test/regressionFixture.test.ts, per Constitution VIII (partial). Mapping: entry point FR-001..005; reconciliation FR-006, FR-007, FR-008, FR-010; toolbar FR-012; layout FR-014, FR-015; wrapHeading FR-017, FR-018; badges FR-020..022; title round trip FR-017. Existing bare `FR-0NN` comments in diagramLayout.test.ts (including the spec 003 ones) do not count.
+- [ ] T027 CRITICAL: Add a CI-run test with trace comment `// Spec 025 FR-009` that the corrected-path count message is shown on load, per Constitution VIII / FR-009 (missing). Extract the toast text/decision from handleReady into a pure helper if needed so it runs without the webview.
+- [ ] T028 CRITICAL: Add a CI-run test with trace comment `// Spec 025 FR-011` that when item locations cannot be determined (server unavailable) the diagram renders as stored, nothing is changed and the user is informed, per Constitution VIII / FR-011 (missing).
+- [ ] T029 CRITICAL: Add a CI-run test with trace comment `// Spec 025 FR-013` that add/remove link, remove item and add linked items remain reachable from the toolbar buttons and the context menu, per Constitution VIII / FR-013 (missing).
+- [ ] T030 CRITICAL: Add a CI-run test with trace comment `// Spec 025 FR-016` that the node size used by layout commands follows the current headings shown/hidden state at run time, per Constitution VIII / FR-016 (missing).
+- [ ] T031 CRITICAL: Add a CI-run test with trace comment `// Spec 025 FR-019` that heading wrapping applies to ghost preview nodes as well as diagram nodes, per Constitution VIII / FR-019 (missing).
+- [ ] T032 CRITICAL: Add a CI-run test with trace comment `// Spec 025 FR-023` that review/suspect data is not required by the canvas and the review/clear-suspect features elsewhere still work, per Constitution VIII / FR-023 (missing).

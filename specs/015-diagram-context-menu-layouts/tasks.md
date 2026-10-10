@@ -289,3 +289,16 @@ mostly wait.
 - No new npm or pip dependency is introduced (Constitution IV).
 - Commit after each task or logical group; stop at any checkpoint to validate a story
   independently.
+
+---
+
+## Phase 9: Convergence
+
+Constitution v1.4.0 Principle VIII: every FR needs an automated CI test carrying a `Spec 015 FR-NNN` trace comment. Existing tests are in `src/test/diagramLayout.test.ts`. FR-002, FR-004, FR-015, FR-018, FR-023 have tests; the other 19 FRs have none.
+
+- [ ] T053 CRITICAL: Add the `// Spec 015 FR-NNN` trace comment to the existing 015 tests in `src/test/diagramLayout.test.ts` that currently use a bare `FR-NNN` comment (FR-002, FR-004, FR-014?, FR-015, FR-018, FR-023). Re-check which FR each really verifies; the FR-014 comment on the size-aware grid test looks mislabelled. per Constitution VIII (partial)
+- [ ] T054 CRITICAL: Add tests with `Spec 015 FR-NNN` traces for the context-menu removal FRs missing coverage: FR-001, FR-003, FR-005 (static assertions on built `dist/webview/diagram/*.js` or extracted pure functions). per Constitution VIII / FR-001, FR-003, FR-005 (missing)
+- [ ] T055 CRITICAL: Add tests with `Spec 015 FR-NNN` traces for add-link: FR-006, FR-007, FR-008, FR-009, FR-010, FR-011, FR-012. Cover the self-link rejection, duplicate-link idempotence, cancel, and error paths. per Constitution VIII / FR-006..FR-012 (missing)
+- [ ] T056 CRITICAL: Add tests with `Spec 015 FR-NNN` traces for static body items: FR-013, FR-014, FR-016, FR-017 (for example, built `main.js`/`diagram.html` have no auto-arrange toggle or physics repositioning of body items). per Constitution VIII / FR-013, FR-014, FR-016, FR-017 (missing)
+- [ ] T057 CRITICAL: Add tests with `Spec 015 FR-NNN` traces for layout actions: FR-019, FR-020, FR-021, FR-022, FR-024. FR-023 needs a trace on the real command path, not only the empty `gridPositions` call. per Constitution VIII / FR-019..FR-024 (missing)
+- [ ] T058 Strengthen the FR-002/FR-004 persistence test so it exercises the real removal path, not a simulated structure. per FR-002, FR-004 (partial)

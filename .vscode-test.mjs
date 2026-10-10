@@ -15,6 +15,12 @@ export default defineConfig([
 		workspaceFolder: 'testdata/regression',
 	},
 	{
+		// Spec 029: dialog and manifest checks. Needs a workspace folder, no server.
+		label: 'emptyFolderBootstrap',
+		files: 'out/test/emptyFolderBootstrap.test.js',
+		workspaceFolder: 'testdata/regression',
+	},
+	{
 		// Pure geometry + diagram-document persistence. No fixture workspace and no
 		// Doorstop server: src/webview/diagram/layout.js is written dual-mode so it
 		// loads under plain Node, which is what makes this suite CI-runnable
@@ -50,6 +56,12 @@ export default defineConfig([
 		// Delayed progress notifications (spec 026). No fixture workspace, no server.
 		label: 'progress',
 		files: 'out/test/progress.test.js',
+	},
+	{
+		// PDF tooling copy / no-overwrite (spec 027). No fixture workspace, no
+		// server, no Chromium.
+		label: 'pdfExport',
+		files: 'out/test/pdfExport.test.js',
 	},
 	{
 		// Needs the fixture workspace (so the extension activates and its CodeLens

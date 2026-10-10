@@ -9,6 +9,7 @@ export class DoorstopCommandsProvider implements vscode.TreeDataProvider<vscode.
   readonly onDidChangeTreeData = this.changeEmitter.event;
 
   private readonly nodes: vscode.TreeItem[] = [
+    this.createNode('Create Document', 'file-directory-create', 'doorstop.createDoc'),
     this.createNode('Add Item', 'file-add', 'doorstop.add'),
     this.createNode('Reorder Document', 'list-ordered', 'doorstop.reorder'),
     this.createNode('Link Items', 'link', 'doorstop.link'),

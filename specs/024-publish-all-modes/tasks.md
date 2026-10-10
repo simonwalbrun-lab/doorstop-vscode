@@ -122,3 +122,13 @@ description: "Task list for 024 Publish All Modes"
 
 - [X] T019 Add an extension test in `src/test/regressionFixture.test.ts` that drives `doorstop.publish` with "All documents - one file each" (Markdown, temp folder) and asserts one `<PREFIX>.md` per fixture document, so the per-document loop and its picker routing are covered end to end per US1/AC1 and FR-003 (partial)
 - [ ] T020 Run the manual steps of `quickstart.md` (HTML one file each with a template only on REQ, combined run, two-template error, single document) and tick them off, since T016 was marked done without them per T016 (partial)
+
+---
+
+## Phase 7: Convergence
+
+- [ ] T021 CRITICAL: Add the `Spec 024 FR-NNN` trace comment to each existing 024 test (server/tests/test_documents.py: test_publish_with_shared_template_borrows_and_removes_it FR-003/FR-004, test_publish_without_shared_template_flag_still_fails FR-003, test_shared_template_is_removed_when_publish_fails FR-004, test_combined_publish_markdown_writes_every_document FR-006, test_combined_publish_html_reports_the_index FR-006/FR-007, test_combined_publish_with_two_templates_is_a_doorstop_error FR-008, test_combined_publish_of_an_empty_project_is_a_doorstop_error FR-008; src/test/regressionFixture.test.ts: picker test FR-001/FR-006, "one file each" test FR-002/FR-003, real HTML location test FR-007) per Constitution VIII (partial)
+- [ ] T022 CRITICAL: Add `Spec 024 FR-009` traced regression to test_documents.py (or tag test_publish_markdown_writes_to_requested_path / test_publish_html_nests_under_documents_subfolder if they cover single-document publish unchanged) per FR-009 / Constitution VIII (partial)
+- [ ] T023 CRITICAL: Add an automated test, traced `Spec 024 FR-005`, where two documents each own a template folder: each keeps its own and the first owner in tree order supplies the copies to templateless documents per FR-005 / Constitution VIII (missing)
+- [ ] T024 CRITICAL: Add an automated test, traced `Spec 024 FR-008`, that a "one file each" failure message names the failing document and, when a template was sent, the template and the supplying setting per FR-008 / Constitution VIII (missing)
+- [ ] T025 CRITICAL: Add an automated CI check, traced `Spec 024 FR-010`, asserting Doorstop's own package/template lookup is unmodified (e.g. installed doorstop files unpatched, no monkeypatch of its template lookup in server/src) per FR-010 / Constitution VIII (missing)

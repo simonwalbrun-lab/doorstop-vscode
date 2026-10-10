@@ -1,5 +1,7 @@
 # Feature Specification: Review & Suspect-Link CodeLenses
 
+> **Superseded in part by 017-gutter-icon-actions (2026-09-11):** FR-001, FR-003, FR-005 and FR-012 (the lens placement) no longer apply. "Do Review", "Clear All Suspect Links" and "Clear Suspect Link" are now Quick Fixes on Doorstop's own "needs review" / "suspect link" Problems (see 017 FR-001..FR-004). The commands `doorstop.doReview`, `doorstop.clearAllSuspicions` and `doorstop.clearSuspicion`, and the behaviour in FR-002, FR-004, FR-006..FR-011, are unchanged and reused. Naming moved from "Clear All Suspicions"/"Clear the Suspicion" to "Clear All Suspect Links"/"Clear Suspect Link". Offering rule changed: Clear actions appear only where a suspect-link Problem exists (the Assumption "offered whenever links are present" is superseded), and "Clear All" only when 2 or more suspect-link Problems exist (017 FR-003).
+
 **Feature Branch**: `013-review-suspect-codelenses`
 
 **Created**: 2026-09-10

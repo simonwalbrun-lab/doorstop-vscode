@@ -1,8 +1,12 @@
+import * as fsSync from 'node:fs';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { DoorstopServer } from './doorstopServer';
-import { withDelayedProgress } from './progress';
+import { ensurePdfTooling, offerBrowserInstall, runExportScript } from './pdfExport';
+import { ProgressReport, withDelayedProgress } from './progress';
 import { registerCommand } from './timing';
 import { TreeResponse, ValidationResponse } from './doorstopTypes';
 import { DoorstopTreeProvider, RequirementTreeItem } from './requirementTree';
@@ -20,6 +24,26 @@ interface CommandOptions {
   tree: DoorstopTreeProvider;
   utilities: { refresh(): void };
   workspaceFolder: vscode.WorkspaceFolder;
+}
+
+/** True when `folderPath` or an ancestor holds a `.git` entry (directory or worktree/submodule file). */
+export function isUnderGit(folderPath: string): boolean {
+  let current = path.resolve(folderPath);
+  for (;;) {
+    if (fsSync.existsSync(path.join(current, '.git'))) {return true;}
+    const parent = path.dirname(current);
+    if (parent === current) {return false;}
+    current = parent;
+  }
+}
+
+/** Shows the FR-004 error and returns false when `folderPath` is not under git. */
+export function requireGit(folderPath: string): boolean {
+  if (isUnderGit(folderPath)) {return true;}
+  void vscode.window.showErrorMessage(
+    'Doorstop: this folder is not under git version control. Run `git init` (or open a git repository) and try again.'
+  );
+  return false;
 }
 
 function itemArgument(value: unknown): RequirementTreeItem | undefined {
@@ -166,8 +190,8 @@ async function reportWrittenPath(action: string, requestedPath: string, writtenP
   const reveal = 'Reveal in Explorer';
   const choice = await vscode.window.showInformationMessage(message, ...(isFile ? [open, reveal] : [reveal]));
   if (choice === open) {
-    // Published HTML is meant to be viewed rendered, everything else read as text.
-    await (path.extname(writtenPath) === '.html' ? vscode.env.openExternal(uri) : vscode.commands.executeCommand('vscode.open', uri));
+    // Published HTML and PDF are meant to be viewed rendered, everything else read as text.
+    await (['.html', '.pdf'].includes(path.extname(writtenPath)) ? vscode.env.openExternal(uri) : vscode.commands.executeCommand('vscode.open', uri));
   } else if (choice === reveal) {
     await vscode.commands.executeCommand('revealFileInOS', uri);
   }
@@ -199,7 +223,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
   // manual Reorder, whose second step re-runs Reorder while the first handler
   // still waits on its "Apply Reorder" notification.
   const busy = new Set<string>();
-  const run = async <T>(title: string, op: () => Promise<T>): Promise<T | undefined> => {
+  const run = async <T>(title: string, op: (report: ProgressReport) => Promise<T>): Promise<T | undefined> => {
     if (busy.has(title)) {
       void vscode.window.showInformationMessage(`Doorstop: ${title} is already running.`);
       return undefined;
@@ -220,6 +244,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
   };
 
   const createDoc = register('doorstop.createDoc', async () => {
+    if (!requireGit(options.workspaceFolder.uri.fsPath)) {return;}
     const prefix = await vscode.window.showInputBox({ prompt: 'Enter the new document prefix' });
     if (!prefix) {return;}
     const folders = await vscode.window.showOpenDialog({
@@ -227,7 +252,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
       canSelectFolders: true,
       canSelectMany: false,
       openLabel: 'Select Document Folder',
-      defaultUri: vscode.Uri.file(path.join(options.workspaceFolder.uri.fsPath, prefix))
+      defaultUri: options.workspaceFolder.uri
     });
     if (!folders?.[0]) {return;}
     // `undefined` means the pick was dismissed - cancel and create nothing (FR-011);
@@ -435,12 +460,19 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     const format = await vscode.window.showQuickPick([
       { label: 'Markdown', value: 'markdown' as const, extension: '.md' },
       { label: 'HTML', value: 'html' as const, extension: '.html' },
-      { label: 'LaTeX', value: 'latex' as const, extension: '.tex' }
+      { label: 'LaTeX', value: 'latex' as const, extension: '.tex' },
+      { label: 'PDF', value: 'pdf' as const, extension: '.pdf' }
     ], { placeHolder: 'Select publish format' });
     if (!format) {return;}
     // Markdown output takes no template; sending one would fail on any
     // document without a `template` folder (spec 020 research R5).
-    const configured = vscode.workspace.getConfiguration('doorstop.publish').get<string>('template', '').trim();
+    const publishSettings = vscode.workspace.getConfiguration('doorstop.publish');
+    const configured = publishSettings.get<string>('template', '').trim();
+    // Spec 028: matrix mode and Doorstop's --no-child-links, applied server-side.
+    const linkOptions = {
+      traceability: publishSettings.get<'complete' | 'doorstop'>('traceability', 'complete'),
+      childLinks: !publishSettings.get<boolean>('noChildLinks', false)
+    };
     const template = format.value === 'markdown' ? '' : configured;
     const withTemplateHint = (error: unknown): never => {
       if (!template) {throw error;}
@@ -450,14 +482,55 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     const publishOne = (documentPrefix: string, destinationPath: string): Promise<{ path: string }> =>
       options.server.request<{ path: string }>(
         'POST', `/documents/${encodeURIComponent(documentPrefix)}/publish`, {
-          format: format.value,
+          format: format.value === 'pdf' ? 'html' : format.value,
           destinationPath,
+          ...linkOptions,
           ...(template ? { template } : {}),
           // "One file each": documents without their own template folder borrow
           // another document's, server-side (spec 024).
           ...(template && target.kind === 'each' ? { sharedTemplate: true } : {})
         }
       ).catch(error => withTemplateHint(error));
+
+    // PDF (spec 027): Doorstop HTML into a temp folder, then the workspace's own
+    // export script - the same two steps a CI pipeline runs. Set up before any
+    // destination dialog, so declining it asks nothing further.
+    const workspace = options.workspaceFolder.uri.fsPath;
+    const toolingDir = format.value === 'pdf' ? await ensurePdfTooling(options.context.extensionPath, workspace) : undefined;
+    if (format.value === 'pdf' && !toolingDir) {return;}
+    const exportPdf = async (report: ProgressReport, publishHtml: (tmp: string) => Promise<string>, output: string): Promise<string[]> => {
+      const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'doorstop-pdf-'));
+      try {
+        const { written, warnings } = await runExportScript(
+          toolingDir as string, await publishHtml(tmp), output, workspace, report
+        ).catch(error => {
+          // A missing browser can be fixed on the spot (FR-011); the failure is still reported.
+          void offerBrowserInstall(toolingDir as string, error);
+          throw error;
+        });
+        warnings.forEach(warning => void vscode.window.showWarningMessage(`Doorstop: ${warning}`));
+        return written;
+      } finally {
+        await fs.rm(tmp, { recursive: true, force: true });
+      }
+    };
+
+    if (target.kind === 'document' && toolingDir) {
+      const destination = await vscode.window.showSaveDialog({
+        saveLabel: 'Publish',
+        filters: { PDF: ['pdf'] },
+        defaultUri: vscode.Uri.file(path.join(workspace, `${target.prefix}.pdf`))
+      });
+      if (!destination) {return;}
+      // The server answers with the HTML it really wrote (documents/PREFIX.html).
+      const written = await run('Publish', report => exportPdf(
+        report, async tmp => (await publishOne(target.prefix, path.join(tmp, `${target.prefix}.html`))).path, destination.fsPath
+      ));
+      if (written) {
+        await reportWrittenPath('Publish', destination.fsPath, destination.fsPath);
+      }
+      return;
+    }
 
     if (target.kind === 'document') {
       const destination = await vscode.window.showSaveDialog({ saveLabel: 'Publish' });
@@ -477,11 +550,29 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     });
     if (!folders?.[0]) {return;}
     const folder = folders[0].fsPath;
+    if (toolingDir) {
+      // Both "all" modes: only Doorstop's combined run writes the traceability matrix.
+      const written = await run('Publish', report => exportPdf(report, async tmp => {
+        await options.server.request('POST', '/publish', {
+          format: 'html',
+          destinationPath: tmp,
+          ...linkOptions,
+          ...(template ? { template } : {})
+        }).catch(error => withTemplateHint(error));
+        return tmp;
+      }, folder));
+      if (written) {
+        const count = written.filter(file => path.basename(file) !== 'traceability.pdf').length;
+        await reportWrittenPath('Publish', folder, folder, `Published ${count} document(s) and the traceability matrix as PDF to ${folder}.`);
+      }
+      return;
+    }
     if (target.kind === 'together') {
       const result = await run('Publish', () => options.server.request<{ path: string }>(
         'POST', '/publish', {
           format: format.value,
           destinationPath: folder,
+          ...linkOptions,
           ...(template ? { template } : {})
         }
       ).catch(error => withTemplateHint(error)));

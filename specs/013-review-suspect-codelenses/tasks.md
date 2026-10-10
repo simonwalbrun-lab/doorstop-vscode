@@ -248,3 +248,13 @@ Task: "Declare doorstop.clearSuspicion in package.json"
   this is what keeps lenses rendering while the server is down or booting
 - Commit after each task or logical group
 - Stop at any checkpoint to validate a story independently
+
+## Phase 8: Convergence
+
+**Purpose**: Constitution Principle VIII (v1.4.0) retrofit: every FR needs a CI-run test carrying a `Spec 013 FR-NNN` trace comment. Note FR-001/003/005 lenses were superseded by spec 017 Quick Fixes; trace those to the Quick Fix tests.
+
+- [ ] T040 CRITICAL Add a test (src/test/regressionFixture.test.ts) that edits a requirement file open in the editor, runs Do Review / Clear, and asserts the open editor text reflects the stored state without reopening, plus the tree view refreshed, with comment `Spec 013 FR-008`, per Constitution VIII / FR-008 (missing)
+- [ ] T041 CRITICAL Add a test (src/test/regressionFixture.test.ts) that runs a review/clear action on a dirty document and asserts unsaved edits are not silently discarded (saved first or action refused with a message), with comment `Spec 013 FR-010`, per Constitution VIII / FR-010 (missing)
+- [ ] T042 CRITICAL Add trace comments `Spec 013 FR-002`, `FR-004`, `FR-006`, `FR-007` to the three Action tests in src/test/regressionFixture.test.ts ("Do Review marks only the target", "Clear All Suspicions", "Clear the Suspicion clears one link") and `FR-006` to `test_clear_with_parents_filter_clears_only_the_named_link` in server/tests/test_review.py, per Constitution VIII (partial)
+- [ ] T043 CRITICAL Add trace comments `Spec 013 FR-001`, `FR-003`, `FR-005` to the Quick Fix tests in src/test/regressionFixture.test.ts (lines ~1072-1117: Do Review offered, one-link vs two-link bulk clear, single-link fix), per Constitution VIII (partial)
+- [ ] T044 CRITICAL Add trace comments `Spec 013 FR-009` to the dangling-link "Clear the Suspicion changes nothing" test (and assert an explicit error message is surfaced if not already), `FR-011` to the marker/non-requirement tests in src/test/reviewLensScan.test.ts, and `FR-012` to "the Derive Requirement lens is unaffected", per Constitution VIII (partial)
