@@ -574,3 +574,29 @@ export function insertionPointAfterBlock(blocks: ParsedBlock[], line: number): I
   const depth = anchor?.level ? headingDepth(anchor.level) : 1;
   return { insertAtLine: target.endLine + 1, depth, afterUid: anchor?.uid };
 }
+
+export interface DecorationLines {
+  /** Managed lines (document marker, separators, placeholder markers) to dim. */
+  separators: number[];
+  /** Line spans of every second item/placeholder block, to tint. */
+  tinted: { start: number; end: number }[];
+}
+
+/** Which lines the editor dims and tints (FR-012, FR-039); pure so it is testable without an editor. */
+export function decorationLines(blocks: ParsedBlock[]): DecorationLines {
+  const result: DecorationLines = { separators: [], tinted: [] };
+  let index = 0;
+  for (const block of blocks) {
+    if (block.kind === 'orphan') {
+      continue;
+    }
+    result.separators.push(block.separatorLine);
+    if (block.kind === 'item' || block.kind === 'placeholder') {
+      if (index % 2 === 1) {
+        result.tinted.push({ start: block.separatorLine, end: block.endLine });
+      }
+      index++;
+    }
+  }
+  return result;
+}

@@ -1,0 +1,15 @@
+{
+  "name": "doorstop-pdf-export",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Exports Doorstop-published HTML to paginated A4 PDFs with a running header/footer, via a headless browser (Playwright).",
+  "scripts": {
+    "install-browser": "playwright install --with-deps chromium",
+    "export": "node export-pdf.mjs"
+  },
+  "dependencies": {
+    "pdf-lib": "1.17.1",
+    "playwright": "1.64.0"
+  }
+}

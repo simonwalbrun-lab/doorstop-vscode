@@ -31,7 +31,8 @@ All documents and items in the side bar.
 - One flat list per document, items ordered by level
 - Context menu: Add, Derive, Review, Clear Suspect, Link, Add to Diagram
 - Inline on hover: Add, Open as document, Call Hierarchy, Link
-- Global commands in the **Commands** view: Reorder, Import, Export, Publish
+- Global commands in the **Commands** view: Create Document (works in an empty
+  git folder), Reorder, Import, Export, Publish
   (one document or `all`), Generate Status Report; a progress notification
   shows while a command works
 - **Generate Status Report** writes `doorstop-status.md` with Mermaid charts:
@@ -133,13 +134,64 @@ Conditions are `attribute <op> value` (`==` `!=` `<` `<=` `>` `>=`) or `.contain
 
 <img src="media/promotion/05_autocomplete.gif" alt="Autocompletion of links" width="914">
 
+### Publish as PDF
+
+*Publish* → a document or *All documents* → **PDF** writes one A4 PDF per document, plus `traceability.pdf` (landscape, scaled to fit) when publishing all documents. Page 1 has no header; later pages show the document name and a logo, and every page shows `Page N of M` (plus `Rev X` when the template's title block has an issue).
+
+The PDF is printed from Doorstop's HTML by a headless browser. That HTML comes from the configured publish template, or from Doorstop's default HTML when none is set, so fonts and page breaks come from the template. The extension ships no template.
+
+The first PDF publish asks to add a `doorstop-pdf/` folder to the workspace with the export script, then installs its packages and a headless Chromium into it. This needs **Node.js ≥ 18 and npm** on PATH, in addition to Python with Doorstop. Commit `doorstop-pdf/`; its `node_modules` is git-ignored. Replace `doorstop-pdf/logo.svg` (or add a `logo.png`) to use your own logo, or delete it to show none. The extension never overwrites files that already exist in that folder.
+
+CI runs the same script, so a pipeline produces the same PDFs. Page breaks only match exactly between your machine and the runner when the template brings its own fonts. With system fonts, such as Doorstop's default HTML, line and page breaks can differ between operating systems. CI publishes with `python -m doorstop_server.publish` from the server package instead of `doorstop publish`, so the traceability matrix and child links include cross-document links exactly as in the extension. It takes the same arguments as `doorstop publish`, plus `--traceability doorstop` for Doorstop's own matrix; add `--template <name>` if your project uses one and `--no-child-links` to match that setting.
+
+GitHub Actions:
+
+```yaml
+- uses: actions/setup-python@v5
+  with:
+    python-version: "3.12"
+- run: pip install doorstop-vscode-server
+- uses: actions/setup-node@v4
+  with:
+    node-version: 24
+- name: Install PDF tooling
+  working-directory: doorstop-pdf
+  run: |
+    npm ci
+    npx playwright install --with-deps chromium
+- run: python -m doorstop_server.publish all out --html
+- run: node doorstop-pdf/export-pdf.mjs out out/pdf
+- uses: actions/upload-artifact@v4
+  with:
+    name: pdf
+    path: out/pdf
+```
+
+GitLab CI:
+
+```yaml
+publish-pdf:
+  image: mcr.microsoft.com/playwright:v1.64.0-noble  # same version as doorstop-pdf/package.json
+  script:
+    - apt-get update && apt-get install -y python3-pip git
+    - pip install --break-system-packages doorstop-vscode-server
+    - (cd doorstop-pdf && npm ci)
+    - python3 -m doorstop_server.publish all out --html
+    - node doorstop-pdf/export-pdf.mjs out out/pdf
+  artifacts:
+    paths:
+      - out/pdf
+```
+
 ## Settings
 
 Search for "Doorstop" in the VS Code settings:
 
 - **Problems:** one checkbox per kind of Doorstop problem; unticked kinds are hidden from the Problems panel and the document view (all on by default)
 - **New Document:** item format (YAML / Markdown), UID separator (none, `-`, `.`, `_`) and number of digits used by **Create Document** (defaults: YAML, none, 3)
-- **Publish:** template name for HTML and LaTeX publishing, taken from the document's `template` folder (empty = Doorstop's built-in template)
+- **Publish:** template name for HTML, LaTeX and PDF publishing, taken from the document's `template` folder (empty = Doorstop's built-in template). *Publish* offers each document plus **All documents - one file each** (a template kept next to one document is lent to the others for the run) and **All documents - combined run** (one Doorstop run with index and traceability matrix; at most one document may own a `template` folder)
+- **Publish traceability:** `doorstop.publish.traceability` - `complete` (default) puts every declared link in the traceability matrix, also links that skip a document level or cross branches; `doorstop` gives the matrix exactly as Doorstop's own publish produces it. Item child links always include cross-document links
+- **Publish child links:** `doorstop.publish.noChildLinks` (off by default) publishes without child links on items, like Doorstop's `--no-child-links`; parent links are then labelled *Links:*. The traceability matrix is not affected
 - **Timing:** `doorstop.timing.enabled` (off by default, meant for developing the extension) records how long each command, tree load, document view load, validation, filter run, hover, CodeLens and completion takes, with the server requests they trigger split into *wait / load / work*, in the **Doorstop Timing** output channel. *Doorstop: Show Timing Summary* lists count, total, min, avg, p95 and max per operation; *Doorstop: Reset Timing Data* clears it; *Doorstop: Export Timing Data…* saves everything as JSON
 
 ## Requirements

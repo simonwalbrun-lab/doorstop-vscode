@@ -34,16 +34,16 @@ As a maintainer preparing a new release, I want a ready-made Doorstop project fi
 
 ### User Story 2 - Verify edge-case and non-happy-path behavior (Priority: P2)
 
-As a maintainer, I want the test model to include unusual and boundary states — an empty document, a suspect (outdated) link, a dangling link to a missing item, items with only a UID and no text, items with long multi-paragraph text, and a deeply nested document hierarchy — so that I can verify how each feature behaves outside the happy path, not just on well-formed data.
+As a maintainer, I want the test model to include unusual and boundary states — an empty document, a suspect (outdated) link, a dangling link to a missing item, items with only a UID and no text, items with long multi-paragraph text, and a multi-level document hierarchy (root plus child documents) — so that I can verify how each feature behaves outside the happy path, not just on well-formed data.
 
 **Why this priority**: Most regressions surface at edges (empty lists, broken references, long content) rather than in straightforward cases. This extends the P1 fixture rather than replacing it, so it can be delivered right after the core fixture exists.
 
-**Independent Test**: Can be fully tested by pointing each relevant feature (explorer tree, hover preview, diagram suspect-link indicator, review/clear-suspect commands) at the specific edge-case item/document called out in the checklist and confirming the documented (non-crashing, clearly-indicated) behavior occurs.
+**Independent Test**: Can be fully tested by pointing each relevant feature (explorer tree, hover preview, review/clear-suspect commands) at the specific edge-case item/document called out in the checklist and confirming the documented (non-crashing, clearly-indicated) behavior occurs.
 
 **Acceptance Scenarios**:
 
 1. **Given** the fixture's empty document, **When** it is opened in the explorer tree and in a diagram, **Then** it renders as a valid document with zero items instead of erroring or being hidden.
-2. **Given** the fixture's suspect link, **When** the review/clear-suspect commands and the diagram's link indicators are used against it, **Then** the suspect state is visibly flagged and can be cleared through the normal command.
+2. **Given** the fixture's suspect link, **When** the review/clear-suspect commands are used against it, **Then** the suspect state is visibly flagged and can be cleared through the normal command.
 3. **Given** the fixture's dangling link (target item does not exist), **When** the maintainer hovers it, navigates via go-to-definition, or views it in a diagram, **Then** the feature reports the broken reference clearly instead of failing silently or crashing.
 
 ---
@@ -69,8 +69,8 @@ As a maintainer, I want an automated integration test suite that exercises the t
 
 - What happens when the fixture's Doorstop server fails to start (e.g., Python/Doorstop not installed on the tester's machine)? The checklist must call out this prerequisite up front rather than let testers discover it mid-pass.
 - How does the explorer/diagram handle the fixture's document that has no items at all?
-- How do hover preview and diagram content preview render an item whose text is empty versus one whose text spans many paragraphs?
-- How do review/clear-suspect and the diagram's suspect indicator behave on the fixture's intentionally outdated (suspect) link?
+- How does hover preview render an item whose text is empty versus one whose text spans many paragraphs?
+- How does review/clear-suspect behave on the fixture's intentionally outdated (suspect) link?
 - How do hover, go-to-definition, and the diagram handle the fixture's intentionally broken (dangling) link?
 - What happens if a tester edits or deletes fixture data while working through the checklist — is there a documented way to restore the fixture to its known-good state before the next regression pass?
 - What happens when the automated pipeline's environment cannot start the Doorstop server (e.g., a setup step fails)? The pipeline job must fail clearly and visibly rather than silently skipping the integration tests or reporting a false pass.
@@ -81,10 +81,10 @@ As a maintainer, I want an automated integration test suite that exercises the t
 
 - **FR-001**: The test model MUST be a working Doorstop project (server-loadable) containing multiple documents arranged in a multi-level hierarchy (at least one root document and two child documents), reflecting realistic parent/child usage.
 - **FR-002**: The test model's items MUST collectively cover every state the extension's currently shipped features read or act on: a plain item, an item with an upstream link, an item with a derived link, an item containing a heading, an item awaiting review, an item already reviewed, and an item whose suspect link has been cleared.
-- **FR-003**: The test model MUST include at least one suspect link (an item whose upstream link is stale relative to the upstream item's current content) so review, clear-suspect, and diagram suspect-link indicators can each be exercised.
+- **FR-003**: The test model MUST include at least one suspect link (an item whose upstream link is stale relative to the upstream item's current content) so review and clear-suspect can each be exercised (canvas suspect indicators were removed by spec 025 FR-020/FR-021).
 - **FR-004**: The test model MUST include at least one dangling link (a reference to an item UID that does not exist in the project) so link-related features' error handling can be exercised.
 - **FR-005**: The test model MUST include at least one document with zero items, to exercise empty-state rendering in the explorer tree and in diagrams.
-- **FR-006**: The test model MUST include both an item with minimal (near-empty) text and an item with long, multi-paragraph text, to exercise hover preview and diagram content preview rendering at both extremes.
+- **FR-006**: The test model MUST include both an item with minimal (near-empty) text and an item with long, multi-paragraph text, to exercise hover preview rendering at both extremes (diagram content preview was removed by spec 011).
 - **FR-007**: The test model MUST include at least one persisted traceability diagram file that already references a mix of the fixture's items, so diagram creation, interaction, and rendering features can be exercised without first having to build a diagram from scratch.
 - **FR-008**: The test model MUST be accompanied by a regression checklist document that maps each of the extension's currently shipped feature areas to the specific fixture document/item that exercises it and the expected observable outcome.
 - **FR-009**: The regression checklist MUST be structured so it can be re-run in full after any code change or before any release, using only the fixture and the checklist (no additional setup, scripts, or external services beyond the local Doorstop server).
@@ -97,7 +97,7 @@ As a maintainer, I want an automated integration test suite that exercises the t
 ### Key Entities
 
 - **Test Model (Fixture Project)**: The sample Doorstop repository — its set of documents, items, links, and one persisted diagram — that stands in for a real user project during regression testing. Lives at a fixed path in the repository and is not shipped as part of the packaged extension.
-- **Document**: A Doorstop document within the fixture (e.g., a root and its children), each playing a distinct role in coverage (populated, empty, deeply nested).
+- **Document**: A Doorstop document within the fixture (e.g., a root and its children), each playing a distinct role in coverage (populated, empty, multi-level).
 - **Item**: An individual requirement entry within a document, carrying the attributes needed to cover a specific extension behavior (links, derived links, headings, review state, suspect state, text length).
 - **Regression Checklist**: A document mapping each shipped feature area to the fixture element(s) that exercise it and the expected outcome; the artifact a maintainer works through before release.
 - **Diagram Fixture**: A persisted traceability diagram file, checked into the test model, referencing a subset of the fixture's items so diagram-related features have a ready starting point.
@@ -116,6 +116,8 @@ As a maintainer, I want an automated integration test suite that exercises the t
 
 ## Assumptions
 
+- Since spec 019 the fixture is the shared basis of later features' end-to-end tests. Its documents and counts (REQ 10 items, ARCH 1, EMPTY 0, MD 1 markdown) are a contract in contracts/fixture-layout.md; any change must be checked against the specs and tests that depend on it (019, 020, 021, 024, 025, 027). FR-011 applies per release of the checklist, not to the fixture's use by later specs.
+- The no-network/no-setup rule applies to the fixture integration suite (regressionFixture.test.ts) and the manual checklist. Later feature jobs (e.g. spec 027's pdf-export CI job) may use the fixture read-only and install their own tooling; they must leave testdata/regression unchanged.
 - "All features" is scoped to the extension's currently shipped feature areas — those already present in the codebase at the time this test model is built (server connection & lifecycle, explorer & commands panel, item lifecycle commands, document utilities, CodeLens & autocompletion, hover & navigation, diagram core, diagram interaction, go-to-definition & usage navigation, and the treeview auto-reveal toggle). Feature areas still in specification/design (e.g., diagram ghost items & content preview) are out of scope until they ship, per FR-011.
 - The test model is a static, checked-in fixture rather than a generated-on-demand project; it is regenerated manually if the extension's data model changes in a way the fixture no longer represents.
 - "Stable" in the user's request is addressed indirectly: this feature produces the test model and checklist that make regressions detectable before release; it does not itself change runtime behavior of the extension.

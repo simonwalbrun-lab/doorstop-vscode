@@ -25,7 +25,9 @@
     if (meta && typeof meta.header === 'string') {
       return meta.header;
     }
-    return node.label.split('\n')[1] || '';
+    // Every line after the identifier is heading: wrapHeading breaks a long one at
+    // single spaces (spec 025 FR-017), so joining with a space restores it.
+    return node.label.split('\n').slice(1).join(' ');
   }
 
   function getDiagramData(network) {

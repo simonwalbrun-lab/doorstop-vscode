@@ -7,6 +7,7 @@ import {
   ParsedBlock,
   StructuralIssue,
   checkStructure,
+  decorationLines,
   documentMarker,
   headerLineFor,
   isViewUri,
@@ -148,21 +149,9 @@ export function registerDocumentViewLanguage(context: vscode.ExtensionContext, o
   };
 
   const decorate = (document: vscode.TextDocument, scan: Scan): void => {
-    const separators: vscode.Range[] = [];
-    const tinted: vscode.Range[] = [];
-    let index = 0;
-    for (const block of scan.blocks) {
-      if (block.kind === 'orphan') {
-        continue;
-      }
-      separators.push(lineRange(document, block.separatorLine));
-      if (block.kind === 'item' || block.kind === 'placeholder') {
-        if (index % 2 === 1) {
-          tinted.push(new vscode.Range(block.separatorLine, 0, block.endLine, lineRange(document, block.endLine).end.character));
-        }
-        index++;
-      }
-    }
+    const lines = decorationLines(scan.blocks);
+    const separators = lines.separators.map(line => lineRange(document, line));
+    const tinted = lines.tinted.map(({ start, end }) => new vscode.Range(start, 0, end, lineRange(document, end).end.character));
     for (const editor of vscode.window.visibleTextEditors) {
       if (editor.document.uri.toString() === document.uri.toString()) {
         editor.setDecorations(separatorDecoration, separators);

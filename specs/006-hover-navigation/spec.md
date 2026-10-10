@@ -97,8 +97,7 @@ updates to reveal the newly opened requirement.
 - **FR-004**: System MUST show a popup listing downstream/child items when
   hovering the `derived:` field key.
 - **FR-005**: System MUST keep the Explorer tree's active selection synchronized
-  with whatever requirement file is currently active in the editor, including
-  after navigating via a hover popup link.
+  with whatever requirement file is currently active in the editor, including after navigating via a hover popup link, while auto-reveal is enabled (default on; the user can switch it off with the title-bar toggle, see spec 010).
 
 ### Key Entities
 
@@ -116,10 +115,9 @@ updates to reveal the newly opened requirement.
 - **SC-002**: A developer can see everything that depends on a requirement
   (downstream impact) without running a search.
 - **SC-003**: Navigating via hover links keeps the sidebar tree oriented to the
-  current file at all times.
+  current file at all times (while auto-reveal is enabled, see spec 010).
 
 ## Assumptions
 
-- Requirement lookup by UID is done via a workspace file-name glob
-  (`<uid>.yml`/`.md`); requirements without a matching file are treated as not
-  found rather than raising an error.
+- Requirement lookup by UID uses the shared server-backed requirement index (`GET /tree`, see spec 018 FR-008); UIDs absent from the index are treated as not found rather than raising an error.
+- Also applies to the virtual documents of the Document View (spec 019 FR-036/FR-037).

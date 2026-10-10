@@ -73,7 +73,7 @@ produces a valid link entry.
 - How does autocompletion behave in a very large workspace with thousands of
   requirement UIDs?
 - What happens when a requirement referenced by autocompletion has been deleted
-  since the workspace was last scanned?
+  since the index was last loaded?
 
 ## Requirements *(mandatory)*
 
@@ -84,8 +84,7 @@ produces a valid link entry.
 - **FR-002**: Users MUST be able to trigger the derive action from the CodeLens
   itself or from a tree item's context menu, with identical resulting behavior.
 - **FR-003**: System MUST let the user choose which target document the derived
-  item is created in, restricted to documents that are valid children of the
-  source document's hierarchy.
+  item is created in, chosen from every document at the source document's depth or deeper (including other branches), each labelled with its kinship to the source. (Amended: previously "restricted to valid children"; matches the shipped behaviour.)
 - **FR-004**: System MUST automatically link a newly derived item back to its
   source item, without a separate manual linking step.
 - **FR-005**: System MUST open the newly derived item's file after creation.
@@ -116,8 +115,5 @@ produces a valid link entry.
 
 ## Assumptions
 
-- Candidate target documents for a derive action are limited to
-  same-level-or-deeper documents in the source document's declared parent/child
-  hierarchy; cross-hierarchy derivation is out of scope.
-- Autocompletion scans the workspace for requirement files; workspaces with no
-  requirement files simply produce an empty completion list.
+- Candidate target documents for a derive action are all documents at the same depth as the source or deeper, including other branches (cross-branch derivation is supported); each is labelled with its kinship to the source.
+- Autocompletion candidates come from the shared server-backed requirement index (`GET /tree`, see spec 018 FR-008); workspaces with no requirements simply produce an empty completion list.

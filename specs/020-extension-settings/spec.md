@@ -135,10 +135,8 @@ setting and publish again; confirm Doorstop's default template is used.
   including the "unknown" kind). Default: all on.
 - **FR-002**: Each checkbox MUST carry a human-readable label and a one-line
   description of the problem it controls.
-- **FR-003**: Findings of an unticked kind MUST NOT appear in the Problems
-  panel; findings of ticked kinds MUST be unaffected.
-- **FR-004**: Changing any problem-report checkbox MUST update the Problems
-  panel without a manual re-check or window reload.
+- **FR-003**: Findings of an unticked kind MUST NOT appear in the Problems panel and document view; findings of ticked kinds MUST be unaffected.
+- **FR-004**: Changing any problem-report checkbox MUST update the Problems panel and document view without a manual re-check or window reload.
 
 **New documents**
 
@@ -156,14 +154,14 @@ setting and publish again; confirm Doorstop's default template is used.
 - **FR-009**: The extension MUST provide a text setting for the template name
   used when publishing documents. Default: empty (Doorstop's default template).
 - **FR-010**: When the setting is non-empty, every publish started from the
-  extension MUST pass the template to Doorstop.
+  extension MUST pass the template to Doorstop, except for Markdown output, which takes none.
 - **FR-011**: When Doorstop cannot use the configured template, the publish
-  MUST fail with an error message naming the template and the setting.
+  MUST fail with an error message naming the template and the setting. (Amended by spec 024: in "All documents - one file each" runs a shared template is supplied to documents lacking their own; the error applies when no document owns the template.)
 
 **General**
 
 - **FR-012**: All settings MUST appear under a single "Doorstop" section in
-  the editor's settings UI and MUST be settable per user and per workspace.
+  the editor's settings UI and MUST be settable per user and per workspace. (Later specs add further settings, e.g. `doorstop.timing.enabled` in spec 023; this rule applies to them too.)
 - **FR-013**: With all settings at their defaults, the extension MUST behave
   exactly as it does today.
 
@@ -182,7 +180,7 @@ setting and publish again; confirm Doorstop's default template is used.
 - **SC-001**: A user can find and change any of the settings from the editor's
   settings UI in under 30 seconds by searching "Doorstop".
 - **SC-002**: After unticking a problem kind, 100% of its findings disappear
-  from the Problems panel within 2 seconds, and 0 findings of other kinds are
+  from the Problems panel and document view within 2 seconds, and 0 findings of other kinds are
   removed.
 - **SC-003**: 100% of documents created via the tree view after a settings
   change follow the configured format, separator, and digits.
@@ -203,5 +201,5 @@ setting and publish again; confirm Doorstop's default template is used.
 - New-document settings apply to the tree view's "create document" action;
   the user is not prompted for these values per document.
 - The publish template applies to all publish formats that support templates;
-  formats that ignore templates (e.g. plain Markdown) publish unchanged.
+  formats that ignore templates (e.g. plain Markdown) publish unchanged. PDF (spec 027) is produced from HTML published with this template, so the setting applies to it as to HTML. No new setting is added by 027.
 - Settings changes take effect without reloading the window.

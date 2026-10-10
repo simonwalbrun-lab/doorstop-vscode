@@ -85,6 +85,7 @@ suite('Document View contributions (019)', () => {
   const commandTitle = (id: string): string | undefined =>
     (manifest().contributes.commands as { command: string; title: string }[]).find(entry => entry.command === id)?.title;
 
+  // Spec 019 FR-001 FR-002
   test('both open commands exist with the spec wording', () => {
     assert.strictEqual(commandTitle('doorstop.openDocumentView'), 'Doorstop: Open Document View');
     assert.strictEqual(commandTitle('doorstop.openAsDocument'), 'Open as document');
@@ -92,6 +93,7 @@ suite('Document View contributions (019)', () => {
     assert.strictEqual(commandTitle('doorstop.documentView.restoreBlock'), 'Restore block structure');
   });
 
+  // Spec 019 FR-001
   test('"Open as document" is an inline icon and a context entry on document nodes only', () => {
     const entries = entriesFor('doorstop.openAsDocument');
     assert.strictEqual(entries.length, 2);
@@ -102,6 +104,7 @@ suite('Document View contributions (019)', () => {
     }
   });
 
+  // Spec 019 FR-030 FR-033
   test('lens-only commands are hidden from the palette', () => {
     const palette = manifest().contributes.menus.commandPalette as MenuEntry[];
     for (const id of ['doorstop.openAsDocument', 'doorstop.documentView.newItemBelow', 'doorstop.documentView.cancelPlaceholder', 'doorstop.documentView.restoreBlock']) {
@@ -110,6 +113,7 @@ suite('Document View contributions (019)', () => {
     assert.strictEqual(palette.find(entry => entry.command === 'doorstop.insertItemHere')?.when, 'resourceScheme == doorstop-document');
   });
 
+  // Spec 019 FR-040
   test('the alternating block colour has a default for every theme kind', () => {
     const colours = manifest().contributes.colors as { id: string; defaults: Record<string, string> }[];
     const colour = colours.find(entry => entry.id === 'doorstop.documentView.altBlockBackground');

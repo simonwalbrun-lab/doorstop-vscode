@@ -13,7 +13,7 @@
 ### Session 2026-10-04
 
 - Q: When a filter checks related items, which relationships should it be able to follow? → A: Direct children and direct parents ("has child where …", "has parent where …"); no transitive descendant/ancestor conditions.
-- Q: What should a newly created filter notebook contain? → A: One text cell with a short explanation and an operator cheat-sheet, followed by one runnable example filter cell.
+- Q: What should a newly created filter notebook contain? → A: One text cell with a short explanation and an operator cheat-sheet, followed by one runnable example filter cell. (Refined by FR-002/US1-6: one simple and one complex example filter cell.)
 - Q: Where should the user choose which properties appear as columns in a cell's result table? → A: Inside the cell, Bases-style: a cell may be a mapping with `filters:` (the filter) and `order:` (list of attribute names shown as columns); a cell holding only a filter keeps the default columns.
 
 ## User Scenarios & Testing *(mandatory)*

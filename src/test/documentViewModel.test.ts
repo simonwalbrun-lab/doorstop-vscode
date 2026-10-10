@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 
 import {
   checkStructure,
+  decorationLines,
   documentMarker,
   insertionPointAfterBlock,
   itemSeparator,
@@ -43,6 +44,7 @@ const THREE_ITEMS = doc([
 ]);
 
 suite('Document View model (019)', () => {
+  // Spec 019 FR-006 FR-007 FR-008 FR-009
   test('render produces the contract shape', () => {
     const { text, blocks, issues } = render(THREE_ITEMS);
     assert.strictEqual(text, [
@@ -72,6 +74,7 @@ suite('Document View model (019)', () => {
     assert.deepStrictEqual(issues, []);
   });
 
+  // Spec 019 FR-007 FR-010 FR-045
   test('render: heading item shows heading only, non-normative text is never hidden, inactive skipped', () => {
     const { text } = render(doc([
       item({ uid: 'SYS-0001', level: '1.0', header: 'Introduction', normative: false }),
@@ -91,6 +94,7 @@ suite('Document View model (019)', () => {
     ].join('\n'));
   });
 
+  // Spec 019 FR-006 FR-045
   test('render: empty document is the marker only; a lookalike separator is reported', () => {
     assert.strictEqual(render(doc([], 'EMPTY')).text, `${documentMarker('EMPTY')}\n`);
     const lookalike = render(doc([
@@ -102,6 +106,7 @@ suite('Document View model (019)', () => {
     assert.strictEqual(lookalike.issues[0].uid, 'SYS-0001');
   });
 
+  // Spec 019 FR-011 FR-018
   test('parse round-trips render, and headings inside a body never split a block', () => {
     const blocks = parse(render(THREE_ITEMS).text);
     assert.deepStrictEqual(blocks.map(block => [block.kind, block.uid, block.headerText, block.text]), [
@@ -118,6 +123,7 @@ suite('Document View model (019)', () => {
     assert.strictEqual(parsed[1].text, 'Top level text.\n\n## Typed heading\nmore');
   });
 
+  // Spec 019 FR-029 FR-031
   test('parse: orphan text, placeholder blocks and non-heading header lines', () => {
     const text = `${documentMarker('SYS')}\nstray text\n\n${itemSeparator('SYS-0001', '1.0')}\nnot a heading\nbody\n\n<!-- new item -->\n## \n\n`;
     const blocks = parse(text);
@@ -130,6 +136,7 @@ suite('Document View model (019)', () => {
     assert.strictEqual(blocks[3].text, '');
   });
 
+  // Spec 019 FR-003
   test('view URI carries the prefix and a "(document)" title', () => {
     const uri = viewUriFor('SYS');
     assert.strictEqual(uri.scheme, 'doorstop-document');
@@ -142,6 +149,7 @@ suite('Document View model (019)', () => {
     const rendered = render(THREE_ITEMS);
     const plan = (text: string) => planSave(parse(text), THREE_ITEMS, rendered.issues);
 
+    // Spec 019 FR-019
     test('unchanged document changes nothing', () => {
       const result = plan(rendered.text);
       assert.deepStrictEqual(result.errors, []);
@@ -151,6 +159,7 @@ suite('Document View model (019)', () => {
       assert.deepStrictEqual(result.unchanged, ['SYS-0001', 'SYS-0006', 'SYS-0009']);
     });
 
+    // Spec 019 FR-017
     test('depth changes and trailing blank lines are not changes', () => {
       const text = rendered.text
         .replace('## Sensor input', '#### Sensor input')
@@ -158,6 +167,7 @@ suite('Document View model (019)', () => {
       assert.deepStrictEqual(plan(text).updates, []);
     });
 
+    // Spec 019 FR-015 FR-016 FR-028
     test('text edit, header-only edit, and UID heading means empty header', () => {
       const edited = plan(rendered.text.replace('Top level text.', 'Edited text.'));
       assert.deepStrictEqual(edited.updates, [{
@@ -173,6 +183,7 @@ suite('Document View model (019)', () => {
       assert.strictEqual(uidHeading.updates[0].header, '');
     });
 
+    // Spec 019 FR-015
     test('a blank or non-heading line after the separator still becomes the header', () => {
       const blank = plan(rendered.text.replace('## Sensor input', ''));
       assert.deepStrictEqual(blank.updates.map(update => [update.uid, update.header, update.headerOnly]), [['SYS-0006', '', true]]);
@@ -180,6 +191,7 @@ suite('Document View model (019)', () => {
       assert.deepStrictEqual(plain.updates, []);
     });
 
+    // Spec 019 FR-022 FR-024 FR-031 FR-032
     test('missing blocks are deletions, placeholders are creations, empty placeholders are ignored', () => {
       const lines = rendered.text.split('\n');
       const withoutLast = lines.slice(0, 12).join('\n') + '\n';
@@ -204,6 +216,7 @@ suite('Document View model (019)', () => {
       assert.strictEqual(atTop.creations[0].afterUid, undefined);
     });
 
+    // Spec 019 FR-019 FR-042
     test('untouched blocks are never written back over a newer disk state', () => {
       const fresh = doc([
         item({ uid: 'SYS-0001', level: '1.0', text: 'Changed on disk.' }),
@@ -218,6 +231,7 @@ suite('Document View model (019)', () => {
       assert.ok(result.errors[0]?.message.includes('deleted on disk'));
     });
 
+    // Spec 019 FR-025
     test('duplicated, unknown and orphan structures refuse the save', () => {
       const duplicated = plan(rendered.text.replace('## Sensor input', `${itemSeparator('SYS-0001', '1.0')}\n## Sensor input`));
       assert.strictEqual(duplicated.errors[0].code, 'separator-duplicated');
@@ -241,10 +255,12 @@ suite('Document View model (019)', () => {
     const rendered = render(THREE_ITEMS);
     const check = (text: string) => checkStructure(parse(text), text.split('\n'), rendered.blocks);
 
+    // Spec 019 FR-026
     test('clean text has no issues', () => {
       assert.deepStrictEqual(check(rendered.text), []);
     });
 
+    // Spec 019 FR-026 FR-027
     test('one issue per code, naming the UID', () => {
       const cases: Array<[string, string, number, string | undefined]> = [
         [rendered.text.replace(`${itemSeparator('SYS-0001', '1.0')}\n`, ''), 'text-before-first-separator', 2, undefined],
@@ -266,11 +282,24 @@ suite('Document View model (019)', () => {
     });
   });
 
+  // Spec 019 FR-030
   test('placeholder insertion point and text', () => {
     const blocks = parse(render(THREE_ITEMS).text);
     assert.deepStrictEqual(insertionPointAfterBlock(blocks, 9), { insertAtLine: 11, depth: 2, afterUid: 'SYS-0006' });
     assert.deepStrictEqual(insertionPointAfterBlock(blocks, 0), { insertAtLine: 1, depth: 1, afterUid: undefined });
     assert.deepStrictEqual(insertionPointAfterBlock(blocks, 14), { insertAtLine: 15, depth: 3, afterUid: 'SYS-0009' });
     assert.strictEqual(placeholderBlockText(2), '\n<!-- new item -->\n## \n');
+  });
+
+  // Spec 019 FR-012 FR-039
+  test('managed lines are dimmed and every second item block is tinted, following the text', () => {
+    const text = render(THREE_ITEMS).text;
+    assert.deepStrictEqual(decorationLines(parse(text)), {
+      separators: [0, 2, 6, 12],
+      tinted: [{ start: 6, end: 10 }]
+    });
+    // Two lines added to the first block shift later ranges with the text.
+    const shifted = decorationLines(parse(text.replace('Top level text.', 'Top level text.\nmore\nlines')));
+    assert.deepStrictEqual(shifted.tinted, [{ start: 8, end: 12 }]);
   });
 });

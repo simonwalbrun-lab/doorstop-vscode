@@ -578,7 +578,8 @@ colour can be overridden via the theme colour
 - **FR-036**: Problems Doorstop reports for an item MUST be shown on the
   item's marker line in the view with the same severity and the same quick
   fixes (Do Review, Clear Suspect Link, Clear All Suspect Links) as in the
-  item file.
+  item file, except problem kinds switched off via `doorstop.problems`
+  (spec 020).
 - **FR-037**: Hover, go to definition, find references and the call
   hierarchy MUST work on the UID inside a marker line exactly as on UIDs in item
   files.

@@ -14,7 +14,7 @@
 
 - Q: What happens when the user tries to add the same requirement to the diagram twice? → A: Silent no-op — if a node for that UID already exists on the canvas, the add attempt does nothing (no duplicate node, no warning).
 - Q: What happens when a link-creation attempt targets two nodes that are already linked? → A: Succeeds silently and idempotently — Doorstop stores an item's links as a set, so re-creating an existing link is a no-op rather than an error.
-- Q: What happens when the diagram is closed and reopened after the VS Code window was reloaded mid-edit? → A: Unsaved canvas changes, including dragged node positions, are lost. A hot-exit backup file is written on every change, but reopening always reads the original file on disk rather than that backup, so the backup does not currently achieve recovery (see Assumptions and Follow-up Tasks).
+- Q: What happens when the diagram is closed and reopened after the VS Code window was reloaded mid-edit? → A: Unsaved canvas changes, including dragged node positions, are lost. A hot-exit backup file is written on every change, but reopening always reads the original file on disk rather than that backup, so the backup does not currently achieve recovery (see Assumptions and Follow-up Tasks). **Resolved:** `openCustomDocument` now restores from `openContext.backupId` (`readDiagramOrBackup`); unsaved changes, including dragged positions, survive a reload.
 - Q: Does dragging an item from the Doorstop Explorer TreeView onto an open diagram work? → A: No — this is a known VS Code platform limitation (TreeDragAndDropController payloads aren't reliably delivered as webview DataTransfer), not a bug in this extension. "Add to Diagram" (FR-002) is the only supported way to add a tree item; drag-and-drop (FR-001) only works from an editor.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -71,7 +71,8 @@ right-click; confirm the link is removed.
 **Acceptance Scenarios**:
 
 1. **Given** two nodes on the canvas, **When** the user draws an edge between
-   them, **Then** a real parent-child link is created via the server and the
+   them (superseded: the drag gesture was removed by spec 025 FR-012; links are
+   created via the node context-menu "Add Link to...", spec 015 FR-006), **Then** a real parent-child link is created via the server and the
    edge is only shown once that succeeds.
 2. **Given** the user attempts to draw an edge from a node to itself, **When**
    the draw action completes, **Then** it is rejected without any server
@@ -123,7 +124,7 @@ permanently pinned tab.
 
 1. **Given** a diagram is open, **When** the user single-clicks a node,
    **Then** its file opens in a preview tab beside the diagram (reused on
-   subsequent single-clicks) and the Explorer tree reveals it.
+   subsequent single-clicks) and the Explorer tree reveals it when auto-reveal is enabled (spec 010).
 2. **Given** a diagram is open, **When** the user double-clicks a node,
    **Then** its file opens in a permanent (non-preview) tab.
 
@@ -132,13 +133,14 @@ permanently pinned tab.
 ### User Story 5 - Adjust the canvas layout and view (Priority: P3)
 
 As a developer, I want to toggle between free-form and hierarchical layout, see
-a legend explaining status icons and document colors, and delete nodes/edges I
+a legend explaining document colors, and delete nodes/edges I
 no longer want on the canvas.
 
 **Why this priority**: Presentation/cleanup conveniences, not required for the
 diagram's core value.
 
-**Independent Test**: Toggle the layout mode and confirm nodes rearrange
+**Independent Test**: (Layout part superseded by spec 015: Hierarchical and Grid are
+one-shot commands, no toggle-back/restore.) Toggle the layout mode and confirm nodes rearrange
 accordingly, then toggle back and confirm manually-placed positions are
 restored; select a node and delete it, confirm it and its edges are removed and
 the removal persists on save.
@@ -147,9 +149,10 @@ the removal persists on save.
 
 1. **Given** a diagram with manually positioned nodes, **When** the user
    toggles to hierarchical layout and back to free-form, **Then** the original
-   manual positions are restored.
+   manual positions are restored. (Superseded by spec 015 FR-013, FR-021: one-shot
+   arrange commands, no restore.)
 2. **Given** a legend toggle control, **When** the user opens it, **Then** it
-   explains each status badge icon and the color assigned to each document.
+   explains the color assigned to each document (status icons removed by spec 025 FR-020 to FR-022).
 3. **Given** a selected node or edge, **When** the user deletes it, **Then** it
    is removed from the canvas and that removal is reflected the next time the
    diagram is saved.
@@ -167,7 +170,8 @@ the removal persists on save.
   request is (FR-006).
 - Unsaved canvas changes (including dragged node positions) are lost if VS Code
   is reloaded mid-edit — see Assumptions and Follow-up Tasks for why the
-  existing backup mechanism does not currently prevent this.
+  existing backup mechanism does not currently prevent this. (Resolved: recovery
+  from the backup now works, see Assumptions.)
 
 ## Requirements *(mandatory)*
 
@@ -184,7 +188,9 @@ the removal persists on save.
 - **FR-003**: System MUST warn the user and add no node when a drag/drop or
   add-to-diagram action references a requirement file that cannot be located.
 - **FR-004**: Users MUST be able to create a real traceability link by drawing a
-  connection between two nodes on the canvas.
+  connection between two nodes on the canvas. (Amended by spec 025 FR-012/FR-013
+  and spec 015 FR-006: the draw gesture was removed; links are created via the
+  node context-menu action "Add Link to...".)
 - **FR-005**: System MUST reject a self-referencing edge (a node connected to
   itself) without contacting the server.
 - **FR-006**: System MUST only display a drawn or removed edge on the canvas
@@ -197,15 +203,21 @@ the removal persists on save.
   a selected node, directly from the canvas, ending with the new node visible
   and its file open.
 - **FR-009**: Single-clicking a node MUST open its file in a reusable preview
-  tab beside the diagram and update the Explorer tree's active selection.
+  tab beside the diagram and update the Explorer tree's active selection when
+  auto-reveal is enabled (spec 010).
 - **FR-010**: Double-clicking a node MUST open its file in a permanent,
   non-preview tab.
 - **FR-011**: Users MUST be able to toggle between a free-form and a
   hierarchical layout without losing previously set manual node positions.
-- **FR-012**: System MUST provide a legend explaining status badge icons and
-  per-document node coloring.
+  (Superseded by spec 015 FR-013, FR-018 to FR-021: Hierarchical and Grid are
+  one-shot arrange commands; body items are always static and there is no
+  free-form vs hierarchical mode or position restore.)
+- **FR-012**: System MUST provide a legend explaining per-document node
+  coloring (status icons removed by spec 025 FR-022).
 - **FR-013**: Users MUST be able to delete a node or edge from the canvas, with
-  the removal reflected in the diagram file on save.
+  the removal reflected in the diagram file on save. (Amended by spec 025 FR-012
+  and spec 015 FR-001: the generic select-and-delete was removed; nodes are removed
+  via the context-menu "Remove from Diagram", edges via "Remove Link".)
 - **FR-014**: System MUST treat adding a requirement that already has a node on
   the canvas as a no-op — no duplicate node and no error.
 - **FR-015**: System MUST treat creating a link that already exists as a
@@ -217,7 +229,7 @@ the removal persists on save.
 ### Key Entities
 
 - **Canvas Node**: a visual representation of a requirement item on the
-  diagram, positioned manually or by the current layout mode.
+  diagram, positioned manually or by a one-shot layout command (spec 015).
 - **Canvas Edge**: a visual representation of a link between two nodes, always
   backed by a real server-confirmed link.
 
@@ -235,12 +247,12 @@ the removal persists on save.
 
 ## Assumptions
 
-- Canvas layout state (positions, current layout mode) is treated as part of
+- Canvas layout state (positions) is treated as part of
   the diagram file / webview session state, not something the server tracks.
 - "Add Linked Item..." reuses the same target-document selection convention as
   the standalone Add Item command (see `003-item-lifecycle-commands`), rather
   than introducing a separate rule.
-- Known limitation, not a design intent: the custom editor's
+- RESOLVED (backup recovery now implemented via `readDiagramOrBackup`; text below is historical). Known limitation, not a design intent: the custom editor's
   `backupCustomDocument` faithfully writes a hot-exit backup file on every
   canvas change, but `openCustomDocument` always re-reads the original diagram
   file from disk and never consults that backup when VS Code restores the
@@ -255,7 +267,7 @@ Not part of this spec's requirements (these describe known gaps to fix, not
 intended behavior) — tracked here since no `plan.md`/`tasks.md` exists yet for
 this feature:
 
-- [ ] Fix hot-exit recovery for diagrams: `openCustomDocument` in
+- [x] (Resolved) Fix hot-exit recovery for diagrams: `openCustomDocument` in
   `src/extension.ts` ignores `openContext.backupId`. It should check for a
   backup and read the diagram from it when present, instead of always reading
   `uri` from the original file, so unsaved canvas changes (including dragged

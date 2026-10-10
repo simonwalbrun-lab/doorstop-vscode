@@ -187,7 +187,7 @@ stays on.
 - Grid or hierarchical arrangement with exactly one body item: the item is placed at
   the single grid/root position; no error.
 - Grid arrangement with items of differing label widths (headings shown): spacing is
-  sized so no two nodes overlap at the widest label in use.
+  sized so no two nodes overlap at the widest label in use (refined by spec 025 FR-014 to FR-016: spacing uses each node's actual measured size at run time).
 - Hierarchical arrangement on body items that have no links to each other: they are
   laid out as independent roots without error.
 - Invoking a layout action while a link creation or item creation is still in

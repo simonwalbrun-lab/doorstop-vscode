@@ -19,12 +19,12 @@ traceability.
 **Why this priority**: The entry point for the whole Canvas feature; without it
 nothing else in this area is reachable.
 
-**Independent Test**: Run "New Traceability Graph", save to a new
+**Independent Test**: Run "Doorstop: New Diagram" (formerly "New Traceability Graph"; entry point moved to the Commands panel by spec 025), save to a new
 `*.doorstop.json` file, confirm it opens as an empty diagram canvas.
 
 **Acceptance Scenarios**:
 
-1. **Given** the user runs "New Traceability Graph" and picks a save location,
+1. **Given** the user runs "Doorstop: New Diagram" and picks a save location,
    **When** the file is created, **Then** it is written as a valid empty diagram
    and opened in the diagram editor.
 
@@ -56,25 +56,25 @@ save it, close and reopen it, confirm the change persisted.
 
 ---
 
-### User Story 3 - See live requirement status on diagram nodes (Priority: P2)
+### User Story 3 - See live document coloring on diagram nodes (Priority: P2)
 
-As a developer, I want diagram nodes to reflect each requirement's current
-status (reviewed, suspect link, derived, inactive, non-normative) and be
-colored by owning document, so the diagram stays meaningful as requirements
-change after the diagram was drawn.
+As a developer, I want diagram nodes to be colored by owning document, based
+on current server data, so the diagram stays meaningful as requirements
+change after the diagram was drawn. (Status badges were removed from the
+canvas by spec 025 FR-020 to FR-022.)
 
 **Why this priority**: Keeps a saved diagram from going stale, but the diagram
 is still useful without it.
 
-**Independent Test**: Mark an item reviewed via another command, then open a
-diagram containing that item; confirm its status badge reflects the review.
+**Independent Test**: Move an item to another document, then open a diagram
+containing that item; confirm its node color reflects the new owning
+document.
 
 **Acceptance Scenarios**:
 
 1. **Given** a diagram containing a node for an existing requirement, **When**
    the diagram loads, **Then** it fetches current status/link data from the
-   server and shows an up-to-date status badge and document-colored styling for
-   that node.
+   server and shows document-colored styling for that node.
 2. **Given** the server is unreachable when the diagram loads, **When** the
    fetch fails, **Then** the diagram still renders exactly what was saved on
    disk, with a one-time warning rather than an empty/broken canvas.
@@ -84,7 +84,9 @@ diagram containing that item; confirm its status badge reflects the review.
 ### Edge Cases
 
 - What happens when a diagram references a node whose underlying requirement
-  file no longer exists?
+  file no longer exists? (Answered by spec 025 FR-007/FR-010: the path is
+  corrected if the UID is found elsewhere, otherwise the node is kept unchanged
+  and the user is told which UIDs could not be resolved.)
 - What happens when two different diagrams reference the same requirement — do
   status updates in one affect the other?
 - How does the diagram behave when opened in a workspace that doesn't match the
@@ -101,11 +103,11 @@ diagram containing that item; confirm its status badge reflects the review.
 - **FR-003**: System MUST participate in standard VS Code Save, Save As, Revert,
   and backup flows like any other editable document.
 - **FR-004**: System MUST render exactly what is saved on disk when a diagram is
-  opened.
+  opened, except that stored item paths no longer matching the item's UID location
+  are corrected in memory per spec 025 FR-006 to FR-011.
 - **FR-005**: System MUST fetch current requirement status and link data from
   the server when a diagram loads, and reflect it via node coloring (by owning
-  document) and status badges (reviewed, suspect, derived, inactive,
-  non-normative).
+  document). Status badges are not shown (removed by spec 025).
 - **FR-006**: System MUST fall back to rendering the diagram exactly as saved,
   with a one-time warning, when the server-status fetch fails at load time.
 - **FR-007**: System MUST recompute displayed edges from server-known links when
@@ -118,9 +120,6 @@ diagram containing that item; confirm its status badge reflects the review.
 - **Diagram**: a `*.doorstop.json` file containing a set of nodes (each
   referencing a requirement item by workspace-relative path) and edges (links
   between them).
-- **Node Status Badge**: a visual indicator on a diagram node reflecting a
-  requirement's reviewed/suspect/derived/active/normative state at the time the
-  diagram was last loaded.
 
 ## Success Criteria *(mandatory)*
 

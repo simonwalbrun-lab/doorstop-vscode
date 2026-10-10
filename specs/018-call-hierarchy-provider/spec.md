@@ -318,3 +318,4 @@ at the requirement the file belongs to.
   FR-003b is specific to the tree view's "calls" icon.
 - The feature ships with at least one automated extension-side test covering
   User Story 1's primary path, per the project constitution.
+- Also applies to the virtual documents of the Document View (spec 019 FR-036/FR-037).

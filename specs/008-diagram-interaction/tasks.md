@@ -56,10 +56,10 @@ the backup, confirm the diagram still opens showing the last saved state).
 
 ### Implementation for User Story 1
 
-- [ ] T001 [US1] In `src/extension.ts`, change the `diagramEditorProvider.openCustomDocument` method's signature from `async openCustomDocument(uri)` to `async openCustomDocument(uri, openContext)`, and when `openContext.backupId` is truthy, attempt `await DoorstopDiagramPanel.readDiagram(vscode.Uri.file(openContext.backupId))` and use its result as the returned document's `diagram` field on success (research.md Decision 1).
-- [ ] T002 [US1] In the same method (depends on T001, same file/function), wrap the backup read from T001 in try/catch: on any failure (backup missing despite `backupId` being set, unreadable, or fails `readDiagram`'s existing "Invalid diagram format" check) or when `openContext.backupId` is absent, fall back to today's unchanged behavior — `await DoorstopDiagramPanel.readDiagram(uri)` — so the diagram always still opens (research.md Decision 2; Constitution Principle III).
-- [ ] T003 [P] [US1] In `src/test/extension.test.ts`, replace the placeholder `Sample test` with a real test that opens the `doorstop.diagram` custom editor for a temp `*.doorstop.json` file while passing a synthetic `openContext.backupId` pointing at a second temp diagram file with different node positions, and assert the opened document's `diagram` reflects the backup's positions, not the main file's (research.md Decision 3; different file from T001/T002 so parallelizable with those).
-- [ ] T004 [US1] In `src/test/extension.test.ts` (depends on T003, same file), add a second test case: set `openContext.backupId` to a path that is missing or contains invalid JSON, and assert `openCustomDocument` still resolves successfully with `diagram` read from the original `uri` instead of throwing (research.md Decision 2 / quickstart.md Scenario 3).
+- [X] T001 [US1] In `src/extension.ts`, change the `diagramEditorProvider.openCustomDocument` method's signature from `async openCustomDocument(uri)` to `async openCustomDocument(uri, openContext)`, and when `openContext.backupId` is truthy, attempt `await DoorstopDiagramPanel.readDiagram(vscode.Uri.file(openContext.backupId))` and use its result as the returned document's `diagram` field on success (research.md Decision 1).
+- [X] T002 [US1] In the same method (depends on T001, same file/function), wrap the backup read from T001 in try/catch: on any failure (backup missing despite `backupId` being set, unreadable, or fails `readDiagram`'s existing "Invalid diagram format" check) or when `openContext.backupId` is absent, fall back to today's unchanged behavior — `await DoorstopDiagramPanel.readDiagram(uri)` — so the diagram always still opens (research.md Decision 2; Constitution Principle III).
+- [X] T003 [P] [US1] (done via T007) In `src/test/extension.test.ts`, replace the placeholder `Sample test` with a real test that opens the `doorstop.diagram` custom editor for a temp `*.doorstop.json` file while passing a synthetic `openContext.backupId` pointing at a second temp diagram file with different node positions, and assert the opened document's `diagram` reflects the backup's positions, not the main file's (research.md Decision 3; different file from T001/T002 so parallelizable with those).
+- [X] T004 [US1] (done via T007) In `src/test/extension.test.ts` (depends on T003, same file), add a second test case: set `openContext.backupId` to a path that is missing or contains invalid JSON, and assert `openCustomDocument` still resolves successfully with `diagram` read from the original `uri` instead of throwing (research.md Decision 2 / quickstart.md Scenario 3).
 
 **Checkpoint**: Run `quickstart.md` Scenarios 1, 2, and 3 by hand in the
 Extension Development Host; all three MUST behave as that document describes
@@ -69,10 +69,10 @@ before considering this story done.
 
 ## Final Phase: Polish & Cross-Cutting Concerns
 
-- [ ] T005 Run `npm run compile` (check-types + lint + build) and confirm it
+- [X] T005 Run `npm run compile` (check-types + lint + build) and confirm it
   passes with no new errors/warnings — required by Constitution Principle V
   before this change ships.
-- [ ] T006 [P] Manually execute `quickstart.md` Scenarios 1, 2, and 3
+- [X] T006 (manual — passed by user 2026-10-09) [P] Manually execute `quickstart.md` Scenarios 1, 2, and 3
   end-to-end in a real Extension Development Host session (distinct from the
   narrower unit-level assertions in T003/T004) and record the outcome.
 
@@ -134,3 +134,20 @@ Task: "Add backup-restore test in src/test/extension.test.ts"
   scoped that way first — see the earlier plan-scope decision.
 - Commit after T002 (the fix itself) and again after T004 (tests), so the
   fix and its test coverage are each reviewable on their own.
+
+## Phase 4: Convergence
+
+- [X] T007 CRITICAL: Cover hot-exit backup recovery with a CI-runnable test. Move the body of `openCustomDocument` in `src/extension.ts` into an exported `loadDiagramDocument(uri: vscode.Uri, backupId?: string)` (the provider calls it with `openContext.backupId`, behaviour unchanged; the id is `destination.toString()`, so keep `vscode.Uri.parse`). In `src/test/extension.test.ts`, replace the placeholder `Sample test` with two tests on temp `*.doorstop.json` files: (1) a `backupId` pointing at a second diagram with different node positions → returned `diagram` has the backup's positions; (2) a `backupId` that is missing or holds invalid JSON → resolves without throwing, with `diagram` read from `uri`. This supersedes T003/T004, which cannot reach the provider because it is created inside `activate()`. Per Constitution VI, US1 (missing)
+
+## Phase 5: Convergence (Constitution Principle VIII, v1.4.0)
+
+Every FR below has no automated CI test today. Each test MUST carry a `// Spec 008 FR-NNN` trace comment and run under `npm test` (`src/test/*.test.ts`). Pure logic that lives only in the webview/panel should be exposed as an exported pure function (as `layout.js` / `reconcilePaths` already are) rather than tested through a DOM. Tests only; no behaviour change.
+
+- [ ] T008 HIGH: Add tests tagged `// Spec 008 FR-001`, `FR-002`, `FR-003`, `FR-014` for `DoorstopDiagramPanel.handleDroppedData` / the Add-to-Diagram path: editor-drop adds a node, the context-menu command adds a node, an unlocatable file warns and adds no node, and re-adding an existing item is a no-op with no duplicate and no error per FR-001, FR-002, FR-003, FR-014 (missing)
+- [ ] T009 HIGH: Add tests tagged `// Spec 008 FR-004`, `FR-005`, `FR-006`, `FR-015`, `FR-016` for link creation: a drawn edge creates a real link, a self-edge is rejected without a server call, a failed request leaves the canvas unchanged and surfaces the error, an existing link is a successful no-op, and a cyclic edge is rejected via the FR-006 path (use the regression-fixture server) per FR-004, FR-005, FR-006, FR-015, FR-016 (missing)
+- [ ] T010 HIGH: Add tests tagged `// Spec 008 FR-007` and `FR-013` for `handleRemoveLink` (server confirms before the edge disappears) and node/edge deletion being reflected in the saved diagram file per FR-007, FR-013 (missing; the existing node-removal test in `diagramLayout.test.ts` is tagged to spec 015, so add the spec 008 tag or write a separate test)
+- [ ] T011 HIGH: Add a test tagged `// Spec 008 FR-008` for `handleCreateLinkedItem`: the new item is created already linked to the selected node, appears as a node, and its file is opened per FR-008 (missing)
+- [ ] T012 MEDIUM: Add tests tagged `// Spec 008 FR-009` and `FR-010` for the open-node handler: a single click opens a preview tab (`preview: true`) and updates the Explorer selection, a double click opens a permanent tab (`preview: false`) per FR-009, FR-010 (missing)
+- [ ] T013 MEDIUM: Add a test tagged `// Spec 008 FR-011` in `diagramLayout.test.ts` or alongside it: toggling free-form to hierarchical and back preserves manually set node positions per FR-011 (missing)
+- [ ] T014 LOW: Add a test tagged `// Spec 008 FR-012` asserting the webview diagram HTML contains the status-badge and per-document colour legend per FR-012 (missing)
+- [ ] T015 LOW: Add the `// Spec 008` trace comment (no FR id applies; the backup-recovery follow-up is not an FR) above the two tests in the "Diagram hot-exit backup recovery (spec 008)" suite in `src/test/extension.test.ts`, and add the matching `// Spec 008 FR-NNN` tags to the spec 015 node-removal tests only if T010 reuses them per Constitution VIII (partial)

@@ -185,12 +185,12 @@ clickable, it works, Ghost Preview stays on, and afterwards nodes drag freely.
 
 - [X] T045 Run `npm run compile` (check-types + lint + esbuild) and fix anything it reports. This gates packaging and must not be bypassed (Constitution V).
 - [X] T046 Run `npm test` and confirm all four vscode-test labels pass, including the new `diagramLayout` suite. A flaky test must be fixed, never retried until green or skipped (Constitution VI).
-- [ ] T047 Walk the full manual acceptance script in [quickstart.md](./quickstart.md) §Manual acceptance walk-through — all five user stories, every ✅ checkpoint.
-- [ ] T048 Walk the [quickstart.md](./quickstart.md) §Regression checks: drag from an editor still lands at the drop point (not auto-placed); "Add Linked Item…" still creates, links and jumps; "Remove Link" on an edge still removes the real link; ghost promotion still opens its file, keeps Ghost Preview on and recomputes the ghost set; a failed ghost request still shows `#ghost-preview-status` and leaves body items untouched (spec 011 FR-012).
+- [X] T047 (manual — passed by user 2026-10-09) Walk the full manual acceptance script in [quickstart.md](./quickstart.md) §Manual acceptance walk-through — all five user stories, every ✅ checkpoint.
+- [X] T048 (manual — passed by user 2026-10-09) Walk the [quickstart.md](./quickstart.md) §Regression checks: drag from an editor still lands at the drop point (not auto-placed); "Add Linked Item…" still creates, links and jumps; "Remove Link" on an edge still removes the real link; ghost promotion still opens its file, keeps Ghost Preview on and recomputes the ghost set; a failed ghost request still shows `#ghost-preview-status` and leaves body items untouched (spec 011 FR-012).
 - [X] T049 [P] Verify SC-006 concretely: with a diagram open, remove several nodes, save, and confirm `git status` shows no modification to any requirement `.yml` file — only the `*.doorstop.json` changed.
 - [X] T050 [P] Add a CHANGELOG.md entry describing the three user-visible changes: two new node context-menu actions, permanently static body items with the Auto-Arrange button removed, and the new Grid Layout alongside a now one-shot Hierarchical Layout.
 - [X] T051 [P] Update `README.md` where it documents the diagram toolbar and context menu, so the removed Auto-Arrange button and the new actions are reflected.
-- [ ] T052 Note in the commit/PR body that this change removes spec 011's FR-014 (Ghost Preview ⇄ Hierarchical Layout mutual exclusivity), which the constitution's Governance section requires to be called out explicitly rather than left implicit. Spec 011 has already been annotated in place.
+- [X] T052 (n/a — PR already merged) Note in the commit/PR body that this change removes spec 011's FR-014 (Ghost Preview ⇄ Hierarchical Layout mutual exclusivity), which the constitution's Governance section requires to be called out explicitly rather than left implicit. Spec 011 has already been annotated in place.
 
 ---
 
@@ -289,3 +289,16 @@ mostly wait.
 - No new npm or pip dependency is introduced (Constitution IV).
 - Commit after each task or logical group; stop at any checkpoint to validate a story
   independently.
+
+---
+
+## Phase 9: Convergence
+
+Constitution v1.4.0 Principle VIII: every FR needs an automated CI test carrying a `Spec 015 FR-NNN` trace comment. Existing tests are in `src/test/diagramLayout.test.ts`. FR-002, FR-004, FR-015, FR-018, FR-023 have tests; the other 19 FRs have none.
+
+- [ ] T053 CRITICAL: Add the `// Spec 015 FR-NNN` trace comment to the existing 015 tests in `src/test/diagramLayout.test.ts` that currently use a bare `FR-NNN` comment (FR-002, FR-004, FR-014?, FR-015, FR-018, FR-023). Re-check which FR each really verifies; the FR-014 comment on the size-aware grid test looks mislabelled. per Constitution VIII (partial)
+- [ ] T054 CRITICAL: Add tests with `Spec 015 FR-NNN` traces for the context-menu removal FRs missing coverage: FR-001, FR-003, FR-005 (static assertions on built `dist/webview/diagram/*.js` or extracted pure functions). per Constitution VIII / FR-001, FR-003, FR-005 (missing)
+- [ ] T055 CRITICAL: Add tests with `Spec 015 FR-NNN` traces for add-link: FR-006, FR-007, FR-008, FR-009, FR-010, FR-011, FR-012. Cover the self-link rejection, duplicate-link idempotence, cancel, and error paths. per Constitution VIII / FR-006..FR-012 (missing)
+- [ ] T056 CRITICAL: Add tests with `Spec 015 FR-NNN` traces for static body items: FR-013, FR-014, FR-016, FR-017 (for example, built `main.js`/`diagram.html` have no auto-arrange toggle or physics repositioning of body items). per Constitution VIII / FR-013, FR-014, FR-016, FR-017 (missing)
+- [ ] T057 CRITICAL: Add tests with `Spec 015 FR-NNN` traces for layout actions: FR-019, FR-020, FR-021, FR-022, FR-024. FR-023 needs a trace on the real command path, not only the empty `gridPositions` call. per Constitution VIII / FR-019..FR-024 (missing)
+- [ ] T058 Strengthen the FR-002/FR-004 persistence test so it exercises the real removal path, not a simulated structure. per FR-002, FR-004 (partial)

@@ -35,7 +35,7 @@ As a requirements engineer working in the traceability diagram, I want to see ev
 4. **Given** Ghost Preview mode is on, **When** the user drags a body item to a new position, **Then** any ghost items connected to it follow it, settling into a new position relative to it under physics.
 5. **Given** a body item has no links to anything outside the canvas, **When** Ghost Preview mode is turned on, **Then** no ghost item appears for it and no error is shown.
 6. **Given** a related item is linked to more than one body item currently on the canvas, **When** Ghost Preview mode is on, **Then** that related item appears as exactly one ghost item, connected to each relevant body item.
-7. **Given** a ghost item is visible, **When** the user opens its context menu and chooses to add it to the diagram, **Then** it becomes a body item — full body-item styling, subject to the same physics rules as other body items, and persisted in the saved diagram — stops being treated as a ghost, and its underlying file opens in the editor.
+7. **Given** a ghost item is visible, **When** the user opens its context menu and chooses to add it to the diagram, **Then** it becomes a body item — full body-item styling, static like all body items, and persisted in the saved diagram — stops being treated as a ghost, and its underlying file opens in the editor.
 8. **Given** a ghost item was just promoted, **When** promotion completes, **Then** Ghost Preview mode remains on and the ghost set is immediately recomputed, so any item directly linked to the newly-promoted item that isn't already a body item now appears as a ghost.
 
 ---
@@ -73,12 +73,12 @@ As a user, I want to switch node labels between a compact identifier-only view a
 - **FR-001**: The canvas MUST provide a toggle control that turns Ghost Preview mode on and off.
 - **FR-002**: When Ghost Preview mode is on, the system MUST show, for every body item on the canvas, every item directly linked to it (in either direction) that is not already a body item, as a ghost item.
 - **FR-003**: Ghost items MUST be visually distinct from body items by size (smaller) and color (their own source document's color at a visibly lighter/reduced intensity); their label text follows the same heading-display toggle as body items (see FR-009/FR-010).
-- **FR-004**: When Ghost Preview mode is turned on, body items MUST stay fixed in place (not moved by physics/auto-arrange), while ghost items MUST be positioned by physics/auto-arrange based on their connections to body items; moving a body item MUST cause any ghost items connected to it to follow.
+- **FR-004**: When Ghost Preview mode is turned on, body items MUST stay fixed in place (not moved by physics/auto-arrange), while ghost items MUST be positioned by physics/auto-arrange based on their connections to body items; moving a body item MUST cause any ghost items connected to it to follow. (Spec 015 FR-013, FR-014: body items are always static regardless of Ghost Preview; only ghost items are physics-positioned.)
 - **FR-005**: When Ghost Preview mode is turned off, the system MUST remove all ghost items and MUST NOT change body items' positions or the saved diagram content.
 - **FR-006**: A related item connected to multiple body items on the canvas MUST be represented as exactly one ghost item.
 - **FR-007**, **FR-008**: *(removed — the hover content preview was cut from scope; see Clarifications)*.
 - **FR-009**: The canvas MUST provide a toggle, independent of Ghost Preview mode, that switches body item labels between identifier-only and identifier-plus-heading.
-- **FR-010**: The heading-display toggle MUST apply equally to ghost item labels and body item labels — there is no separate label mode for ghost items.
+- **FR-010**: The heading-display toggle MUST apply equally to ghost item labels and body item labels — there is no separate label mode for ghost items. Heading text wraps per spec 025 FR-017 to FR-019.
 - **FR-011**: Ghost items MUST NOT be written to the saved diagram file; only body items and their explicit connections are persisted.
 - **FR-012**: If the system is unable to determine related items when Ghost Preview is enabled, it MUST leave existing body items and their positions unchanged and MUST indicate that the preview is incomplete, rather than clearing or altering the displayed diagram.
 - **FR-013**: The system MUST provide a context menu action on a ghost item that adds it to the diagram as a body item, promoting it out of ghost status (full body-item styling, physics behavior, and persistence going forward).
@@ -89,7 +89,7 @@ As a user, I want to switch node labels between a compact identifier-only view a
 
 ### Key Entities
 
-- **Body Item**: A requirement item explicitly added to the diagram by the user. Persisted in the saved diagram. Stays fixed in place (not moved by physics) while Ghost Preview mode is on; otherwise follows the normal physics/auto-arrange setting. Its label reflects the current heading-display toggle.
+- **Body Item**: A requirement item explicitly added to the diagram by the user. Persisted in the saved diagram. Stays fixed in place (not moved by physics) while Ghost Preview mode is on; otherwise also static (spec 015 FR-013). Its label reflects the current heading-display toggle.
 - **Ghost Item**: A requirement item shown only while Ghost Preview mode is on, because it is directly linked to a body item currently on the canvas. Never persisted unless explicitly promoted to a body item via its context menu. Rendered smaller and in a lightened version of its own source document's color. Its label reflects the same heading-display toggle as body items. Positioned by physics/auto-arrange, tethered to the body item(s) it connects to, and follows them if they move.
 - **Document Color**: The existing per-source-document color already used to tint items on the canvas; ghost items reuse this color at reduced visual intensity.
 
@@ -109,6 +109,6 @@ As a user, I want to switch node labels between a compact identifier-only view a
 - Ghost items are computed fresh whenever Ghost Preview mode is turned on and are never written to the saved diagram file; only body items and their explicit links persist, matching how the diagram is saved today.
 - "Filename" in the request is interpreted as the item's identifier (the same identifier already shown on body items today), not a literal on-disk file name with extension.
 - Clicking or double-clicking a ghost item behaves the same as it already does for a body item (for example, opening or revealing the underlying requirement), so interaction stays consistent across both kinds of nodes.
-- Turning Ghost Preview mode off restores whatever physics/auto-arrange state the user had set for body items before turning it on.
+- (Removed, superseded by spec 015 FR-013/FR-017: there is no user-controlled body physics state; body items are always static.)
 - The heading-display toggle and Ghost Preview mode are independent controls; either can be used without the other.
 - No maximum number of ghost items is enforced in this version; a related item with an unusually large number of connections may produce visual crowding, which is treated as a known limitation rather than a blocking requirement.

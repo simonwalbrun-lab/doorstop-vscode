@@ -97,7 +97,7 @@ description: "Task list for Filter Notebooks (MVP)"
 
 - [X] T014 [P] [US2] In `src/test/filterNotebook.test.ts`, assert that each UID cell of `renderResults` is `[UID](<vscode.Uri.file(path).toString()>)`, including a path containing spaces
 - [X] T015 [US2] In `renderResults` in `src/filterNotebook.ts`, render the UID as `[${uid}](${vscode.Uri.file(item.path).toString()})`
-- [ ] T016 [US2] Manually run quickstart step 3 in the Extension Development Host. If clicking does nothing, apply research R7's fallback: a `command:` link to a new internal `doorstop.filter.openItem` command that runs `vscode.window.showTextDocument(vscode.Uri.file(path))` and shows `showWarningMessage('Item no longer exists: …')` when the file is missing. Record the result in a `ponytail:` comment above `renderResults`
+- [X] T016 (manual — passed by user 2026-10-09) [US2] Manually run quickstart step 3 in the Extension Development Host. If clicking does nothing, apply research R7's fallback: a `command:` link to a new internal `doorstop.filter.openItem` command that runs `vscode.window.showTextDocument(vscode.Uri.file(path))` and shows `showWarningMessage('Item no longer exists: …')` when the file is missing. Record the result in a `ponytail:` comment above `renderResults`
 
 **Checkpoint**: US1 + US2 together cover the MVP.
 
@@ -151,7 +151,7 @@ description: "Task list for Filter Notebooks (MVP)"
   - Serialized JSON contains no `outputs` even when the cell data has outputs.
   - Empty bytes → zero cells.
   - Invalid JSON and `{}` → throws.
-- [ ] T022 [US5] Manually run quickstart step 7. Save As from an untitled notebook must offer/keep the `.doorstop-filter` extension; if it doesn't, document the filename in the markdown help cell in `NEW_NOTEBOOK_CELLS` in `src/filterNotebook.ts`
+- [X] T022 (manual — passed by user 2026-10-09) [US5] Manually run quickstart step 7. Save As from an untitled notebook must offer/keep the `.doorstop-filter` extension; if it doesn't, document the filename in the markdown help cell in `NEW_NOTEBOOK_CELLS` in `src/filterNotebook.ts`
 
 ---
 
@@ -160,7 +160,7 @@ description: "Task list for Filter Notebooks (MVP)"
 - [X] T023 [P] Add a "Filter notebooks" section to `README.md`: the command, the syntax summary with 2–3 examples from [contracts/filter-syntax.md](contracts/filter-syntax.md), and the limits (no `!`/`&&`/`||`, direct relations only)
 - [X] T024 [P] Add a spec-022 entry to `CHANGELOG.md` in the existing style
 - [X] T025 Run `npm run compile` (type-check + lint + build), `pytest server/tests` and `npm test`; fix any failures
-- [ ] T026 Run the remaining manual checks in [quickstart.md](quickstart.md) (steps 1, 2, 4–6), including the server-down error
+- [X] T026 (manual — passed by user 2026-10-09) Run the remaining manual checks in [quickstart.md](quickstart.md) (steps 1, 2, 4–6), including the server-down error
 
 ---
 
@@ -227,3 +227,9 @@ Polish:       T023 ‖ T024
 ## Phase 12: Convergence
 
 - [X] T036 Accept custom attribute names containing `-` in conditions, e.g. `invented-by == "Claude"` and `invented-by.contains("Cl")`. Today `ast.parse` reads `invented-by` as the subtraction `invented - by` and `_compile_expression` rejects it. In `server/src/doorstop_server/routers/filters.py`, before `ast.parse`, match the leading attribute name with `re.match(r"\s*([A-Za-z_][\w-]*)", expr)`. If it contains `-`, replace that prefix with a placeholder identifier (e.g. `__attr__`) and map the placeholder back to the real name when building the predicate. Only the leading name is rewritten, so quoted literals and `-` in numbers on the right side stay untouched. Add tests to `server/tests/test_filter.py`: set `invented-by: Claude` on TST-001 via `set_custom`, then check that `invented-by == "Claude"` → `["TST-001"]`, that `invented-by.isNotEmpty()` → `["TST-001"]`, that `hasParent: invented-by == "x"` compiles, and that `order: [invented-by]` shows the value. Note in [contracts/filter-syntax.md](contracts/filter-syntax.md) (`attribute` may contain letters, digits, `_` and `-`) and in the `HELP` text in `src/filterNotebook.ts` that hyphenated names such as `invented-by` work per FR-007, US4/AC1 (partial)
+
+## Phase 13: Convergence
+
+- [ ] T037 Add an automated test in `src/test/filterNotebook.test.ts` that, when the Doorstop server is unavailable or returns an error, the cell output is an error output (not a table), and tag it `// Spec 022 FR-012` per FR-012 and Constitution VIII (missing)
+- [ ] T038 Add an automated test in `src/test/filterNotebook.test.ts` that an unparseable filter (server 400) yields an error output in that cell without affecting other cells' outputs, tagged `// Spec 022 FR-011` (server-side parse errors are already tested in `server/tests/test_filter.py`) per FR-011 and Constitution VIII (partial)
+- [ ] T039 Add trace comments `Spec 022 FR-<NNN>` (`# ...` in Python, `// ...` in TS) to every existing test in `server/tests/test_filter.py` (FR-003, FR-006 to FR-009, FR-007a, FR-010, FR-011, FR-015) and `src/test/filterNotebook.test.ts` (FR-001, FR-002, FR-004, FR-005, FR-013, FR-014, FR-015); none carry one today per Constitution VIII (partial)

@@ -149,7 +149,7 @@ There is nothing to set up. The project, the build and the test runner already e
 ## Phase 7: Polish & Cross-Cutting
 
 - [X] T012 [P] Add an entry for feature 021 to `CHANGELOG.md` covering Publish All, the running indicator and the status report, and add a line about the status-report command to the Commands panel section of `README.md`.
-- [ ] T013 (automated part done 2026-10-04: compile + all 6 vscode-test suites green; manual quickstart scenarios still open) Run `npm run compile` and `npm test`, then work through every scenario in [quickstart.md](quickstart.md). All must pass before the feature is done (Principle VI).
+- [X] T013 (manual — passed by user 2026-10-09) (automated part done 2026-10-04: compile + all 6 vscode-test suites green; manual quickstart scenarios still open) Run `npm run compile` and `npm test`, then work through every scenario in [quickstart.md](quickstart.md). All must pass before the feature is done (Principle VI).
 
 ---
 
@@ -183,5 +183,19 @@ Story order: Foundational → US1 → US2 → US3 → US4 → Polish.
 ## Phase 8: Convergence
 
 - [X] T014 (done by user edit: assertion is now `!markdown.includes('xychart')`) In `src/test/statusReport.test.ts`, change the "no documents" assertion from `!markdown.includes('xychart-beta')` so it fails if an empty project gets a chart, now that `src/statusReport.ts` emits the keyword `xychart`, per US3 edge case "zero documents" / T006 (partial)
-- [ ] T015 Generate `doorstop-status.md` for `testdata/regression` and confirm all charts render with the `xychart` keyword on GitHub (e.g. a gist or PR preview) and in VS Code's Mermaid preview; if either rejects it, switch `barChart` in `src/statusReport.ts` back to `xychart-beta`, per SC-006 (partial)
+- [X] T015 (manual — passed by user 2026-10-09) Generate `doorstop-status.md` for `testdata/regression` and confirm all charts render with the `xychart` keyword on GitHub (e.g. a gist or PR preview) and in VS Code's Mermaid preview; if either rejects it, switch `barChart` in `src/statusReport.ts` back to `xychart-beta`, per SC-006 (partial)
 - [X] T016 Add the `config.xyChart.height: 200` Mermaid frontmatter that `barChart` in `src/statusReport.ts` emits to each chart block in `specs/021-project-status-report/contracts/status-report-format.md`, or remove it from the code, per plan: contracts/status-report-format.md (unrequested)
+
+## Phase 9: Convergence
+
+- [ ] T017 CRITICAL (Constitution VIII) Add the trace comment `// Spec 021 FR-NNN` to each existing test in `src/test/statusReport.test.ts`: items chart -> FR-011, FR-012; problems chart -> FR-013; no documents -> FR-012, FR-013; missing history -> FR-017; weeklyVolatility -> FR-015, FR-016; package.json command -> FR-009 (partial)
+- [ ] T018 CRITICAL (Constitution VIII) Add a CI-run test with `// Spec 021 FR-001` asserting the Publish picker offers an "All" entry plus every document, per FR-001 (missing)
+- [ ] T019 CRITICAL (Constitution VIII) Add CI-run tests with `// Spec 021 FR-002`, `FR-003`, `FR-004` for Publish All: format and folder asked once, every document published, stop at the first failure with an error naming document and reason, success message with folder and count, per FR-002/FR-003/FR-004 (missing)
+- [ ] T020 CRITICAL (Constitution VIII) Add a CI-run test with `// Spec 021 FR-005` showing single-document publish behaviour is unchanged, per FR-005 (missing)
+- [ ] T021 CRITICAL (Constitution VIII) Add CI-run tests with `// Spec 021 FR-006`, `FR-007`, `FR-008` for the running indicator and busy guard: titled by command name, a second launch is refused with a message, no indicator during prompts, indicator gone after end/fail/cancel (can reuse the recording fake in `src/test/progress.test.ts`), per FR-006/FR-007/FR-008 (missing)
+- [ ] T022 CRITICAL (Constitution VIII) Add a CI-run test with `// Spec 021 FR-010` that the status report command writes `doorstop-status.md` in the workspace root, overwrites an existing file and opens it, per FR-010 (missing)
+- [ ] T023 CRITICAL (Constitution VIII) Add a CI-run test with `// Spec 021 FR-014` that report problem counts equal the Problems view validation output for the same project (e.g. `testdata/regression`), per FR-014 (missing)
+- [ ] T024 CRITICAL (Constitution VIII) Add a CI-run test with `// Spec 021 FR-018` asserting every chart is inside a ```` ```mermaid ```` fenced block, per FR-018 (missing)
+- [ ] T025 CRITICAL (Constitution VIII) Add a CI-run test with `// Spec 021 FR-019` that a project-data failure shows an error and writes no file, per FR-019 (missing)
+- [ ] T026 CRITICAL (Constitution VIII) Add a CI-run test with `// Spec 021 FR-020` that the Commands panel lists "Generate Status Report" bound to `doorstop.statusReport`, per FR-020 (missing)
+- [ ] T027 Strengthen the FR-011 test to also assert the workspace/project name appears in the header, per FR-011 (partial)
