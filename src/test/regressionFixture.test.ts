@@ -1106,6 +1106,29 @@ suite('Regression Fixture Integration Suite', () => {
     await problems.refreshNow();
   });
 
+  test('Problems: a superseded refreshNow resolves only once a result is in', async function () {
+    this.timeout(30000);
+    // A debounced pass overtaking an awaited refreshNow() made the awaiting
+    // caller read an empty collection (CI flake on the dangling-link test).
+    // A fresh provider, so getLastRefresh() starts out undefined.
+    const client = new DoorstopServer({ port: DOORSTOP_SERVER_PORT });
+    const subscriptions: vscode.Disposable[] = [];
+    const fresh = registerProblemsProvider(
+      { subscriptions } as unknown as vscode.ExtensionContext,
+      { server: client, workspaceFolder: vscode.workspace.workspaceFolders![0] }
+    );
+    try {
+      const first = fresh.refreshNow();
+      const second = fresh.refreshNow();
+      await first;
+      assert.ok(fresh.getLastRefresh(), 'the superseded call must wait for the newer pass');
+      await second;
+    } finally {
+      subscriptions.forEach(subscription => subscription.dispose());
+      client.dispose();
+    }
+  });
+
   // ---------------------------------------------------------------------
   // Feature 017: the review / suspect-link actions are offered as Quick Fixes
   // on those same diagnostics, instead of as CodeLenses above the field. They

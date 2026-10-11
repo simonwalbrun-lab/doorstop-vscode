@@ -314,9 +314,20 @@ export function registerProblemsProvider(
   let lastPassFailed = false;
   const refreshEmitter = new vscode.EventEmitter<ProblemsRefresh>();
   let lastRefresh: ProblemsRefresh | undefined;
+  // The newest pass, so a superseded refreshNow() resolves only once the
+  // collection reflects a result - not while a newer pass is still in flight.
+  let latestRun: Promise<void> = Promise.resolve();
 
-  const refreshNow = async (): Promise<void> => {
-    const pass = ++latestPass;
+  const refreshNow = (): Promise<void> => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = undefined;
+    }
+    latestRun = runPass(++latestPass);
+    return latestRun;
+  };
+
+  const runPass = async (pass: number): Promise<void> => {
     try {
       const [unfiltered, tree] = await measure('validation.run', () => Promise.all([
         options.server.request<ValidationResponse>('GET', '/validate'),
@@ -330,7 +341,7 @@ export function registerProblemsProvider(
       };
       const byFile = await buildDiagnostics(validation, tree);
       if (pass !== latestPass) {
-        return;
+        return latestRun;
       }
 
       // Replaces the whole set every pass, so a problem that has been fixed -
@@ -344,7 +355,7 @@ export function registerProblemsProvider(
       refreshEmitter.fire(lastRefresh);
     } catch (error) {
       if (pass !== latestPass) {
-        return;
+        return latestRun;
       }
       // Never leave stale problems on screen presenting themselves as current
       // (FR-014): an empty list plus a message is unambiguous, a five-minute-old
