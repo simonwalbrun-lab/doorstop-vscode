@@ -3,16 +3,22 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 
 import {
+  DOCUMENT_MARKER_REGEX,
   checkStructure,
   decorationLines,
   documentMarker,
+  documentScope,
+  filterScope,
   insertionPointAfterBlock,
   itemSeparator,
+  normaliseFieldList,
   parse,
   placeholderBlockText,
   planSave,
-  prefixFromViewUri,
   render,
+  scopeKeyFromViewUri,
+  sectionScope,
+  viewTitle,
   viewUriFor
 } from '../documentViewModel';
 import { DocumentNode, ItemNode } from '../doorstopTypes';
@@ -141,8 +147,8 @@ suite('Document View model (019)', () => {
     const uri = viewUriFor('SYS');
     assert.strictEqual(uri.scheme, 'doorstop-document');
     assert.strictEqual(uri.path, '/SYS (document)');
-    assert.strictEqual(prefixFromViewUri(uri), 'SYS');
-    assert.strictEqual(prefixFromViewUri(vscode.Uri.file('/tmp/SYS (document)')), undefined);
+    assert.strictEqual(scopeKeyFromViewUri(uri), 'doc:SYS');
+    assert.strictEqual(scopeKeyFromViewUri(vscode.Uri.file('/tmp/SYS (document)')), undefined);
   });
 
   suite('planSave', () => {
@@ -301,5 +307,95 @@ suite('Document View model (019)', () => {
     // Two lines added to the first block shift later ranges with the text.
     const shifted = decorationLines(parse(text.replace('Top level text.', 'Top level text.\nmore\nlines')));
     assert.deepStrictEqual(shifted.tinted, [{ start: 8, end: 12 }]);
+  });
+});
+
+
+suite('Document View scopes and fields model (030)', () => {
+  // Spec 030 FR-003 FR-005
+  test('every scope kind has its own title, URI and key, and the URI maps back to the key', () => {
+    const scopes = [documentScope('SYS'), sectionScope('SYS-0006'), filterScope(2, ['SYS-0001'])];
+    assert.deepStrictEqual(scopes.map(viewTitle), ['SYS (document)', 'SYS-0006 (section)', 'Filter 2 (filter)']);
+    assert.deepStrictEqual(scopes.map(scope => scopeKeyFromViewUri(viewUriFor(scope))), ['doc:SYS', 'sec:SYS-0006', 'flt:2']);
+    assert.strictEqual(scopeKeyFromViewUri(vscode.Uri.file('/x/SYS (document)')), undefined);
+  });
+
+  // Spec 030 FR-002
+  test('the marker line accepts document, section and filter labels and the document marker is unchanged', () => {
+    assert.strictEqual(documentMarker('SYS'), '<!-- doorstop document SYS · keep this line -->');
+    for (const label of ['SYS', 'SYS-0006 section', 'Filter 2']) {
+      assert.strictEqual(DOCUMENT_MARKER_REGEX.exec(documentMarker(label))?.groups?.prefix, label);
+    }
+    const rendered = render(doc(THREE_ITEMS.items.slice(1), 'SYS-0006 section'));
+    assert.strictEqual(rendered.text.split('\n')[0], '<!-- doorstop document SYS-0006 section · keep this line -->');
+    assert.strictEqual(parse(rendered.text)[0].kind, 'document');
+  });
+
+  const WITH_FIELDS = doc([
+    item({ uid: 'SYS-0001', level: '1.0', text: 'Top.', fields: { ref: 'a.py', status: 'draft' } }),
+    item({ uid: 'SYS-0006', level: '1.1', text: 'Only status.', fields: { status: 'open' } }),
+    item({ uid: 'SYS-0009', level: '1.2', text: 'None.' })
+  ]);
+
+  // Spec 030 FR-014
+  test('with no configured field the text is byte-identical to the 019 rendering', () => {
+    assert.strictEqual(render(WITH_FIELDS).text, render(WITH_FIELDS, []).text);
+    assert.ok(!render(WITH_FIELDS).text.includes('doorstop-fields'));
+  });
+
+  // Spec 030 FR-015 FR-016
+  test('configured fields are rendered per item in setting order, omitted where absent', () => {
+    const lines = render(WITH_FIELDS, ['status', 'ref', 'missing']).text.split('\n');
+    const first = lines.indexOf('# SYS-0001');
+    assert.deepStrictEqual(lines.slice(first + 1, first + 6), ['```doorstop-fields', 'status: draft', 'ref: a.py', '```', 'Top.']);
+    const second = lines.indexOf('## SYS-0006');
+    assert.deepStrictEqual(lines.slice(second + 1, second + 5), ['```doorstop-fields', 'status: open', '```', 'Only status.']);
+    assert.strictEqual(lines[lines.indexOf('## SYS-0009') + 1], 'None.');
+    assert.deepStrictEqual(decorationLines(parse(lines.join('\n'))).separators.includes(first + 1), true, 'fence lines are dimmed');
+  });
+
+  // Spec 030 FR-015
+  test('a changed field value becomes an update; text after the block is still the item text', () => {
+    const names = ['status', 'ref'];
+    const text = render(WITH_FIELDS, names).text.replace('status: draft', 'status: done');
+    const plan = planSave(parse(text), WITH_FIELDS, [], WITH_FIELDS, names);
+    assert.deepStrictEqual(plan.errors, []);
+    assert.deepStrictEqual(plan.updates.map(update => [update.uid, update.fields, update.text, update.headerOnly]), [['SYS-0001', { status: 'done' }, undefined, false]]);
+    const untouched = planSave(parse(render(WITH_FIELDS, names).text), WITH_FIELDS, [], WITH_FIELDS, names);
+    assert.deepStrictEqual([untouched.updates.length, untouched.errors.length], [0, 0]);
+  });
+
+  // Spec 030 FR-015 FR-016
+  test('a damaged fields block is a structural error and refuses the save', () => {
+    const names = ['status', 'ref'];
+    const good = render(WITH_FIELDS, names).text;
+    const damaged: Record<string, string> = {
+      'removed line': good.replace('ref: a.py\n', ''),
+      'renamed field': good.replace('ref: a.py', 'xref: a.py'),
+      'not name: value': good.replace('ref: a.py', 'just words'),
+      'unclosed block': good.replace('```\nTop.', 'Top.'),
+      'removed block': good.replace('```doorstop-fields\nstatus: open\n```\n', '')
+    };
+    for (const [what, text] of Object.entries(damaged)) {
+      const plan = planSave(parse(text), WITH_FIELDS, [], WITH_FIELDS, names);
+      assert.ok(plan.errors.some(error => error.code === 'fields-structure'), what);
+    }
+    assert.ok(checkStructure(parse(damaged['unclosed block']), damaged['unclosed block'].split('\n'), render(WITH_FIELDS, names).blocks).some(issue => issue.code === 'fields-structure'));
+  });
+
+  test('item text that merely looks like a fields fence is never parsed as one', () => {
+    const lookalike = doc([item({ uid: 'SYS-0001', level: '1.0', text: '```doorstop-fields\nstatus: x\n```' })]);
+    const rendered = render(lookalike, ['status']);
+    assert.ok(rendered.issues.some(issue => issue.code === 'separator-lookalike'));
+    assert.ok(planSave(parse(rendered.text), lookalike, rendered.issues, lookalike, ['status']).errors.some(error => error.code === 'separator-lookalike'), 'the save is refused');
+  });
+
+  // Spec 030 FR-013 FR-016
+  test('the setting list is trimmed, de-duplicated, and protected names are returned apart', () => {
+    assert.deepStrictEqual(normaliseFieldList([' status ', 'ref', 'status', '', 'level', 'Links', 'two words', 'a:b', 7]), {
+      fields: ['status', 'ref'],
+      protectedNames: ['level', 'Links']
+    });
+    assert.deepStrictEqual(normaliseFieldList(undefined), { fields: [], protectedNames: [] });
   });
 });

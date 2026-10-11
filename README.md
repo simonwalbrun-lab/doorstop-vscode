@@ -1,203 +1,122 @@
-# Doorstop Requirements for VS Code
+# Doorstop Requirements Management for VS Code
 
 Manage, view and navigate [Doorstop](https://doorstop.readthedocs.io/) requirements without leaving VS Code.
 Every Doorstop command is available where you need it: in the explorer, in the editor and on a visual canvas.
 
-<img src="media/promotion/01_overview.png" alt="Overview: explorer, canvas, editor and problems panel" width="960">
+<img src="media/promotion/01_overview.png" alt="Overview: explorer, canvas, editor and problems panel" width=600>
+
+## Quick Start
+
+1. Install the [Python extension](https://marketplace.visualstudio.com/items?itemName=ms-python.python) and select a Python ≥ 3.9 environment
+2. Open a git folder, with or without an existing Doorstop project
+3. Accept the offer to install `doorstop-vscode-server` into that environment
+4. Open the **Doorstop** view in the side bar - or **Create Document** to start
 
 ## Features
-
-### Canvas
-
-Place requirements on a canvas and work with them visually.
-
-<img src="media/promotion/00_canvas_with_ghost.gif" alt="Canvas with ghost preview" width="374">
-
-- Items: add, create linked, remove from canvas
-- Links: create, remove
-- Ghost preview: every item linked to the canvas is shown as a smaller node
-- Auto layout: hierarchical or grid
-
-Create a new canvas from the explorer title bar:
-
-<img src="media/promotion/07_explorer_commands.png" alt="Explorer title bar commands" width="191">
 
 ### Explorer
 
 All documents and items in the side bar.
 
-<img src="media/promotion/08_explorer_view.png" alt="Doorstop explorer" width="250">
+<img src="media/promotion/08_explorer_view.png" alt="Doorstop explorer" width=600>
 
-- One flat list per document, items ordered by level
-- Context menu: Add, Derive, Review, Clear Suspect, Link, Add to Diagram
-- Inline on hover: Add, Open as document, Call Hierarchy, Link
-- Global commands in the **Commands** view: Create Document (works in an empty
-  git folder), Reorder, Import, Export, Publish
-  (one document or `all`), Generate Status Report; a progress notification
-  shows while a command works
-- **Generate Status Report** writes `doorstop-status.md` with Mermaid charts:
-  items per document, problems per type for each document, and changed item
-  files per week over the last 26 weeks (from git)
+- Items ordered by level, one list per document
+- Add, Derive, Review, Link and Clear Suspect per item
+- **Commands** view: Create, Reorder, Import, Export, Publish
+- **Generate Status Report**: Mermaid charts of items, problems, changes
+
+<img src="media/promotion/06-treeview-navigation.gif" alt="Explorer navigation" width=600>
 
 ### Document View
 
-Read and edit a whole document as one markdown file instead of jumping
-between item files - for developers and for project managers who never want
-to see YAML.
+Edit a whole document as one markdown file - no YAML.
 
-- **Open as document** on a document node (or *Doorstop: Open Document View*)
-  opens a tab `<PREFIX> (document)`: every active item in level order as a
-  heading plus its text, separated by dimmed `<!-- SYS-0006 · 1.1 · item
-  separator. keep this line -->` comments; every second block is tinted
-  (theme colour `doorstop.documentView.altBlockBackground`)
-- Edit headings and text like any markdown; `Ctrl+S` writes only the items
-  that changed - through Doorstop, nothing else in the item files is touched
-- Separator lines are managed: typing into one is reverted; a deleted or
-  merged block asks **Delete / Keep / Cancel** before anything is removed;
-  broken structure is flagged while typing with a **Restore block structure**
-  quick fix and refuses the save
-- **+ New item below** (action line) or *Doorstop: Insert Item Here* inserts a
-  placeholder that becomes a new item after the block above it on save; a
-  typed heading never creates an item by accident
-- Every block's action line offers Open item, Review, Derive, Link..., the
-  link count and Clear suspect link; Doorstop's problems appear on the
-  separators with the same quick fixes as in item files; hover, `F12`,
-  references and call hierarchy work on the UIDs
-- Changes on disk (other tabs, commands, git) refresh the view; with unsaved
-  edits you are asked to **Reload** or **Keep my edits**
+- **Open as document** on a document, section or filter result
+- `Ctrl+S` writes only changed items, through Doorstop
+- Deletions ask first; broken blocks get a quick fix
+- **+ New item below** inserts items in place
+- Review, Derive, Link, problems and `F12` work inline
+- Show extra header fields via `doorstop.documentView.fields`
 
-<img src="media/promotion/06-treeview-navigation.gif" alt="Explorer navigation" width="914">
+### Canvas
+
+Place requirements on a canvas and work with them visually.
+
+<img src="media/promotion/00_canvas_with_ghost.gif" alt="Canvas with ghost preview" width=600>
+
+- Add, create linked and remove items
+- Create and remove links
+- Ghost preview of every linked item
+- Grid or hierarchical auto layout
+- *Doorstop: New Diagram* creates one; `*.doorstop.json` reopens it
 
 ### Problems & Quick Fixes
 
-Every issue Doorstop reports appears in the Problems panel and inline in the file it concerns, anchored to the field it is about (`links`, `reviewed`, `derived`, `level`, `ref`, or the document config).
+Doorstop's own validation, inline at the affected field.
 
-<img src="media/promotion/09_problem_report.png" alt="Doorstop problems in the Problems panel" width="311">
+<img src="media/promotion/09_problem_report.png" alt="Doorstop problems in the Problems panel" width=600>
 
-Quick fixes (`Ctrl+.`) resolve them in place:
+- **Do Review** and **Clear Suspect Link(s)** via `Ctrl+.`
+- Refreshes on save; or *Doorstop: Re-check Problems*
 
-<img src="media/promotion/08_review_and_clear.gif" alt="Quick fix: Do Review and Clear Suspect Link" width="307">
+<img src="media/promotion/08_review_and_clear.gif" alt="Quick fix: Do Review and Clear Suspect Link" width=600>
 
-- **Do Review** marks the item as reviewed
-- **Clear Suspect Link** clears one link, **Clear All Suspect Links** clears all of them
+### Navigation & Traceability
 
-Problems refresh on save, after every change the extension makes, and on demand via **Doorstop: Re-check Problems**. The messages are Doorstop's own, so they match the `doorstop` command line.
+- `F12` jumps to a linked item, `Shift+F12` lists references
+- Call hierarchy traces items up- and downstream
 
-### Go to Definition & References
+<img src="media/promotion/10_editor_in_editor_references.png" alt="Peek references of a requirement" width=600>
 
-Press `F12` on a link or a `derived` entry to jump to the item; `Shift+F12` lists all references.
-
-<img src="media/promotion/10_editor_in_editor_references.png" alt="Peek references of a requirement" width="472">
-
-### Traceability (Call Hierarchy)
-
-Trace an item up- and downstream as a call hierarchy: **outgoing** shows the items it links to, **incoming** the items that link to it. Every entry expands further.
-
-<img src="media/promotion/11_reference_call_entry_point.png" alt="Call hierarchy entry point in the explorer" width="228">
-
-<img src="media/promotion/12_refence_call.png" alt="Call hierarchy of a requirement" width="474">
-
-### Filter Notebooks
-
-*Doorstop: New Filter Notebook* (also in the Commands panel) opens a notebook where every code cell is one filter. Run a cell to get a table of the matching items with a count above it; click a UID to open the item. A new notebook starts with a short cheat-sheet, a simple and a complex example. Save it as `*.doorstop-filter` to reuse it.
-
-Filters are YAML in the shape of Obsidian Bases filters: `and:` / `or:` / `not:` groups nest freely, `hasChild:` / `hasParent:` match on direct children or parents, and conditions work on the built-in attributes (`uid`, `document`, `level`, `header`, `text`, `ref`, `active`, `normative`, `derived`, `reviewed`, `links`) and on any custom attribute.
-
-```yaml
-# REQ items that have an approved child
-and:
-  - document == "REQ"
-  - hasChild: status == "approved"
-```
-
-```yaml
-# unreviewed items without a ref, from level 2 on
-and:
-  - reviewed == false
-  - ref.isEmpty()
-  - level >= "2"
-```
-
-```yaml
-# pick the table columns, Bases-style (UID always comes first)
-filters: document == "TST"
-order: [status, owner, header]
-```
-
-Conditions are `attribute <op> value` (`==` `!=` `<` `<=` `>` `>=`) or `.contains("…")`, `.startsWith("…")`, `.isEmpty()`, `.isNotEmpty()`. Use groups instead of `!`, `&&` or `||`, and write levels as strings. Without `order:` the table shows document, level and header.
+<img src="media/promotion/12_refence_call.png" alt="Call hierarchy of a requirement" width=600>
 
 ### Editor Integration
 
-- **CodeLens:** derive a downstream requirement with one click above the item
-- **IntelliSense:** autocomplete link targets, recently opened items first
-- **Hover:** preview title, level and text of any linked or derived item
+- **CodeLens:** derive a downstream requirement in one click
+- **IntelliSense:** autocomplete links, recent items first
+- **Hover:** preview any linked item
 
-<img src="media/promotion/05_autocomplete.gif" alt="Autocompletion of links" width="914">
+<img src="media/promotion/05_autocomplete.gif" alt="Autocompletion of links" width=600>
 
-### Publish as PDF
+### Filter Notebooks
 
-*Publish* → a document or *All documents* → **PDF** writes one A4 PDF per document, plus `traceability.pdf` (landscape, scaled to fit) when publishing all documents. Page 1 has no header; later pages show the document name and a logo, and every page shows `Page N of M` (plus `Rev X` when the template's title block has an issue).
+Query items with YAML filters, like Obsidian Bases. Run a cell, get a table.
 
-The PDF is printed from Doorstop's HTML by a headless browser. That HTML comes from the configured publish template, or from Doorstop's default HTML when none is set, so fonts and page breaks come from the template. The extension ships no template.
+<img src="media/promotion/13_filter_view.png" alt="Filter notebook with a nested filter and its result table" width=600>
 
-The first PDF publish asks to add a `doorstop-pdf/` folder to the workspace with the export script, then installs its packages and a headless Chromium into it. This needs **Node.js ≥ 18 and npm** on PATH, in addition to Python with Doorstop. Commit `doorstop-pdf/`; its `node_modules` is git-ignored. Replace `doorstop-pdf/logo.svg` (or add a `logo.png`) to use your own logo, or delete it to show none. The extension never overwrites files that already exist in that folder.
+- Groups: `and:`, `or:`, `not:`, `hasChild:`, `hasParent:`
+- Operators: `==` `!=` `<` `<=` `>` `>=`, `.contains()`, `.startsWith()`, `.isEmpty()`, `.isNotEmpty()`
+- Works on built-in and custom attributes; levels as strings
+- `order: [status, owner]` picks the table columns
+- **Open as document** edits the matched items
+- *Doorstop: New Filter Notebook* starts with a cheat sheet
 
-CI runs the same script, so a pipeline produces the same PDFs. Page breaks only match exactly between your machine and the runner when the template brings its own fonts. With system fonts, such as Doorstop's default HTML, line and page breaks can differ between operating systems. CI publishes with `python -m doorstop_server.publish` from the server package instead of `doorstop publish`, so the traceability matrix and child links include cross-document links exactly as in the extension. It takes the same arguments as `doorstop publish`, plus `--traceability doorstop` for Doorstop's own matrix; add `--template <name>` if your project uses one and `--no-child-links` to match that setting.
+### Publish
 
-GitHub Actions:
-
-```yaml
-- uses: actions/setup-python@v5
-  with:
-    python-version: "3.12"
-- run: pip install doorstop-vscode-server
-- uses: actions/setup-node@v4
-  with:
-    node-version: 24
-- name: Install PDF tooling
-  working-directory: doorstop-pdf
-  run: |
-    npm ci
-    npx playwright install --with-deps chromium
-- run: python -m doorstop_server.publish all out --html
-- run: node doorstop-pdf/export-pdf.mjs out out/pdf
-- uses: actions/upload-artifact@v4
-  with:
-    name: pdf
-    path: out/pdf
-```
-
-GitLab CI:
-
-```yaml
-publish-pdf:
-  image: mcr.microsoft.com/playwright:v1.64.0-noble  # same version as doorstop-pdf/package.json
-  script:
-    - apt-get update && apt-get install -y python3-pip git
-    - pip install --break-system-packages doorstop-vscode-server
-    - (cd doorstop-pdf && npm ci)
-    - python3 -m doorstop_server.publish all out --html
-    - node doorstop-pdf/export-pdf.mjs out out/pdf
-  artifacts:
-    paths:
-      - out/pdf
-```
+- HTML, LaTeX and **PDF**, per document or all at once
+- Traceability matrix includes cross-document links
+- Same output in CI - see [Publish as PDF](doc/publish-pdf.md)
 
 ## Settings
 
-Search for "Doorstop" in the VS Code settings:
-
-- **Problems:** one checkbox per kind of Doorstop problem; unticked kinds are hidden from the Problems panel and the document view (all on by default)
-- **New Document:** item format (YAML / Markdown), UID separator (none, `-`, `.`, `_`) and number of digits used by **Create Document** (defaults: YAML, none, 3)
-- **Publish:** template name for HTML, LaTeX and PDF publishing, taken from the document's `template` folder (empty = Doorstop's built-in template). *Publish* offers each document plus **All documents - one file each** (a template kept next to one document is lent to the others for the run) and **All documents - combined run** (one Doorstop run with index and traceability matrix; at most one document may own a `template` folder)
-- **Publish traceability:** `doorstop.publish.traceability` - `complete` (default) puts every declared link in the traceability matrix, also links that skip a document level or cross branches; `doorstop` gives the matrix exactly as Doorstop's own publish produces it. Item child links always include cross-document links
-- **Publish child links:** `doorstop.publish.noChildLinks` (off by default) publishes without child links on items, like Doorstop's `--no-child-links`; parent links are then labelled *Links:*. The traceability matrix is not affected
-- **Timing:** `doorstop.timing.enabled` (off by default, meant for developing the extension) records how long each command, tree load, document view load, validation, filter run, hover, CodeLens and completion takes, with the server requests they trigger split into *wait / load / work*, in the **Doorstop Timing** output channel. *Doorstop: Show Timing Summary* lists count, total, min, avg, p95 and max per operation; *Doorstop: Reset Timing Data* clears it; *Doorstop: Export Timing Data…* saves everything as JSON
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `doorstop.problems` | all on | Problem kinds to show |
+| `doorstop.newDocument.itemFormat` | `yaml` | Item format for new documents |
+| `doorstop.newDocument.separator` | none | UID separator, e.g. `REQ-001` |
+| `doorstop.newDocument.digits` | `3` | UID digits for new documents |
+| `doorstop.publish.template` | Doorstop's | Template from the document's `template` folder |
+| `doorstop.publish.traceability` | `complete` | `complete` or Doorstop's own matrix |
+| `doorstop.publish.noChildLinks` | off | Doorstop's `--no-child-links` |
+| `doorstop.documentView.fields` | none | Header fields editable in document views |
+| `doorstop.timing.enabled` | off | Timing log, for extension developers |
 
 ## Requirements
 
-The extension talks to a small local server that wraps the Doorstop Python API. Install it into the Python environment of your workspace (the extension will offer to do this for you):
+- VS Code ≥ 1.75 with the Python extension
+- Python ≥ 3.9 with `doorstop-vscode-server` (installed on request)
+- Node.js ≥ 18 - only for PDF publishing
 
-```bash
-pip install doorstop-vscode-server
-```
+## Links
+
+[Changelog](CHANGELOG.md) · [Issues](https://github.com/simonwalbrun-lab/doorstop-vscode/issues) · [License](LICENSE.md)

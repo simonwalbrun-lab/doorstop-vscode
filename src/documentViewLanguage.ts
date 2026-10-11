@@ -9,6 +9,7 @@ import {
   checkStructure,
   decorationLines,
   documentMarker,
+  fieldsBlockLines,
   headerLineFor,
   isViewUri,
   itemSeparator,
@@ -121,9 +122,6 @@ export function registerDocumentViewLanguage(context: vscode.ExtensionContext, o
     }
     const diagnostics: vscode.Diagnostic[] = [];
     for (const issue of last.validation.issues) {
-      if (issue.documentPrefix !== state.prefix) {
-        continue;
-      }
       for (const uid of issue.uids) {
         const line = lineByUid.get(uid);
         if (line === undefined) {
@@ -226,7 +224,7 @@ export function registerDocumentViewLanguage(context: vscode.ExtensionContext, o
     }
     const original = before[line];
     const wasManaged = original !== undefined && state.blocks.some(block => block.separator === original)
-      || original === documentMarker(state.prefix)
+      || original === documentMarker(state.scope.label)
       || original === '<!-- new item -->';
     if (!wasManaged) {
       return false;
@@ -267,6 +265,7 @@ export function registerDocumentViewLanguage(context: vscode.ExtensionContext, o
           const below: LensArg = { uri, line };
           if (block.kind === 'document') {
             lenses.push(lens(document, line, '+ New item below', 'doorstop.documentView.newItemBelow', below));
+            lenses.push(lens(document, line, 'Reload from disk', 'doorstop.documentView.reload', { uri }));
             continue;
           }
           if (block.kind === 'placeholder') {
@@ -377,7 +376,7 @@ export function registerDocumentViewLanguage(context: vscode.ExtensionContext, o
     const lineText = (line: number): string => line < document.lineCount ? document.lineAt(line).text : '';
     switch (arg.code) {
       case 'separator-changed':
-        edit.replace(document.uri, lineRange(document, arg.line), item ? itemSeparator(item.uid, item.level) : documentMarker(state.prefix));
+        edit.replace(document.uri, lineRange(document, arg.line), item ? itemSeparator(item.uid, item.level) : documentMarker(state.scope.label));
         break;
       case 'missing-header': {
         if (!item) {
@@ -406,8 +405,8 @@ export function registerDocumentViewLanguage(context: vscode.ExtensionContext, o
       }
       case 'text-before-first-separator': {
         let offset = 0;
-        if (lineText(0) !== documentMarker(state.prefix)) {
-          edit.insert(document.uri, new vscode.Position(0, 0), `${documentMarker(state.prefix)}\n\n`);
+        if (lineText(0) !== documentMarker(state.scope.label)) {
+          edit.insert(document.uri, new vscode.Position(0, 0), `${documentMarker(state.scope.label)}\n\n`);
           offset = 2;
         }
         const present = new Set(parse(document.getText()).filter(block => block.kind === 'item').map(block => block.uid));
@@ -418,6 +417,19 @@ export function registerDocumentViewLanguage(context: vscode.ExtensionContext, o
           documentView.prompts.reportHint('Every item still has its separator - move or delete the text above the first block');
           return;
         }
+        break;
+      }
+      case 'fields-structure': {
+        // Rebuild the fence under the heading from the snapshot; the user's
+        // values are lost for this block, which is what "restore" means here.
+        const block = item ? parse(document.getText()).find(candidate => candidate.uid === item.uid) : undefined;
+        if (!item || block?.headerLine === undefined) {
+          return;
+        }
+        const lines = fieldsBlockLines(item, state.fields);
+        const from = block.headerLine + 1;
+        const to = block.fields ? (block.fields.closeLine ?? block.fields.openLine) + 1 : from;
+        edit.replace(document.uri, new vscode.Range(from, 0, to, 0), lines.length > 0 ? `${lines.join('\n')}\n` : '');
         break;
       }
       case 'separator-unknown':

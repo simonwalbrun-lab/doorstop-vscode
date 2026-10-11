@@ -4,152 +4,99 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-11
+
 ### Added
 
-- The server starts only with the interpreter of the Python environment VS Code has
-  activated: it waits (with a one-time notice) until one is active, never falls back
-  to another interpreter, restarts when the environment changes, and re-checks the
-  environment before installing the server package
-- **Doorstop: Restart Extension** replaces **Doorstop: Restart Server**: it re-resolves
-  the Python environment, re-checks the package, restarts the server and refreshes the views
-- Start a project from an empty folder: the Doorstop view and **Create Document**
-  now work without an existing `.doorstop.yml`. A folder that is not under git
-  version control gets a clear error instead
-- **Create Document** moved from the Explorer toolbar to the Commands view (still
-  in the command palette); its folder dialog opens in the workspace folder
-- Publish has two "all" entries: **All documents - one file each** (a template
-  kept next to one document is lent to the others during the run and removed
-  again) and **All documents - combined run** (one Doorstop run with index and
-  traceability matrix; Doorstop allows only one template folder there)
-- Server: `POST /publish` (all documents in one run), `sharedTemplate` option on
-  `POST /documents/{prefix}/publish`
-- Publish as **PDF**: one A4 PDF per document, plus a landscape
-  `traceability.pdf` for all documents, printed from Doorstop's HTML by a
-  headless-browser script that the first PDF publish adds to the workspace
-  (`doorstop-pdf/`), so CI pipelines run the very same script
-- Published traceability matrix and item child links include cross-document
-  links (links that skip a document level or cross branches), which Doorstop
-  itself drops. Settings `doorstop.publish.traceability` (`complete` /
-  `doorstop`, matrix only) and `doorstop.publish.noChildLinks` (Doorstop's
-  `--no-child-links`)
-- Server: `traceability` and `childLinks` options on both publish endpoints;
-  `python -m doorstop_server.publish` runs `doorstop publish` with the same
-  links for CI
-- Diagram: items moved on disk are found again by UID when a diagram is opened;
-  the corrected paths are saved with the next Save
+- Open sections and filter results as document
+- Reload from disk lens in document views
+- Setting `doorstop.documentView.fields` for editable header fields
+- Server uses only VS Code's active Python environment
+- **Doorstop: Restart Extension** replaces Restart Server
+- Create projects and documents from empty folders
+- Create Document moved to Commands view
+- Publish all documents: one file each, or combined
+- Publish as PDF, including landscape traceability matrix
+- Published links include cross-document links
+- Settings `doorstop.publish.traceability` and `doorstop.publish.noChildLinks`
+- Server: `POST /publish`, `traceability`, `childLinks`, `sharedTemplate` options
+- Diagram: moved items are found again by UID
 
 ### Changed
 
-- Progress notifications appear for any Doorstop operation still running after
-  one second - now also server start/restart, Refresh, Recheck Problems,
-  document view open/save, diagram load and canvas link actions, Derive, and
-  the review lenses - and no longer flash for operations that finish sooner
-- Diagram: **New Diagram** moved to the Doorstop Commands panel (palette title
-  "Doorstop: New Diagram"); existing diagrams open by clicking the
-  `*.doorstop.json` file
-- Diagram: Grid and Hierarchical Layout account for each node's size; long
-  headings wrap after about 30 characters
+- Progress notifications for any operation over one second
+- Diagram: New Diagram moved to Commands panel
+- Diagram: layouts respect node size, headings wrap
 
 ### Removed
 
-- Diagram: "Open Traceability Graph" command and the diagram buttons in the
-  TreeView title bar
-- Diagram: the "Edit" toolbar on the canvas (use the toolbar buttons and the
-  context menu)
-- Diagram: status icons (reviewed, suspect, derived, inactive, non-normative)
-  and the red suspect border
+- Diagram: Open Traceability Graph command and title-bar buttons
+- Diagram: Edit toolbar on canvas
+- Diagram: status icons and red suspect border
 
 ### Fixed
 
-- Publishing all documents with a custom template failed for every document
-  that had no `template` folder of its own
+- Publishing all documents failed without own `template` folder
 
 ## [0.2.0] - 2026-10-07
 
 ### Added
 
-- **Document View**: edit a whole document as one markdown text; saves only
-  changed items, confirms deletions, quick fix for broken blocks, insert items
-  in place; problems, hover, go to definition, references and call hierarchy
-  work in it
-- **Filter notebooks** (`*.doorstop-filter`): YAML filters (Obsidian Bases
-  style: `and`/`or`/`not`, `hasChild`/`hasParent`, custom attributes) render
-  matching items as a table; `order:` picks columns
-- **Generate Status Report**: `doorstop-status.md` with Mermaid charts of
-  items, problems and weekly volatility from git
-- Publish `all`: every document into one folder, stops at the first failure
-- Timing (`doorstop.timing.enabled`, dev only): command and request durations
-  in the **Doorstop Timing** channel; summary, reset and JSON export
-- Server: `PATCH`/`DELETE /items/{uid}`, `POST /filter`, insert position on
-  `POST /documents/{prefix}/items`, `Server-Timing` header
+- Document View: edit a whole document as markdown
+- Filter notebooks (`*.doorstop-filter`) with YAML filters
+- Generate Status Report with Mermaid charts
+- Publish `all` documents into one folder
+- Timing (`doorstop.timing.enabled`) for developers
+- Server: item `PATCH`/`DELETE`, `POST /filter`, insert position
 
 ### Changed
 
-- Faster on large projects: server caches the project for reads until a file
-  changes; overlapping identical requests share one round trip; Explorer loads
-  the tree once
-- Commands show progress and can't run twice at once
+- Faster on large projects through caching
+- Commands show progress, can't run twice
 - Server: `GET /tree` returns items in level order
 
 ### Fixed
 
-- Linux/macOS: restarting the server waits for the old process to exit
-  instead of racing it for the port
+- Linux/macOS: server restart waits for old process
 
 ## [0.1.0] - 2026-09-11
 
 ### Added
 
-- Canvas: collect items on a diagram with traces, drag and drop, and a ghost
-  preview of linked items; **Grid** and **Hierarchical** one-shot layouts; items
-  stay where you put them; right-click for **Remove from Diagram** and
-  **Add Link to…**; diagrams are restored from backup after a reload
-- Problems: Doorstop's own validation is shown inline in requirement files
-  (errors, warnings, info) anchored to the affected field; refreshes on save
-  and via "Doorstop: Re-check Problems"
-- Review and suspect links: **Do Review**, **Clear Suspect Link** and
-  **Clear All Suspect Links** are Quick Fixes (`Ctrl+.`) on the reported problems
-- Requirements tree: **Show Call Hierarchy** shows upstream (outgoing) and
-  downstream (incoming) links of an item; also via *Peek Call Hierarchy*
-  (`Shift+Alt+H`) in any requirement file
-- Go to Definition (`F12`) and Find All References (`Shift+F12`) for UIDs
-- Derive Requirement: target documents are named by their relationship to the
-  source (child, sibling, …) and ordered accordingly
-- Create Document asks for the parent document; Export/Publish report the
-  output location
+- Canvas: collect items, traces, drag and drop
+- Canvas: Grid and Hierarchical layouts
+- Problems: Doorstop validation shown inline
+- Review and suspect link Quick Fixes
+- Call hierarchy for requirement items
+- Go to Definition and Find All References for UIDs
+- Derive Requirement names targets by relationship
+- Create Document asks for parent document
 
 ### Changed
 
-- Hover, autocompletion and go-to-definition resolve items via the server
-  (`GET /tree`) instead of parsing files client-side
-- Requirements tree item rows carry only **Add** and **Link**; review and
-  clear-suspect actions moved to the right-click menu
-- Simplified icons and a more user-friendly startup
+- Hover, completion and definitions resolve via server
+- Tree rows carry only Add and Link
+- Simplified icons, friendlier startup
 
 ### Fixed
 
-- **Reorder Document → Manual**: re-running the command with an existing
-  `index.yml` offers **Apply index.yml**; unsaved index is saved before applying
+- Reorder Document → Manual applies existing `index.yml`
 
 ## [0.0.4] - 2026-09-06
 
 ### Added
 
-- palette: command into commands palette for quick access
-- sidebar.commands: often used commands for quick access
-- sidebar.treeview: commands by click
-    items:  add, review, remove suspicous and link
-    documents: add document
-- codeLens: derive requiremts per click downstream
-- completion: autocomplete to link upstream with history
-
+- Palette and sidebar commands for quick access
+- Tree view item and document commands
+- CodeLens to derive requirements downstream
+- Autocomplete for upstream links with history
 
 ## [0.0.3] - 2026-09-05
 
 ### Added
 
-- Treeview of all doorstop items in explorer with name
-- Canvas to collect items for later usage
+- Tree view of all Doorstop items
+- Canvas to collect items
 
 ## [0.0.2] - 2026-08-31
 
@@ -161,7 +108,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Hover over links for Preview
+- Hover over links for preview
 
 ## Notes
 

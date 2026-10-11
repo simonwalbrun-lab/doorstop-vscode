@@ -4,7 +4,7 @@
   "description": "VS Code integration for Doorstop requirements management system.",
   "publisher": "SimonWalbrun",
   "icon": "media/Icons-marketplace.png",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "preview": true,
   "license": "MIT",
   "repository": {
@@ -216,6 +216,19 @@
         }
       },
       {
+        "title": "Document View",
+        "properties": {
+          "doorstop.documentView.fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "markdownDescription": "Item YAML header fields (e.g. `ref`, `status`) shown for editing in document views, in this order. Only fields an item already has are shown. Applies the next time a view is opened. Protected fields such as `level`, `links` and `reviewed` cannot be listed."
+          }
+        }
+      },
+      {
         "title": "Timing",
         "properties": {
           "doorstop.timing.enabled": {
@@ -388,6 +401,19 @@
       "icon": "$(book)"
     },
     {
+      "command": "doorstop.documentView.reload",
+      "title": "Doorstop: Reload Document View from Disk"
+    },
+    {
+      "command": "doorstop.openSectionAsDocument",
+      "title": "Open as document",
+      "icon": "$(book)"
+    },
+    {
+      "command": "doorstop.openFilterAsDocument",
+      "title": "Doorstop: Open Filter Result as Document"
+    },
+    {
       "command": "doorstop.insertItemHere",
       "title": "Doorstop: Insert Item Here"
     },
@@ -477,7 +503,7 @@
     "view/item/context": [
       {
         "command": "doorstop.add",
-        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem == doorstop.item)",
+        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem =~ /^doorstop[.]item/)",
         "group": "inline@1"
       },
       {
@@ -486,18 +512,23 @@
         "group": "inline@2"
       },
       {
+        "command": "doorstop.openSectionAsDocument",
+        "when": "view == doorstop.treeView && viewItem == doorstop.item.parent",
+        "group": "inline@2"
+      },
+      {
         "command": "doorstop.showCallHierarchy",
-        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "when": "view == doorstop.treeView && viewItem =~ /^doorstop[.]item/",
         "group": "inline@3"
       },
       {
         "command": "doorstop.link",
-        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "when": "view == doorstop.treeView && viewItem =~ /^doorstop[.]item/",
         "group": "inline@4"
       },
       {
         "command": "doorstop.addToDiagram",
-        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "when": "view == doorstop.treeView && viewItem =~ /^doorstop[.]item/",
         "group": "7_diagram@1"
       },
       {
@@ -506,28 +537,33 @@
         "group": "1_requirement@0"
       },
       {
+        "command": "doorstop.openSectionAsDocument",
+        "when": "view == doorstop.treeView && viewItem == doorstop.item.parent",
+        "group": "1_requirement@0"
+      },
+      {
         "command": "doorstop.add",
-        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem == doorstop.item)",
+        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem =~ /^doorstop[.]item/)",
         "group": "1_requirement@1"
       },
       {
         "command": "doorstop.deriveRequirement",
-        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "when": "view == doorstop.treeView && viewItem =~ /^doorstop[.]item/",
         "group": "1_requirement@2"
       },
       {
         "command": "doorstop.review",
-        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem == doorstop.item)",
+        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem =~ /^doorstop[.]item/)",
         "group": "1_requirement@3"
       },
       {
         "command": "doorstop.clear",
-        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "when": "view == doorstop.treeView && viewItem =~ /^doorstop[.]item/",
         "group": "1_requirement@4"
       },
       {
         "command": "doorstop.link",
-        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "when": "view == doorstop.treeView && viewItem =~ /^doorstop[.]item/",
         "group": "1_requirement@5"
       }
     ],
@@ -546,6 +582,18 @@
       },
       {
         "command": "doorstop.openAsDocument",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.documentView.reload",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.openSectionAsDocument",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.openFilterAsDocument",
         "when": "false"
       },
       {

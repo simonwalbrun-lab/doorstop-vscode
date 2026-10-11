@@ -1968,7 +1968,7 @@ suite('Regression Fixture Integration Suite', () => {
         };
         await waitFor(async () => (await titlesOn(line)).includes('Do Review'), 'Do Review lens');
         assert.deepStrictEqual(await titlesOn(line), ['REQ-001', 'Open item', 'Do Review', 'Derive', 'Link...', 'no links', '+ New item below']);
-        assert.deepStrictEqual(await titlesOn(0), ['+ New item below']);
+        assert.deepStrictEqual(await titlesOn(0), ['+ New item below', 'Reload from disk']);
         const req010 = lineOf(document, REQ_SEPARATOR('REQ-010', '1.9'));
         assert.ok((await titlesOn(req010)).includes('2 links'));
 
@@ -2099,6 +2099,365 @@ suite('Regression Fixture Integration Suite', () => {
         documentView.prompts.notifyDiskChange = async () => 'reload';
         await rewrite('REQ-003', 'multi-paragraph text', 'multi-paragraph text (disk)');
         await waitFor(() => document.getText().includes('multi-paragraph text (disk)') && !document.getText().includes('edited again') && !document.isDirty, 'reload discards the edit', 8000);
+      });
+    });
+
+    // Spec 030: sections, filter results and the fields setting. Nested here to reuse the
+    // 019 helpers and the one server this suite owns.
+    suite('Document View scopes (030)', () => {
+      const SECTION_URI_NAME = (uid: string): string => `${uid} (section)`;
+
+      /** Gives REQ-004 level 1.2.1 so REQ-003 becomes a section node with one child. */
+      async function nestReq004(): Promise<void> {
+        const file = path.join(FIXTURE_ROOT, 'REQ-004.yml');
+        await fs.writeFile(file, (await fs.readFile(file, 'utf8')).replace('level: 1.3', 'level: 1.2.1'));
+      }
+
+      async function treeNode(uid: string, contextValue?: string): Promise<RequirementTreeItem> {
+        let found: RequirementTreeItem | undefined;
+        await waitFor(async () => {
+          treeProvider.refresh();
+          found = await findTreeItem(treeProvider, candidate => candidate.itemData.uid === uid);
+          return found !== undefined && (contextValue === undefined || found.contextValue === contextValue);
+        }, `tree node ${uid}${contextValue ? ` with ${contextValue}` : ''}`, 10000);
+        return found as RequirementTreeItem;
+      }
+
+      const activeView = (): vscode.TextDocument => {
+        const document = vscode.window.activeTextEditor?.document;
+        assert.ok(document && document.uri.scheme === VIEW_SCHEME, 'a document view is active');
+        return document;
+      };
+
+      const setFields = async (fields: string[] | undefined): Promise<void> => {
+        await vscode.workspace.getConfiguration('doorstop').update('documentView.fields', fields, vscode.ConfigurationTarget.Global);
+      };
+
+      // A view an earlier test left dirty must never raise the real modal dialog.
+      setup(() => {
+        documentView.prompts.confirmDiscard = async () => 'discard';
+      });
+
+      teardown(async () => {
+        await setFields(undefined);
+      });
+
+      // Spec 030 FR-001
+      test('only tree nodes with sub-elements are tagged for "Open as document"', async function () {
+        this.timeout(60000);
+        await withRestoredFixture(async () => {
+          await nestReq004();
+          assert.strictEqual((await treeNode('REQ-003', 'doorstop.item.parent')).contextValue, 'doorstop.item.parent');
+          assert.strictEqual((await treeNode('REQ-004')).contextValue, 'doorstop.item', 'a leaf has no section action');
+        });
+        const manifest = vscode.extensions.getExtension('SimonWalbrun.doorstop')!.packageJSON;
+        const entries = manifest.contributes.menus['view/item/context'].filter((entry: { command: string }) => entry.command === 'doorstop.openSectionAsDocument');
+        assert.ok(entries.length >= 2 && entries.every((entry: { when: string }) => entry.when.includes('viewItem == doorstop.item.parent')));
+      });
+
+      // Spec 030 FR-002 FR-003 FR-004 FR-005
+      test('a section view shows the node and its descendants, saves only those, and is reused', async function () {
+        this.timeout(60000);
+        await withRestoredFixture(async () => {
+          await nestReq004();
+          const node = await treeNode('REQ-003', 'doorstop.item.parent');
+          const before = new Map<string, Buffer>();
+          for (const file of await listFiles(FIXTURE_ROOT)) {
+            before.set(file, await fs.readFile(file));
+          }
+
+          await vscode.commands.executeCommand('doorstop.openSectionAsDocument', node);
+          const document = activeView();
+          assert.strictEqual(path.basename(document.uri.path), SECTION_URI_NAME('REQ-003'));
+          const lines = document.getText().split('\n');
+          assert.strictEqual(lines[0], '<!-- doorstop document REQ-003 section · keep this line -->');
+          assert.deepStrictEqual(lines.filter(line => line.includes('item separator')), [
+            REQ_SEPARATOR('REQ-003', '1.2'), REQ_SEPARATOR('REQ-004', '1.2.1')
+          ]);
+          assert.strictEqual(lines[lineOf(document, REQ_SEPARATOR('REQ-004', '1.2.1')) + 1], '### Heading Display Coverage');
+
+          await replaceInView(document, 'The system shall have a heading, to exercise heading-display toggles.', 'Section edit.');
+          assert.strictEqual(await document.save(), true);
+          const items = await reqItems();
+          assert.strictEqual(items.get('REQ-004')?.text, 'Section edit.');
+          for (const uid of ['REQ-002', 'REQ-003', 'REQ-005']) {
+            assert.deepStrictEqual(await fs.readFile(path.join(FIXTURE_ROOT, `${uid}.yml`)), before.get(path.join(FIXTURE_ROOT, `${uid}.yml`)), `${uid} untouched`);
+          }
+
+          await vscode.commands.executeCommand('doorstop.openSectionAsDocument', node);
+          const editors = vscode.window.visibleTextEditors.filter(editor => editor.document.uri.toString() === document.uri.toString());
+          assert.strictEqual(editors.length, 1, 'the existing tab is reused');
+        });
+      });
+
+      // Spec 030 FR-004 (an item created in a section view stays in it, also outside the subtree)
+      test('a new item created below the section root stays in the section view after saving', async function () {
+        this.timeout(60000);
+        await withRestoredFixture(async () => {
+          await nestReq004();
+          const node = await treeNode('REQ-003', 'doorstop.item.parent');
+          await vscode.commands.executeCommand('doorstop.openSectionAsDocument', node);
+          const document = activeView();
+          await documentView.insertPlaceholder(document, lineOf(document, REQ_SEPARATOR('REQ-003', '1.2')));
+          await replaceInView(document, '<!-- new item -->\n## ', '<!-- new item -->\n## Sibling of the root');
+          assert.strictEqual(await document.save(), true);
+
+          const created = [...(await reqItems()).entries()].find(([, item]) => item.header === 'Sibling of the root');
+          assert.ok(created, 'the item was created');
+          assert.strictEqual(created![1].level, '1.3', 'outside the subtree of REQ-003 (1.2)');
+          await waitFor(() => document.getText().includes('## Sibling of the root') && !document.isDirty, 'the new item stays in the view', 8000);
+        });
+      });
+
+      // Spec 030 FR-018
+      test('cursor, selection and scroll position survive a focus change, a reopen and a refresh', async function () {
+        this.timeout(60000);
+        await withRestoredFixture(async () => {
+          const document = await openView('REQ');
+          const position = new vscode.Position(lineOf(document, REQ_SEPARATOR('REQ-010', '1.9')) + 2, 3);
+          let editor = vscode.window.activeTextEditor!;
+          editor.selection = new vscode.Selection(position, position);
+          editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.AtTop);
+          await new Promise(resolve => setTimeout(resolve, 2500));
+          const keptLine = document.lineAt(position.line).text;
+          const topBefore = editor.visibleRanges[0].start.line;
+          const expectKept = async (what: string): Promise<void> => {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            editor = vscode.window.activeTextEditor!;
+            assert.strictEqual(editor.document.uri.toString(), document.uri.toString(), `${what}: the view is active`);
+            assert.strictEqual(document.lineAt(editor.selection.active.line).text, keptLine, `${what}: cursor stays on its line`);
+            assert.strictEqual(editor.selection.active.character, position.character, `${what}: cursor column`);
+            assert.ok(Math.abs(editor.visibleRanges[0].start.line - topBefore) <= 5, `${what}: scroll position kept (was ${topBefore}, is ${editor.visibleRanges[0].start.line})`);
+          };
+
+          // Focus leaves the view and comes back.
+          await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(FIXTURE_ROOT, 'REQ-001.yml'))), { preview: false });
+          await vscode.window.showTextDocument(document, { preview: false });
+          await expectKept('after focusing another editor');
+
+          // Whatever resets the cursor to line 1 right after the editor regains focus is undone.
+          await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(FIXTURE_ROOT, 'REQ-001.yml'))), { preview: false });
+          await vscode.window.showTextDocument(document, { preview: false });
+          vscode.window.activeTextEditor!.selection = new vscode.Selection(0, 0, 0, 0);
+          await expectKept('after an unrequested jump to the start');
+
+          // The same view is opened again.
+          await documentView.openDocumentView('REQ');
+          await expectKept('after reopening');
+
+          // The text is refreshed while the cursor's block still exists.
+          await server.request('PATCH', '/items/REQ-001', { text: 'Line one.\n\nLine two.\n\nLine three.' });
+          await vscode.commands.executeCommand('doorstop.documentView.reload', { uri: document.uri.toString() });
+          await waitFor(() => document.getText().includes('Line three.'), 'the view shows the refreshed text', 8000);
+          await expectKept('after a refresh');
+        });
+      });
+
+      // Spec 030 FR-019
+      test('every kind of view offers exactly one "Reload from disk" lens on its first line', async function () {
+        this.timeout(60000);
+        await withRestoredFixture(async () => {
+          await nestReq004();
+          const node = await treeNode('REQ-003', 'doorstop.item.parent');
+          const reloadLenses = async (document: vscode.TextDocument): Promise<vscode.CodeLens[]> => {
+            const lenses = await vscode.commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', document.uri);
+            return lenses.filter(lens => lens.command?.title === 'Reload from disk');
+          };
+          const full = await openView('REQ');
+          await vscode.commands.executeCommand('doorstop.openSectionAsDocument', node);
+          const section = activeView();
+          await documentView.openFilterView(['REQ-002', 'ARCH-001']);
+          const filter = activeView();
+          for (const document of [full, section, filter]) {
+            const lenses = await reloadLenses(document);
+            assert.strictEqual(lenses.length, 1, `${path.basename(document.uri.path)}: one reload lens`);
+            assert.strictEqual(lenses[0].range.start.line, 0);
+          }
+        });
+      });
+
+      // Spec 030 FR-020
+      test('reload from disk shows a change the view has not seen; unsaved edits are only dropped on request', async function () {
+        this.timeout(60000);
+        await withRestoredFixture(async () => {
+          const document = await openView('REQ');
+          const state = documentView.getState('doc:REQ')!;
+          state.watchers.forEach(watcher => watcher.dispose());
+          // Late events of the previous test's fixture restore may still be queued.
+          clearTimeout(state.watcherTimer);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          const file = path.join(FIXTURE_ROOT, 'REQ-002.yml');
+          await fs.writeFile(file, (await fs.readFile(file, 'utf8')).replace('minimal text', 'text from disk'));
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          assert.ok(!document.getText().includes('text from disk'), 'the view has not seen the change');
+
+          await vscode.commands.executeCommand('doorstop.documentView.reload', { uri: document.uri.toString() });
+          await waitFor(() => document.getText().includes('text from disk') && !document.isDirty, 'a clean view reloads at once', 8000);
+
+          await replaceInView(document, 'text from disk', 'my edit');
+          const asked: string[] = [];
+          documentView.prompts.confirmDiscard = async label => { asked.push(label); return 'keep'; };
+          await vscode.commands.executeCommand('doorstop.documentView.reload', { uri: document.uri.toString() });
+          assert.deepStrictEqual(asked, ['REQ']);
+          assert.ok(document.isDirty && document.getText().includes('my edit'), 'Keep leaves the view untouched');
+
+          documentView.prompts.confirmDiscard = async () => 'discard';
+          await vscode.commands.executeCommand('doorstop.documentView.reload', { uri: document.uri.toString() });
+          await waitFor(() => !document.isDirty && document.getText().includes('text from disk') && !document.getText().includes('my edit'), 'Discard reloads from disk', 8000);
+        });
+      });
+
+      // Spec 030 FR-021
+      test('a reload that fails leaves the view as it is and names the reason', async function () {
+        this.timeout(60000);
+        await withRestoredFixture(async () => {
+          await documentView.openFilterView(['REQ-005']);
+          const document = activeView();
+          const state = documentView.getState(document.uri)!;
+          state.watchers.forEach(watcher => watcher.dispose());
+          const before = document.getText();
+          const errors: string[] = [];
+          documentView.prompts.reportError = message => errors.push(message);
+          await server.request('DELETE', '/items/REQ-005');
+
+          await vscode.commands.executeCommand('doorstop.documentView.reload', { uri: document.uri.toString() });
+
+          assert.strictEqual(errors.length, 1);
+          assert.ok(errors[0].includes('could not reload') && errors[0].includes('empty'), errors[0]);
+          assert.strictEqual(document.getText(), before);
+        });
+      });
+
+      // Spec 030 FR-005 (clarification 2026-10-11: views may overlap)
+      test('a section and the full document can be open at once and follow each other', async function () {
+        this.timeout(60000);
+        await withRestoredFixture(async () => {
+          await nestReq004();
+          const node = await treeNode('REQ-003', 'doorstop.item.parent');
+          const full = await openView('REQ');
+          await vscode.commands.executeCommand('doorstop.openSectionAsDocument', node);
+          const section = activeView();
+          assert.ok(documentView.getState('doc:REQ') && documentView.getState('sec:REQ-003'), 'both views exist');
+
+          await replaceInView(section, 'The system shall have a heading, to exercise heading-display toggles.', 'Seen in both.');
+          assert.strictEqual(await section.save(), true);
+          await waitFor(() => full.getText().includes('Seen in both.') && !full.isDirty, 'the full view follows the section save', 8000);
+        });
+      });
+
+      // Spec 030 FR-009 FR-010 FR-012
+      test('a filter view lists exactly the given items across documents, saves and creates in the right document', async function () {
+        this.timeout(60000);
+        await withRestoredFixture(async () => {
+          await documentView.openFilterView(['REQ-005', 'ARCH-001']);
+          const document = activeView();
+          assert.strictEqual(path.basename(document.uri.path), 'Filter 1 (filter)'.replace('1', String(document.uri.path.match(/Filter (\d+)/)![1])));
+          const lines = document.getText().split('\n');
+          assert.ok(/^<!-- doorstop document Filter \d+ · keep this line -->$/.test(lines[0]));
+          assert.deepStrictEqual(lines.filter(line => line.includes('item separator')), [
+            REQ_SEPARATOR('REQ-005', '1.4'), REQ_SEPARATOR('ARCH-001', '1.0')
+          ].sort((a, b) => lines.indexOf(a) - lines.indexOf(b)));
+
+          await replaceInView(document, 'The system shall remain pending review', 'The system shall remain filtered');
+          await documentView.insertPlaceholder(document, lineOf(document, REQ_SEPARATOR('ARCH-001', '1.0')));
+          await replaceInView(document, '<!-- new item -->\n# ', '<!-- new item -->\n# Added in filter view');
+          assert.strictEqual(await document.save(), true);
+
+          const tree = await server.request<TreeResponse>('GET', '/tree');
+          const arch = tree.documents.find(doc => doc.prefix === 'ARCH')!;
+          assert.deepStrictEqual(arch.items.map(item => item.header ?? ''), ['', 'Added in filter view'], 'created in the ARCH document');
+          assert.ok(tree.documents.find(doc => doc.prefix === 'REQ')!.items.find(item => item.uid === 'REQ-005')!.text!.includes('remain filtered'));
+          assert.ok(document.getText().includes('Added in filter view'), 'the new item stays in the filter view');
+        });
+      });
+
+      // Spec 030 FR-012
+      test('a filter view is a snapshot: items added later do not join it', async function () {
+        this.timeout(60000);
+        await withRestoredFixture(async () => {
+          await documentView.openFilterView(['REQ-002']);
+          const document = activeView();
+          await server.request('POST', '/documents/REQ/items', { header: 'Late arrival' });
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          assert.ok(!document.getText().includes('Late arrival'));
+          assert.strictEqual(document.getText().split('\n').filter(line => line.includes('item separator')).length, 1);
+        });
+      });
+
+      // Spec 030 FR-010 (overlap allowed)
+      test('filter items that are already open in another view still open', async function () {
+        this.timeout(60000);
+        await openView('REQ');
+        const errors: string[] = [];
+        documentView.prompts.reportError = message => errors.push(message);
+        await documentView.openFilterView(['REQ-002']);
+        assert.deepStrictEqual(errors, []);
+        assert.ok(activeView().getText().includes(REQ_SEPARATOR('REQ-002', '1.1')));
+      });
+
+      // Spec 030 FR-011
+      test('an empty filter result opens no view', async function () {
+        this.timeout(30000);
+        const before = vscode.workspace.textDocuments.filter(document => document.uri.scheme === VIEW_SCHEME).length;
+        await documentView.openFilterView([]);
+        await vscode.commands.executeCommand('doorstop.openFilterAsDocument', []);
+        await documentView.openFilterView(['NO-SUCH-ITEM']);
+        assert.strictEqual(vscode.workspace.textDocuments.filter(document => document.uri.scheme === VIEW_SCHEME).length, before);
+      });
+
+      // Spec 030 FR-013 FR-014
+      test('the fields setting is contributed with an empty default and views are unchanged by it', async function () {
+        this.timeout(30000);
+        const manifest = vscode.extensions.getExtension('SimonWalbrun.doorstop')!.packageJSON;
+        const properties = [].concat(manifest.contributes.configuration).reduce((all: Record<string, { type: string; default: unknown }>, section: { properties: Record<string, { type: string; default: unknown }> }) => ({ ...all, ...section.properties }), {});
+        assert.strictEqual(properties['doorstop.documentView.fields'].type, 'array');
+        assert.deepStrictEqual(properties['doorstop.documentView.fields'].default, []);
+        const document = await openView('REQ');
+        assert.ok(!document.getText().includes('doorstop-fields'));
+      });
+
+      // Spec 030 FR-015 FR-016 FR-017
+      test('configured fields are shown, edited and saved; protected and absent ones are skipped', async function () {
+        this.timeout(60000);
+        await withRestoredFixture(async () => {
+          const file = path.join(FIXTURE_ROOT, 'REQ-002.yml');
+          await fs.writeFile(file, (await fs.readFile(file, 'utf8')).replace("ref: ''", 'ref: main.py\nstatus: draft'));
+          const hints: string[] = [];
+          documentView.prompts.reportHint = message => hints.push(message);
+          await setFields(['ref', 'status', 'level', 'missing']);
+
+          const document = await openView('REQ');
+          assert.ok(hints.some(hint => hint.includes('level')), 'the protected entry is reported');
+          const lines = document.getText().split('\n');
+          const heading = lineOf(document, REQ_SEPARATOR('REQ-002', '1.1')) + 1;
+          assert.deepStrictEqual(lines.slice(heading + 1, heading + 5), ['```doorstop-fields', 'ref: main.py', 'status: draft', '```']);
+          assert.strictEqual(document.getText().split('doorstop-fields').length - 1, 1, 'items without those fields get no block');
+
+          await replaceInView(document, 'status: draft', 'status: approved');
+          assert.strictEqual(await document.save(), true);
+          assert.ok((await fs.readFile(file, 'utf8')).includes('status: approved'));
+          await waitFor(() => document.getText().includes('status: approved') && !document.isDirty, 'view regenerated');
+
+          // FR-017: a changed setting applies to views opened afterwards only.
+          await setFields([]);
+          assert.ok(document.getText().includes('doorstop-fields'));
+          const reopened = await openView('REQ');
+          await waitFor(() => !reopened.getText().includes('doorstop-fields'), 'the reopened view uses the new setting', 8000);
+        });
+      });
+
+      // Spec 030 FR-015 (fields block cannot be damaged)
+      test('removing a field line refuses the save', async function () {
+        this.timeout(60000);
+        await withRestoredFixture(async () => {
+          const file = path.join(FIXTURE_ROOT, 'REQ-002.yml');
+          await fs.writeFile(file, (await fs.readFile(file, 'utf8')).replace("ref: ''", 'ref: main.py'));
+          await setFields(['ref']);
+          const document = await openView('REQ');
+          await replaceInView(document, 'ref: main.py\n', '');
+          assert.strictEqual(await document.save(), false, 'a damaged fields block refuses the save');
+          assert.ok((await fs.readFile(file, 'utf8')).includes('ref: main.py'));
+        });
       });
     });
   });

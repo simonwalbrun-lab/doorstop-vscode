@@ -16,6 +16,10 @@ export interface ItemNode {
   reviewed: boolean;
   cleared: boolean;
   links: LinkInfo[];
+  /** Only the `doorstop.documentView.fields` the item has, single-line (spec 030). */
+  fields?: Record<string, string>;
+  /** Owning document; filled in by the document view for scoped snapshots (spec 030). */
+  documentPrefix?: string;
 }
 
 export interface DocumentNode {

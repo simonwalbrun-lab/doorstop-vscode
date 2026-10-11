@@ -71,4 +71,10 @@ export default defineConfig([
 		files: 'out/test/reviewLensScan.test.js',
 		workspaceFolder: 'testdata/regression',
 	},
+	{
+		// Declarative menu placement (spec 017, 030): reads package.json only. No
+		// fixture workspace, no server.
+		label: 'packageMenus',
+		files: 'out/test/packageMenus.test.js',
+	},
 ]);
