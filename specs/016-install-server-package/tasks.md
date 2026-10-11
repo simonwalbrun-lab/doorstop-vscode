@@ -58,7 +58,7 @@ Single project (VS Code extension). All paths are repository-root-relative:
 ### Implementation for User Story 1
 
 - [X] T004 [US1] In `src/extension.ts`, inside `startDoorstopServer` (after `getActivePythonPath()` resolves, before the existing `doorstopServer.start`/`restart` call): call `isServerPackageInstalled(pythonPath)`. When it resolves `true`, fall through to the existing start/restart call unchanged (FR-003). When it resolves `false`, call `vscode.window.showWarningMessage` naming `doorstop-vscode-server` as not installed in the selected interpreter, with `'Install'` and `'Dismiss'` actions, and `return` without calling `doorstopServer.start`/`restart` (FR-002, FR-009) — leave the `'Install'` branch of the resolved selection as the integration point User Story 2 completes (T008); for now it is equivalent to Dismiss (server stays stopped either way).
-- [ ] T005 [US1] Run the manual US1 walkthrough in [quickstart.md](./quickstart.md) against both an interpreter missing the package and one that has it; confirm the notification appears/doesn't appear as expected and Dismiss leaves the server stopped. Depends on T004.
+- [X] T005 (manual — passed by user 2026-10-09) [US1] Run the manual US1 walkthrough in [quickstart.md](./quickstart.md) against both an interpreter missing the package and one that has it; confirm the notification appears/doesn't appear as expected and Dismiss leaves the server stopped. Depends on T004.
 
 **Checkpoint**: At this point, User Story 1 is fully functional and independently testable per its Independent Test above — run the manual US1 walkthrough in [quickstart.md](./quickstart.md).
 
@@ -101,7 +101,7 @@ Single project (VS Code extension). All paths are repository-root-relative:
 
 - [X] T011 [P] Run `npm run compile` (check-types + lint + esbuild) and fix any reported issues.
 - [X] T012 [P] Run `npm test` and confirm the new `serverPackageInstall` suite passes alongside the existing `unit`, `regressionFixture`, `diagramLayout`, and `reviewLensScan` suites.
-- [ ] T013 Walk through the remaining "Regression checks" section of [quickstart.md](./quickstart.md) end-to-end (package-already-installed path unchanged; unrelated startup failures like a taken port still use the existing error path, not the install flow).
+- [X] T013 (manual — passed by user 2026-10-09) Walk through the remaining "Regression checks" section of [quickstart.md](./quickstart.md) end-to-end (package-already-installed path unchanged; unrelated startup failures like a taken port still use the existing error path, not the install flow).
 
 ---
 
@@ -154,3 +154,10 @@ Single project (VS Code extension). All paths are repository-root-relative:
 - [Story] label maps each task to its user story for traceability back to spec.md.
 - This feature does not fit the "stories are independent" ideal perfectly: US2 and US3 build directly on the notification/progress UI US1 and US2 introduce in `src/extension.ts`, because there is only one control-flow decision point (`startDoorstopServer`) for all three stories to extend. Each story is still independently *testable* per its Independent Test in spec.md, even though later stories are not independently *implementable* without the earlier ones' code.
 - Commit after each task or logical group; stop at any checkpoint to validate a story independently.
+
+## Phase 7: Convergence
+
+- [ ] T014 Add `// Spec 016 FR-NNN` trace comments to the existing tests in `src/test/serverPackageInstall.test.ts`: isServerPackageInstalled tests -> FR-001; success/failure output tests -> FR-007; onOutput streaming test -> FR-005; concurrent-call tests -> FR-008; retry test -> FR-007/FR-010 per Constitution VIII (partial)
+- [ ] T015 Add a unit test in `src/test/serverPackageInstall.test.ts` asserting `installServerPackage` spawns `<python> -m pip install doorstop-vscode-server` (inspect fake spawn `calls`), tagged `// Spec 016 FR-004` per FR-004 (missing)
+- [ ] T016 Extract the `startDoorstopServer` decision logic in `src/extension.ts` (package-missing prompt, Install, success start, failure error, dismiss) into a testable function with injectable vscode/server/install deps, and add automated tests tagged `// Spec 016 FR-002`, `FR-003`, `FR-006`, `FR-007` (no start on failure), `FR-009` (dismiss leaves server stopped, no install) per Constitution VIII (missing)
+- [ ] T017 Add an automated test tagged `// Spec 016 FR-010` that the presence check runs on every start attempt (two starts with different pythonPath -> check called twice, no caching) per FR-010 (missing)

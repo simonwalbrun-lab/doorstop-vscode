@@ -30,6 +30,10 @@ findings.md
 package-lock.json
 *.vsix
 
+# PDF export tooling (spec 027): its lockfile ships, its installed modules never do
+media/pdf-export/node_modules/**
+!media/pdf-export/package-lock.json
+
 # build leftovers
 dist/deprecated_server/**
 

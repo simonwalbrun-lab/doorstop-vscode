@@ -1,7 +1,6 @@
 (function () {
   // Light backgrounds throughout, so black text (NODE_FONT) always reads clearly.
   const NODE_COLOR = { background: '#e9ecef', border: '#495057' };
-  const SUSPECT_BORDER = '#f14c4c';
   const NODE_FONT = { color: '#000000' };
 
   // Stable, deterministic per-document colors regardless of discovery order. Light
@@ -42,19 +41,6 @@
     return `rgb(${r}, ${g}, ${b})`;
   }
 
-  // Combined status badge: reviewed/suspect + active + normative + derived.
-  // Only flags deviations from the "normal" state so a clean item shows no badge at all.
-  function buildBadge(item) {
-    const parts = [];
-    if (item.reviewed === true) { parts.push('✅'); }
-    else if (item.reviewed === false) { parts.push('❓'); }
-    if (item.cleared === false) { parts.push('⚠️'); }
-    if (item.derived === true) { parts.push('🔹'); }
-    if (item.active === false) { parts.push('🚫'); }
-    if (item.normative === false) { parts.push('📄'); }
-    return parts.join(' ');
-  }
-
   function setDropHintVisible(visible) {
     const hint = document.getElementById('drop-hint');
     if (hint) {
@@ -64,14 +50,13 @@
 
   // Identifier is always shown; the heading/title line is shown only while the
   // heading-display toggle is on (shared by body and ghost labels alike - FR-010).
-  function buildLabel(id, headingText, badge) {
+  // No status icons (spec 025 FR-020): the label is the identifier plus, when shown,
+  // the wrapped heading - nothing else.
+  function buildLabel(id, headingText) {
     const headingDisplayEnabled = window.DoorstopDiagram.state.headingDisplayEnabled;
     const lines = [id];
     if (headingDisplayEnabled && headingText) {
-      lines.push(headingText);
-    }
-    if (badge) {
-      lines.push(badge);
+      lines.push(window.DoorstopDiagram.layout.wrapHeading(headingText));
     }
     return lines.join('\n');
   }
@@ -80,12 +65,8 @@
     const id = item.id ?? item.uid;
     const hasMeta = item.documentPrefix !== undefined && item.documentPrefix !== null;
     const color = hasMeta ? colorForDocument(item.documentPrefix) : { ...NODE_COLOR };
-    if (hasMeta && item.cleared === false) {
-      color.border = SUSPECT_BORDER;
-    }
-    const badge = hasMeta ? buildBadge(item) : '';
     const heading = item.header || item.title || '';
-    const label = buildLabel(id, heading, badge);
+    const label = buildLabel(id, heading);
     return {
       id,
       label,
@@ -107,10 +88,9 @@
     // clearly less present than body items, not just a slightly paler variant.
     const color = {
       background: lighten(baseColor.background, 0.8),
-      border: item.cleared === false ? SUSPECT_BORDER : lighten(baseColor.border, 0.65)
+      border: lighten(baseColor.border, 0.65)
     };
-    const badge = buildBadge(item);
-    const label = buildLabel(item.uid, item.header, badge);
+    const label = buildLabel(item.uid, item.header);
     return {
       id: item.uid,
       label,
@@ -127,7 +107,6 @@
     toVisNode,
     toVisGhostNode,
     buildLabel,
-    buildBadge,
     colorForDocument,
     DOCUMENT_PALETTE
   };

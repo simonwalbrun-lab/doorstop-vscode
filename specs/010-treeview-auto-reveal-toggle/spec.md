@@ -103,12 +103,7 @@ the workspace, and confirm the toggle is still off.
 
 ### Edge Cases
 
-- The auto-reveal mechanism is currently shared by three triggers: the
-  active editor changing, clicking a link inside a hover popup, and clicking
-  a node on the traceability diagram (all funnel into the same underlying
-  "reveal this requirement in the tree" behavior). Per the Assumptions below,
-  the toggle governs that one shared mechanism, so turning it off suppresses
-  all three triggers, not just editor-tab switching.
+- The auto-reveal is reached through two code paths: `syncActiveRequirement` (active editor changing, which includes opening a file by clicking a link inside a hover popup, since that link is a plain open-file link) and `doorstop.activateRequirement` (clicking a node on the traceability diagram). Per the Assumptions below, the toggle governs both paths, so turning it off suppresses all three user-visible triggers, not just editor-tab switching.
 - What happens if the toggle is switched while the Doorstop server hasn't
   finished starting, or the tree hasn't loaded yet? Toggling MUST work
   regardless of server/tree state, since it only affects local UI behavior
@@ -122,12 +117,10 @@ the workspace, and confirm the toggle is still off.
 ### Functional Requirements
 
 - **FR-001**: System MUST provide a toggle button in the Explorer tree
-  view's title bar (alongside existing controls like Refresh and Open
-  Diagram) that switches automatic reveal-and-select on or off.
+  view's title bar (alongside existing controls such as Refresh and Create Document; diagram buttons were moved to the Commands panel by spec 025) that switches automatic reveal-and-select on or off.
 - **FR-002**: When the toggle is off, system MUST NOT automatically reveal or
   change the Explorer tree's selection in response to the active editor
-  changing, a hover-popup link being clicked, or a diagram node being
-  clicked.
+  changing, a hover-popup link being clicked, or a diagram node being clicked (a hover-link click acts through the active-editor change; a diagram-node click through `doorstop.activateRequirement`).
 - **FR-003**: When the toggle is on, system MUST reveal and select the
   Explorer tree node matching the active requirement, exactly as it already
   does today, regardless of which of the three triggers in FR-002 caused it.
@@ -171,9 +164,7 @@ the workspace, and confirm the toggle is still off.
   (FR-005) — not a new navigation mechanism. This feature adds an on/off
   switch for that existing behavior; it does not change what the behavior
   does when on.
-- The toggle governs the single underlying reveal mechanism
-  (`doorstop.activateRequirement` / `syncActiveRequirement`) shared by all
-  three triggers (editor change, hover-link click, diagram-node click),
+- The toggle governs both reveal code paths (`syncActiveRequirement` for editor changes, including hover-link clicks; `doorstop.activateRequirement` for diagram-node clicks), covering all three user-visible triggers,
   rather than adding separate switches per trigger — this keeps the feature
   to one control with one consistent effect, matching the user's broad
   phrasing ("if I click a element anywhere"). This scope choice is worth
@@ -184,5 +175,4 @@ the workspace, and confirm the toggle is still off.
   being committed to the workspace/repository. The exact storage mechanism
   is a planning-level detail, not specified here.
 - "Upper line of the treeview" refers to the Explorer tree view's title bar
-  (VS Code's `view/title` toolbar), where Refresh, Open Diagram, and New
-  Diagram controls already live.
+  (VS Code's `view/title` toolbar), where Refresh and Create Document already live (the diagram buttons were removed from it by spec 025).

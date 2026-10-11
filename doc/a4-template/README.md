@@ -75,93 +75,17 @@ doorstop publish all path/to/out --html --template a4
 
 ## Export to PDF
 
-Run once, wherever you'll export from (locally or in CI):
+The PDF export now ships with the extension: *Publish* → **PDF** adds
+`doorstop-pdf/export-pdf.mjs` to your workspace and runs it (source:
+[`media/pdf-export/`](../../media/pdf-export/)). It works with any template and
+recognizes this one's title block: the header reads `Doc — Title`, the footer
+starts with `Rev <Issue>`, and no extra side margin is added because
+`.native-page` already sizes the page. Publish with `--template a4` (or set
+`doorstop.publish.template` to `a4`) to use it. For setup, logo replacement and
+GitHub/GitLab pipeline examples see the main README's "Publish as PDF" section.
 
-```bash
-cd doc/a4-template
-npm install
-npm run install-browser   # downloads Chromium for Playwright
-```
-
-Then, after `doorstop publish`:
-
-```bash
-node export-pdf.mjs path/to/out/documents/SYS.html path/to/out/SYS.pdf
-```
-
-The script reads the document's own title block (`.doctitle`, `.native-meta`)
-to build the header/footer text, so it works unmodified for any document —
-nothing to hardcode per document. **Verified live** against this repo's
-`testdata/regression` tree: published `ARCH` with a cover item (see the
-Fresh README's "Document header fields" section) and ran the script —
-the resulting PDF's header read `doc-ARCH — Architecture Requirements`, the
-meta row showed `DOC / REF / BY / ISSUE / REVIEWER / APPROVER / PARENT` all
-pulled from that one item, and the footer read `Rev 1.2` / `template-A4` /
-`Page 1 of 1`.
-
-### Header: logo, accent line, no header on page 1
-
-The header is a flex row — document name/title on the left, a logo on the
-right — with a thin bottom border in `ACCENT_LINE` (the brand red at 35%
-opacity, so it reads as "dezent", not a full-saturation rule). The footer
-mirrors it with a top border, plus `Rev X.Y` / the fixed `TEMPLATE_ID`
-constant (`template-A4`) / `Page N of M`.
-
-**Logo:** drop `logo.svg` (preferred — inlined directly, crisp at any size)
-or `logo.png` (base64-embedded) next to `export-pdf.mjs`. Either replaces the
-bundled placeholder checkmark mark with no script changes. Both constants
-(`TEMPLATE_ID`, `ACCENT_LINE`) sit at the top of `export-pdf.mjs` if you want
-to change the label or color.
-
-**No header on page 1:** this took two failed attempts before landing on
-something that actually works, worth knowing if you touch this code.
-Chromium's header/footer templates share one `.pageNumber` element that gets
-filled in during Chromium's own internal print pass — **not** as an observable
-DOM mutation. Verified live, twice: neither reading `.pageNumber.textContent`
-immediately in an inline `<script>`, nor watching it with a `MutationObserver`,
-ever saw a non-empty value — both produced the identical header on every page,
-page 1 included. The approach that does work and is what's implemented: render
-the document **twice** with identical `margin` (so page breaks land in exactly
-the same place both times) — once with the real header, once with
-`headerTemplate: '<div></div>'` — then use `pdf-lib` to take page 1 from the
-blank-header render and all other pages from the full render. Confirmed on a
-5-page export: page 1 has no header (not even the accent line), pages 2–5
-have it, and the footer (which isn't suppressed) is correct on every page.
-
-Tunable in `export-pdf.mjs`: `margin.top`/`margin.bottom` (space reserved for
-the header/footer — widen if your header text wraps), and the header/footer
-template HTML itself. `margin.left`/`right` should stay `0mm`: `a4.css`
-already sizes `.native-page` to 210mm with its own 16mm inset, so an added
-Playwright margin would double it.
-
-## CI pipeline
-
-Header/footer templates render in an isolated Chromium context without the
-page's own stylesheet, so they're styled with system fonts only (no Google
-Fonts dependency there) — nothing extra needed for CI beyond the browser
-binary:
-
-```yaml
-# .github/workflows/publish-pdf.yml (excerpt)
-- name: Install PDF export tooling
-  working-directory: doc/a4-template
-  run: |
-    npm install
-    npx playwright install --with-deps chromium
-
-- name: Publish HTML
-  run: doorstop publish SYS out --html --template a4
-  # with reqs/SYS/template/ already populated from doc/a4-template/
-
-- name: Export PDF
-  working-directory: doc/a4-template
-  run: node export-pdf.mjs ../../out/documents/SYS.html ../../out/SYS.pdf
-
-- uses: actions/upload-artifact@v4
-  with:
-    name: SYS.pdf
-    path: out/SYS.pdf
-```
+The "no header on page 1" trick (render twice, splice page 1 with `pdf-lib`)
+is documented in the script itself.
 
 ## The traceability matrix prints in landscape
 

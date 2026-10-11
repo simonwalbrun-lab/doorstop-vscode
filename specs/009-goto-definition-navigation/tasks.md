@@ -302,3 +302,19 @@ Task: "Add an extension-host test in src/test/extension.test.ts"
   `workbench.action.navigateBack` round trip for US3. T017's test file grew
   to 8 tests total (up from the 1 originally planned), covering every
   `quickstart.md` scenario. All 8 pass; `npm run compile` is clean.
+
+---
+
+## Phase 7: Constitution v1.4.0 Principle VIII convergence (FR traceability)
+
+**Purpose**: every FR needs a CI-run test carrying a `Spec 009 FR-NNN` trace comment.
+Existing tests live in `src/test/extension.test.ts`, suite "Go to Definition & Usage Navigation".
+
+- [ ] T020 Add trace comments (`// Spec 009 FR-NNN`) to the existing tests in
+  `src/test/extension.test.ts`: "F12 on a linked UID jumps..." -> FR-001;
+  "F12 on derived: lists every item..." -> FR-002, FR-003; "Shift+F12 on derived:..."
+  -> FR-002; "F12 on non-UID prose..." and "...no usages reports zero results" -> FR-004;
+  "Go Back restores..." -> FR-005.
+- [ ] T021 Add a test in `src/test/extension.test.ts` for FR-006 asserting the definition
+  provider resolves a UID to the same file as the hover preview's resolution for the same
+  token (consistency), tagged `// Spec 009 FR-006`.

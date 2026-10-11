@@ -31,9 +31,9 @@ No new top-level directory is introduced.
 
 **Purpose**: Establish a clean baseline and the fixture data the later tests need.
 
-- [ ] T001 Record a green baseline before changing anything: run `npm run compile`, `npm test`, and `python -m pytest tests` from `server/`; note any pre-existing failure so it is not later mistaken for a regression
-- [ ] T002 [P] Add a two-link fixture item `testdata/regression/REQ-010.yml` linking to both `REQ-001` and `REQ-002`, mirroring the existing fixture shape (`active`, `derived`, `header`, `level`, `links`, `normative`, `ref`, `reviewed`, `text`); this item is what makes "clear one link, leave the other" observable, so FR-006/SC-003 cannot be distinguished from FR-004 without it
-- [ ] T003 [P] Generate real Doorstop stamps for `testdata/regression/REQ-010.yml` by running the server against the fixture, leaving both links **suspect** (`null` stamps) as the starting state for US3 tests
+- [X] T001 Record a green baseline before changing anything: run `npm run compile`, `npm test`, and `python -m pytest tests` from `server/`; note any pre-existing failure so it is not later mistaken for a regression
+- [X] T002 [P] Add a two-link fixture item `testdata/regression/REQ-010.yml` linking to both `REQ-001` and `REQ-002`, mirroring the existing fixture shape (`active`, `derived`, `header`, `level`, `links`, `normative`, `ref`, `reviewed`, `text`); this item is what makes "clear one link, leave the other" observable, so FR-006/SC-003 cannot be distinguished from FR-004 without it
+- [X] T003 [P] Generate real Doorstop stamps for `testdata/regression/REQ-010.yml` by running the server against the fixture, leaving both links **suspect** (`null` stamps) as the starting state for US3 tests
 
 ---
 
@@ -43,12 +43,12 @@ No new top-level directory is introduced.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete — all three stories emit lenses from the same provider and route their actions through the same helpers.
 
-- [ ] T004 Create `src/reviewLensProvider.ts` with the entity types from [data-model.md](data-model.md) — `RequirementLensScan { uid, reviewedLine?, linksLine?, linkEntries }`, `LinkEntryAnchor { line, parentUid }`, and the three command-argument interfaces `ReviewLensContext`, `ClearAllLensContext`, `ClearOneLensContext` (each carrying `documentUri: string` so handlers locate the document independently of which editor is active) — plus an exported `registerReviewLensProvider(context, options)` mirroring the shape of `registerDeriveProvider` in [deriveProvider.ts:159](../../src/deriveProvider.ts#L159), registering a `CodeLensProvider` for `[{ language: 'yaml' }, { language: 'markdown' }]` that returns `[]` for now
-- [ ] T005 Implement `scanRequirementDocument()` in `src/reviewLensProvider.ts` applying the derivation rules from data-model.md verbatim: `uid` = `path.basename(fileName, ext)` for `.yml`/`.md` only, otherwise skip the document entirely (FR-011); `reviewedLine` = "First line matching `/^\s*reviewed\s*:/i` at metadata level"; `linksLine` = "First line matching `/^\s*links\s*:/i`"; `linkEntries` = "Consecutive lines after `linksLine` matching a `- <UID>` sequence-entry shape, stopping at the first line that is not a sequence entry (i.e. the next metadata key)", with `links: []` yielding none; scan region = "Whole document for `.yml`; the `---` frontmatter block only for `.md`" (research.md §6). The function MUST be synchronous and perform **no** network call (research.md §2, SC-005)
-- [ ] T006 Implement `ensureSavedOrConfirm(documentUri)` in `src/reviewLensProvider.ts` per research.md §3: if the document is dirty show a **modal** warning naming the consequence ("This requirement has unsaved changes. They must be saved before <action>, because the Doorstop server rewrites the file.") offering `Save and Continue` and Cancel; on confirm `await document.save()` and abort with an error message if the save throws; on cancel return without issuing any request (FR-010)
-- [ ] T007 Implement `runLensAction()` in `src/reviewLensProvider.ts` as the single request path for all three commands: issue the call via `options.server.request()`, on success fire `options.onChanged?.()` and show an information message naming the affected item, on failure surface the message from `DoorstopApiError` via `vscode.window.showErrorMessage` and change nothing (FR-009, contracts §1.5) — mirroring the error handling in `registerDoorstopCommands.run()` at [doorstopCommands.ts:110-120](../../src/doorstopCommands.ts#L110-L120)
-- [ ] T008 [P] Wire `registerReviewLensProvider` into `src/extension.ts` inside the existing `if (workspaceFolder)` block directly after the `registerDeriveProvider` call at [extension.ts:105](../../src/extension.ts#L105), passing `{ server: doorstopServer, onChanged: () => treeProvider.refresh() }`
-- [ ] T009 [P] Add scanner tests in `src/test/reviewLensScan.test.ts` covering the pure `scanRequirementDocument()` contract against the fixture files: `REQ-001.yml` (`links: []`) → `linkEntries` empty; `REQ-007.yml` → one entry with `parentUid === 'REQ-001'`; `REQ-010.yml` → two entries in document order; `.doorstop.yml` → no `uid`, no anchors
+- [X] T004 Create `src/reviewLensProvider.ts` with the entity types from [data-model.md](data-model.md) — `RequirementLensScan { uid, reviewedLine?, linksLine?, linkEntries }`, `LinkEntryAnchor { line, parentUid }`, and the three command-argument interfaces `ReviewLensContext`, `ClearAllLensContext`, `ClearOneLensContext` (each carrying `documentUri: string` so handlers locate the document independently of which editor is active) — plus an exported `registerReviewLensProvider(context, options)` mirroring the shape of `registerDeriveProvider` in [deriveProvider.ts:159](../../src/deriveProvider.ts#L159), registering a `CodeLensProvider` for `[{ language: 'yaml' }, { language: 'markdown' }]` that returns `[]` for now
+- [X] T005 Implement `scanRequirementDocument()` in `src/reviewLensProvider.ts` applying the derivation rules from data-model.md verbatim: `uid` = `path.basename(fileName, ext)` for `.yml`/`.md` only, otherwise skip the document entirely (FR-011); `reviewedLine` = "First line matching `/^\s*reviewed\s*:/i` at metadata level"; `linksLine` = "First line matching `/^\s*links\s*:/i`"; `linkEntries` = "Consecutive lines after `linksLine` matching a `- <UID>` sequence-entry shape, stopping at the first line that is not a sequence entry (i.e. the next metadata key)", with `links: []` yielding none; scan region = "Whole document for `.yml`; the `---` frontmatter block only for `.md`" (research.md §6). The function MUST be synchronous and perform **no** network call (research.md §2, SC-005)
+- [X] T006 Implement `ensureSavedOrConfirm(documentUri)` in `src/reviewLensProvider.ts` per research.md §3: if the document is dirty show a **modal** warning naming the consequence ("This requirement has unsaved changes. They must be saved before <action>, because the Doorstop server rewrites the file.") offering `Save and Continue` and Cancel; on confirm `await document.save()` and abort with an error message if the save throws; on cancel return without issuing any request (FR-010)
+- [X] T007 Implement `runLensAction()` in `src/reviewLensProvider.ts` as the single request path for all three commands: issue the call via `options.server.request()`, on success fire `options.onChanged?.()` and show an information message naming the affected item, on failure surface the message from `DoorstopApiError` via `vscode.window.showErrorMessage` and change nothing (FR-009, contracts §1.5) — mirroring the error handling in `registerDoorstopCommands.run()` at [doorstopCommands.ts:110-120](../../src/doorstopCommands.ts#L110-L120)
+- [X] T008 [P] Wire `registerReviewLensProvider` into `src/extension.ts` inside the existing `if (workspaceFolder)` block directly after the `registerDeriveProvider` call at [extension.ts:105](../../src/extension.ts#L105), passing `{ server: doorstopServer, onChanged: () => treeProvider.refresh() }`
+- [X] T009 [P] Add scanner tests in `src/test/reviewLensScan.test.ts` covering the pure `scanRequirementDocument()` contract against the fixture files: `REQ-001.yml` (`links: []`) → `linkEntries` empty; `REQ-007.yml` → one entry with `parentUid === 'REQ-001'`; `REQ-010.yml` → two entries in document order; `.doorstop.yml` → no `uid`, no anchors
 
 **Checkpoint**: Provider registered and scanning; no lenses render yet. User story phases can now proceed — in parallel if staffed, since each adds a distinct lens and a distinct command.
 
@@ -62,14 +62,14 @@ No new top-level directory is introduced.
 
 ### Tests for User Story 1
 
-- [ ] T010 [P] [US1] Integration test in `src/test/regressionFixture.test.ts`: execute `doorstop.doReview` for `REQ-007` against the real server, then assert `GET /tree` reports `reviewed: true` for `REQ-007` and that `REQ-008`'s `reviewed` value is unchanged (FR-002)
-- [ ] T011 [P] [US1] Test in `src/test/reviewLensScan.test.ts` that a document with a `reviewed:` line yields exactly one "Do Review" lens and that `.doorstop.yml` yields none (US1 scenario 4, FR-011)
+- [X] T010 [P] [US1] Integration test in `src/test/regressionFixture.test.ts`: execute `doorstop.doReview` for `REQ-007` against the real server, then assert `GET /tree` reports `reviewed: true` for `REQ-007` and that `REQ-008`'s `reviewed` value is unchanged (FR-002)
+- [X] T011 (superseded by spec 017 Quick Fixes) [P] [US1] Test in `src/test/reviewLensScan.test.ts` that a document with a `reviewed:` line yields exactly one "Do Review" lens and that `.doorstop.yml` yields none (US1 scenario 4, FR-011)
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] Emit the "Do Review" lens in `src/reviewLensProvider.ts`: when `scan.reviewedLine !== undefined`, push a `vscode.CodeLens` at range `(reviewedLine, 0, reviewedLine, 0)` with title `Do Review` and command `doorstop.doReview`, argument `{ uid, documentUri }` (FR-001, contracts §1.1)
-- [ ] T013 [US1] Register the `doorstop.doReview` command in `src/reviewLensProvider.ts`: guard a missing/unusable context with `The requirement UID could not be determined.` and no request (contracts §1.4 precondition 1, which also covers Command Palette invocation with no argument), then `ensureSavedOrConfirm` → `runLensAction` issuing `POST /review` with `{ scope: 'item', target: uid }`
-- [ ] T014 [P] [US1] Declare `doorstop.doReview` in `package.json` under `contributes.commands` with title `Doorstop: Do Review`, alongside the existing `doorstop.deriveRequirement` entry
+- [X] T012 (superseded by spec 017 Quick Fixes) [US1] Emit the "Do Review" lens in `src/reviewLensProvider.ts`: when `scan.reviewedLine !== undefined`, push a `vscode.CodeLens` at range `(reviewedLine, 0, reviewedLine, 0)` with title `Do Review` and command `doorstop.doReview`, argument `{ uid, documentUri }` (FR-001, contracts §1.1)
+- [X] T013 [US1] Register the `doorstop.doReview` command in `src/reviewLensProvider.ts`: guard a missing/unusable context with `The requirement UID could not be determined.` and no request (contracts §1.4 precondition 1, which also covers Command Palette invocation with no argument), then `ensureSavedOrConfirm` → `runLensAction` issuing `POST /review` with `{ scope: 'item', target: uid }`
+- [X] T014 [P] [US1] Declare `doorstop.doReview` in `package.json` under `contributes.commands` with title `Doorstop: Do Review`, alongside the existing `doorstop.deriveRequirement` entry
 
 **Checkpoint**: US1 is fully functional and shippable on its own — the derive lens still renders on the same file (FR-012), verifiable by opening any item with a `derived:` field.
 
@@ -83,14 +83,14 @@ No new top-level directory is introduced.
 
 ### Tests for User Story 2
 
-- [ ] T015 [P] [US2] Integration test in `src/test/regressionFixture.test.ts`: execute `doorstop.clearAllSuspicions` for `REQ-007`, then assert `GET /tree` reports `cleared: true` for it and that no other item's link states changed (FR-004)
-- [ ] T016 [P] [US2] Lens-visibility test in `src/test/reviewLensScan.test.ts`: `REQ-007.yml` (one link) yields a "Clear All Suspicions" lens anchored at the `links:` line; `REQ-001.yml` (`links: []`) yields **none** (FR-003, US2 scenario 2)
+- [X] T015 [P] [US2] Integration test in `src/test/regressionFixture.test.ts`: execute `doorstop.clearAllSuspicions` for `REQ-007`, then assert `GET /tree` reports `cleared: true` for it and that no other item's link states changed (FR-004)
+- [X] T016 (superseded by spec 017 Quick Fixes) [P] [US2] Lens-visibility test in `src/test/reviewLensScan.test.ts`: `REQ-007.yml` (one link) yields a "Clear All Suspicions" lens anchored at the `links:` line; `REQ-001.yml` (`links: []`) yields **none** (FR-003, US2 scenario 2)
 
 ### Implementation for User Story 2
 
-- [ ] T017 [US2] Emit the "Clear All Suspicions" lens in `src/reviewLensProvider.ts`: when `scan.linksLine !== undefined` **and** `scan.linkEntries.length > 0`, push a `vscode.CodeLens` at range `(linksLine, 0, linksLine, 0)` with title `Clear All Suspicions` and command `doorstop.clearAllSuspicions`, argument `{ uid, documentUri }` (FR-003, contracts §1.2)
-- [ ] T018 [US2] Register the `doorstop.clearAllSuspicions` command in `src/reviewLensProvider.ts` with the same guard → `ensureSavedOrConfirm` → `runLensAction` sequence, issuing `POST /clear` with `{ scope: 'item', target: uid }` and **no** `parents` field (omitting it is what makes Doorstop clear every link)
-- [ ] T019 [P] [US2] Declare `doorstop.clearAllSuspicions` in `package.json` under `contributes.commands` with title `Doorstop: Clear All Suspicions`
+- [X] T017 (superseded by spec 017 Quick Fixes) [US2] Emit the "Clear All Suspicions" lens in `src/reviewLensProvider.ts`: when `scan.linksLine !== undefined` **and** `scan.linkEntries.length > 0`, push a `vscode.CodeLens` at range `(linksLine, 0, linksLine, 0)` with title `Clear All Suspicions` and command `doorstop.clearAllSuspicions`, argument `{ uid, documentUri }` (FR-003, contracts §1.2)
+- [X] T018 [US2] Register the `doorstop.clearAllSuspicions` command in `src/reviewLensProvider.ts` with the same guard → `ensureSavedOrConfirm` → `runLensAction` sequence, issuing `POST /clear` with `{ scope: 'item', target: uid }` and **no** `parents` field (omitting it is what makes Doorstop clear every link)
+- [X] T019 [P] [US2] Declare `doorstop.clearAllSuspicions` in `package.json` under `contributes.commands` with title `Doorstop: Clear All Suspicions`
 
 **Checkpoint**: US1 and US2 both work independently.
 
@@ -104,16 +104,16 @@ No new top-level directory is introduced.
 
 ### Tests for User Story 3
 
-- [ ] T020 [P] [US3] Add the missing positive server test in `server/tests/test_review.py`: create an item linked to two parents, `POST /clear` with `{"scope": "item", "target": child, "parents": [parentA]}`, assert via `GET /tree` that parentA's link is no longer suspect and **parentB's still is** — the selective-clear behaviour this story depends on and which the suite does not currently cover (research.md §1)
-- [ ] T021 [P] [US3] Integration test in `src/test/regressionFixture.test.ts`: execute `doorstop.clearSuspicion` for `REQ-010` with `parentUid` `REQ-001`, then assert `GET /tree` shows `suspect: false` for the `REQ-001` link and `suspect: true` for the `REQ-002` link (FR-006, SC-003)
-- [ ] T022 [P] [US3] Dangling-parent test in `src/test/regressionFixture.test.ts`: execute `doorstop.clearSuspicion` for `REQ-009` (links to nonexistent `REQ-999`), assert the server's 400 `DOORSTOP_ERROR` surfaces as an error and the file is unchanged (US3 scenario 3)
-- [ ] T023 [P] [US3] Lens-count test in `src/test/reviewLensScan.test.ts`: `REQ-010.yml` yields exactly two "Clear the Suspicion" lenses, on the two link-entry lines, carrying `parentUid` `REQ-001` and `REQ-002` respectively (FR-005)
+- [X] T020 [P] [US3] Add the missing positive server test in `server/tests/test_review.py`: create an item linked to two parents, `POST /clear` with `{"scope": "item", "target": child, "parents": [parentA]}`, assert via `GET /tree` that parentA's link is no longer suspect and **parentB's still is** — the selective-clear behaviour this story depends on and which the suite does not currently cover (research.md §1)
+- [X] T021 [P] [US3] Integration test in `src/test/regressionFixture.test.ts`: execute `doorstop.clearSuspicion` for `REQ-010` with `parentUid` `REQ-001`, then assert `GET /tree` shows `suspect: false` for the `REQ-001` link and `suspect: true` for the `REQ-002` link (FR-006, SC-003)
+- [X] T022 [P] [US3] Dangling-parent test in `src/test/regressionFixture.test.ts`: execute `doorstop.clearSuspicion` for `REQ-009` (links to nonexistent `REQ-999`), assert the server's 400 `DOORSTOP_ERROR` surfaces as an error and the file is unchanged (US3 scenario 3)
+- [X] T023 (superseded by spec 017 Quick Fixes) [P] [US3] Lens-count test in `src/test/reviewLensScan.test.ts`: `REQ-010.yml` yields exactly two "Clear the Suspicion" lenses, on the two link-entry lines, carrying `parentUid` `REQ-001` and `REQ-002` respectively (FR-005)
 
 ### Implementation for User Story 3
 
-- [ ] T024 [US3] Emit one "Clear the Suspicion" lens per link entry in `src/reviewLensProvider.ts`: for each `entry` in `scan.linkEntries`, push a `vscode.CodeLens` at range `(entry.line, 0, entry.line, 0)` with title `Clear the Suspicion` and command `doorstop.clearSuspicion`, argument `{ uid, parentUid: entry.parentUid, documentUri }` (FR-005, contracts §1.3)
-- [ ] T025 [US3] Register the `doorstop.clearSuspicion` command in `src/reviewLensProvider.ts` with the same guard → `ensureSavedOrConfirm` → `runLensAction` sequence, issuing `POST /clear` with `{ scope: 'item', target: uid, parents: [parentUid] }`; treat `parentUid` as untrusted text and let the server reject unknown UIDs rather than pre-validating client-side (research.md §2, data-model.md invariant 4)
-- [ ] T026 [P] [US3] Declare `doorstop.clearSuspicion` in `package.json` under `contributes.commands` with title `Doorstop: Clear the Suspicion`
+- [X] T024 (superseded by spec 017 Quick Fixes) [US3] Emit one "Clear the Suspicion" lens per link entry in `src/reviewLensProvider.ts`: for each `entry` in `scan.linkEntries`, push a `vscode.CodeLens` at range `(entry.line, 0, entry.line, 0)` with title `Clear the Suspicion` and command `doorstop.clearSuspicion`, argument `{ uid, parentUid: entry.parentUid, documentUri }` (FR-005, contracts §1.3)
+- [X] T025 [US3] Register the `doorstop.clearSuspicion` command in `src/reviewLensProvider.ts` with the same guard → `ensureSavedOrConfirm` → `runLensAction` sequence, issuing `POST /clear` with `{ scope: 'item', target: uid, parents: [parentUid] }`; treat `parentUid` as untrusted text and let the server reject unknown UIDs rather than pre-validating client-side (research.md §2, data-model.md invariant 4)
+- [X] T026 [P] [US3] Declare `doorstop.clearSuspicion` in `package.json` under `contributes.commands` with title `Doorstop: Clear the Suspicion`
 
 **Checkpoint**: All three user stories are independently functional.
 
@@ -125,13 +125,13 @@ No new top-level directory is introduced.
 
 **Behavioural contract**: `doorstop.deriveRequirement` keeps its command ID, both accepted argument shapes, and its user-visible behaviour. Only its data source changes.
 
-- [ ] T027 Add a `GET /tree`-backed document lookup to `src/deriveProvider.ts` following the pattern (and explanatory comment style) of `buildItemIndex()` in [definitionProvider.ts:30-57](../../src/definitionProvider.ts#L30-L57), reading `prefix`, `markerPath`, and `parentPrefix` from the existing `TreeResponse` type in `src/doorstopTypes.ts`
-- [ ] T028 Replace `getSourceDocumentPrefix()` in [deriveProvider.ts:111-119](../../src/deriveProvider.ts#L111-L119) with a lookup of the source UID in the `GET /tree` payload — the document whose `items[]` contains that UID — instead of today's longest-matching-directory guess
-- [ ] T029 Rework `getSameLevelAndBelowPrefixes()` in [deriveProvider.ts:121-148](../../src/deriveProvider.ts#L121-L148) to consume server-reported `parentPrefix` edges rather than client-parsed ones; the depth walk itself stays, since "same level and below" is this extension's own UX policy for which targets to offer, not a Doorstop concept (research.md §5)
-- [ ] T030 Delete `findPrefix()`, `findParent()` ([deriveProvider.ts:37-87](../../src/deriveProvider.ts#L37-L87)), `getDocuments()` ([deriveProvider.ts:89-109](../../src/deriveProvider.ts#L89-L109)), the `DoorstopDocument` interface, and the now-unused `js-yaml` import from `src/deriveProvider.ts`; drop the `workspaceFolder` option if nothing else in the file uses it
-- [ ] T031 Replace the swallowed failure path in `src/deriveProvider.ts` — today an unreadable marker is absorbed by a bare `catch {}` and silently shortens the target list — with an explicit error message when the `GET /tree` fetch fails (Principle III, research.md §5)
-- [ ] T032 [P] Add a derive regression test in `src/test/regressionFixture.test.ts`: from `ARCH-001` (in the child `ARCH` document), assert the offered target prefixes match what the pre-change implementation offered for the same fixture, so the remediation is provably behaviour-preserving
-- [ ] T033 [P] Verify the audit's pass condition: `grep -n "js-yaml\|findFiles" src/deriveProvider.ts` returns nothing (quickstart Scenario 5, step 6)
+- [X] T027 Add a `GET /tree`-backed document lookup to `src/deriveProvider.ts` following the pattern (and explanatory comment style) of `buildItemIndex()` in [definitionProvider.ts:30-57](../../src/definitionProvider.ts#L30-L57), reading `prefix`, `markerPath`, and `parentPrefix` from the existing `TreeResponse` type in `src/doorstopTypes.ts`
+- [X] T028 Replace `getSourceDocumentPrefix()` in [deriveProvider.ts:111-119](../../src/deriveProvider.ts#L111-L119) with a lookup of the source UID in the `GET /tree` payload — the document whose `items[]` contains that UID — instead of today's longest-matching-directory guess
+- [X] T029 Rework `getSameLevelAndBelowPrefixes()` in [deriveProvider.ts:121-148](../../src/deriveProvider.ts#L121-L148) to consume server-reported `parentPrefix` edges rather than client-parsed ones; the depth walk itself stays, since "same level and below" is this extension's own UX policy for which targets to offer, not a Doorstop concept (research.md §5)
+- [X] T030 Delete `findPrefix()`, `findParent()` ([deriveProvider.ts:37-87](../../src/deriveProvider.ts#L37-L87)), `getDocuments()` ([deriveProvider.ts:89-109](../../src/deriveProvider.ts#L89-L109)), the `DoorstopDocument` interface, and the now-unused `js-yaml` import from `src/deriveProvider.ts`; drop the `workspaceFolder` option if nothing else in the file uses it
+- [X] T031 Replace the swallowed failure path in `src/deriveProvider.ts` — today an unreadable marker is absorbed by a bare `catch {}` and silently shortens the target list — with an explicit error message when the `GET /tree` fetch fails (Principle III, research.md §5)
+- [X] T032 [P] Add a derive regression test in `src/test/regressionFixture.test.ts`: from `ARCH-001` (in the child `ARCH` document), assert the offered target prefixes match what the pre-change implementation offered for the same fixture, so the remediation is provably behaviour-preserving
+- [X] T033 [P] Verify the audit's pass condition: `grep -n "js-yaml\|findFiles" src/deriveProvider.ts` returns nothing (quickstart Scenario 5, step 6)
 
 **Checkpoint**: The derive lens now sources all data from the server; the repo has one consistent precedent for how a CodeLens provider gets its data.
 
@@ -139,12 +139,12 @@ No new top-level directory is introduced.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T034 [P] Close the markdown-format risk from research.md §6: add an `itemformat: markdown` document to `testdata/regression` with at least one item carrying `reviewed:` and `links:` in YAML frontmatter — **no markdown-format item exists in the fixture today**, so the `.md` scan path is otherwise unverified
-- [ ] T035 Add a frontmatter-scoping test in `src/test/reviewLensScan.test.ts` proving a `links:` line in Markdown **prose body** produces no lenses while the frontmatter one does
-- [ ] T036 [P] Update `CHANGELOG.md` with the three new lenses and the derive data-source change
-- [ ] T037 [P] Update `README.md` where the existing "+ Derive Requirement" CodeLens is documented, so all four lenses are described together
-- [ ] T038 Run the full quickstart validation in the Extension Development Host: all five scenarios in [quickstart.md](quickstart.md), including the dirty-editor modal (Scenario 4) and the server-down error path (Scenario 1), which are not covered by automated tests
-- [ ] T039 Run the complete gate set green: `npm run compile` (type-check + lint + bundle), `npm test`, and `python -m pytest tests` from `server/` (Constitution Principle V, Development Workflow)
+- [X] T034 [P] Close the markdown-format risk from research.md §6: add an `itemformat: markdown` document to `testdata/regression` with at least one item carrying `reviewed:` and `links:` in YAML frontmatter — **no markdown-format item exists in the fixture today**, so the `.md` scan path is otherwise unverified
+- [X] T035 Add a frontmatter-scoping test in `src/test/reviewLensScan.test.ts` proving a `links:` line in Markdown **prose body** produces no lenses while the frontmatter one does
+- [X] T036 [P] Update `CHANGELOG.md` with the three new lenses and the derive data-source change
+- [X] T037 [P] Update `README.md` where the existing "+ Derive Requirement" CodeLens is documented, so all four lenses are described together
+- [X] T038 (manual — passed by user 2026-10-09) Run the full quickstart validation in the Extension Development Host: all five scenarios in [quickstart.md](quickstart.md), including the dirty-editor modal (Scenario 4) and the server-down error path (Scenario 1), which are not covered by automated tests
+- [X] T039 Run the complete gate set green: `npm run compile` (type-check + lint + bundle), `npm test`, and `python -m pytest tests` from `server/` (Constitution Principle V, Development Workflow)
 
 ---
 
@@ -248,3 +248,13 @@ Task: "Declare doorstop.clearSuspicion in package.json"
   this is what keeps lenses rendering while the server is down or booting
 - Commit after each task or logical group
 - Stop at any checkpoint to validate a story independently
+
+## Phase 8: Convergence
+
+**Purpose**: Constitution Principle VIII (v1.4.0) retrofit: every FR needs a CI-run test carrying a `Spec 013 FR-NNN` trace comment. Note FR-001/003/005 lenses were superseded by spec 017 Quick Fixes; trace those to the Quick Fix tests.
+
+- [ ] T040 CRITICAL Add a test (src/test/regressionFixture.test.ts) that edits a requirement file open in the editor, runs Do Review / Clear, and asserts the open editor text reflects the stored state without reopening, plus the tree view refreshed, with comment `Spec 013 FR-008`, per Constitution VIII / FR-008 (missing)
+- [ ] T041 CRITICAL Add a test (src/test/regressionFixture.test.ts) that runs a review/clear action on a dirty document and asserts unsaved edits are not silently discarded (saved first or action refused with a message), with comment `Spec 013 FR-010`, per Constitution VIII / FR-010 (missing)
+- [ ] T042 CRITICAL Add trace comments `Spec 013 FR-002`, `FR-004`, `FR-006`, `FR-007` to the three Action tests in src/test/regressionFixture.test.ts ("Do Review marks only the target", "Clear All Suspicions", "Clear the Suspicion clears one link") and `FR-006` to `test_clear_with_parents_filter_clears_only_the_named_link` in server/tests/test_review.py, per Constitution VIII (partial)
+- [ ] T043 CRITICAL Add trace comments `Spec 013 FR-001`, `FR-003`, `FR-005` to the Quick Fix tests in src/test/regressionFixture.test.ts (lines ~1072-1117: Do Review offered, one-link vs two-link bulk clear, single-link fix), per Constitution VIII (partial)
+- [ ] T044 CRITICAL Add trace comments `Spec 013 FR-009` to the dangling-link "Clear the Suspicion changes nothing" test (and assert an explicit error message is surfaced if not already), `FR-011` to the marker/non-requirement tests in src/test/reviewLensScan.test.ts, and `FR-012` to "the Derive Requirement lens is unaffected", per Constitution VIII (partial)

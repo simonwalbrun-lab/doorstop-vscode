@@ -13,6 +13,15 @@ const STYLE = `
     text-align: left;
     vertical-align: top;
   }
+  .doorstop-filter-open {
+    margin: 0 0 6px;
+    padding: 2px 10px;
+    color: var(--vscode-button-foreground);
+    background: var(--vscode-button-background);
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+  .doorstop-filter-open:hover { background: var(--vscode-button-hoverBackground); }
   .doorstop-filter-link { color: var(--vscode-textLink-foreground); cursor: pointer; }
   .doorstop-filter-link:hover { text-decoration: underline; }
   .doorstop-filter-link:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
@@ -62,6 +71,10 @@ export const activate = (context) => ({
         row.insertCell().textContent = value;
       }
     }
-    element.append(style, count, table);
+    // Spec 030: the whole result as one document view (FR-009).
+    const openAll = cell('button', 'Open as document');
+    openAll.className = 'doorstop-filter-open';
+    openAll.addEventListener('click', () => context.postMessage?.({ type: 'openDocument', uids: items.map(item => item.uid) }));
+    element.append(style, count, openAll, table);
   },
 });

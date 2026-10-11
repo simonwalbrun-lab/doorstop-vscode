@@ -10,3 +10,4 @@ server/**/*.egg-info/
 .env*
 .venv/
 __pycache__/
+.claude/settings.json

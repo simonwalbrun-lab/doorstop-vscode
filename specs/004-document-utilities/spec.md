@@ -121,7 +121,7 @@ destination, confirm a rendered document is produced.
 - **FR-006**: Users MUST be able to export a chosen document's items to YAML,
   CSV, TSV, or XLSX at a destination they choose.
 - **FR-007**: Users MUST be able to publish a chosen document as rendered
-  Markdown, HTML, or LaTeX output at a destination they choose.
+  Markdown, HTML, or LaTeX output at a destination they choose. (Amended by spec 027: PDF is a fourth publish format, converted from the published HTML.)
 - **FR-008**: System MUST report the resulting output location for
   Export/Publish, even when the underlying renderer's actual write location
   differs from the requested destination.
@@ -152,4 +152,4 @@ destination, confirm a rendered document is produced.
   time.
 - Format support (YAML/CSV/TSV/XLSX for import/export; Markdown/HTML/LaTeX for
   publish) is bounded by what the underlying Doorstop library supports today;
-  adding new formats is out of scope for this spec.
+  adding new formats is out of scope for this spec (spec 027 later added PDF for publish).

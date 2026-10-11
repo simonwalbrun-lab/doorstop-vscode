@@ -6,6 +6,7 @@ import { registerHoverProvider } from './hoverProvider';
 import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
 import { DoorstopServer, installServerPackage, isServerPackageInstalled, SERVER_PACKAGE_NAME } from './doorstopServer';
 import { initTiming, registerCommand } from './timing';
+import { withDelayedProgress } from './progress';
 import { registerDeriveProvider } from './deriveProvider';
 import { registerReviewCodeActionProvider } from './reviewCodeActionProvider';
 import { registerReviewCommands } from './reviewLensProvider';
@@ -17,6 +18,7 @@ import { ProblemsProvider, registerProblemsProvider } from './problemsProvider';
 import { DocumentViewHandle, registerDocumentView } from './documentViewProvider';
 import { registerDocumentViewLanguage } from './documentViewLanguage';
 import { registerFilterNotebook } from './filterNotebook';
+import { getActiveInterpreter, PythonEnvironmentsApi, sameInterpreter, watchInterpreter } from './pythonEnvironment';
 interface DoorstopDiagramDocument extends vscode.CustomDocument {
   diagram: unknown;
 }
@@ -36,38 +38,25 @@ export async function activate(context: vscode.ExtensionContext) {
   void vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', autoRevealEnabled);
 
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-  const findDoorstopMarker = async (): Promise<boolean> => {
-    if (!workspaceFolder) {
-      return false;
-    }
-    const markers = await vscode.workspace.findFiles(
-      new vscode.RelativePattern(workspaceFolder, '**/.doorstop.yml'),
-      '**/{node_modules,.git,out,dist,.venv,venv}/**',
-      1
-    );
-    return markers.length > 0;
-  };
-
-  const getActivePythonPath = async (): Promise<string> => {
+  // Spec 029 FR-011/FR-012: only the interpreter of the Python environment VS Code
+  // has activated is ever used; no fallback. null while the extension is missing.
+  const getPythonApi = async (): Promise<PythonEnvironmentsApi | undefined> => {
     const pythonExtension = vscode.extensions.getExtension('ms-python.python');
     if (!pythonExtension) {
-      throw new Error('The Python extension is not installed.');
+      return undefined;
     }
     if (!pythonExtension.isActive) {
       await pythonExtension.activate();
     }
-
-    const api = pythonExtension.exports as {
-      environments?: {
-        getActiveEnvironmentPath(uri?: vscode.Uri): Promise<{ path?: string } | undefined>;
-      };
-    };
-    const environment = await api.environments?.getActiveEnvironmentPath(workspaceFolder?.uri);
-    if (!environment?.path) {
-      throw new Error('No active Python environment was selected for this workspace.');
-    }
-    return environment.path;
+    const exports = pythonExtension.exports as { ready?: Promise<void>; environments?: PythonEnvironmentsApi };
+    await exports.ready;
+    return exports.environments;
   };
+  const getActivePythonPath = async (): Promise<string | undefined> => {
+    const api = await getPythonApi();
+    return api ? getActiveInterpreter(api, workspaceFolder?.uri) : undefined;
+  };
+  let refreshViews: () => void = () => undefined;
 
   // Declared before every closure that uses it. It stays undefined until the
   // workspaceFolder block below assigns it, so the optional calls on it are
@@ -81,11 +70,12 @@ export async function activate(context: vscode.ExtensionContext) {
   // duplicating the spawn/report logic.
   const spawnServerProcess = async (pythonPath: string, restart: boolean): Promise<void> => {
     try {
-      if (restart) {
-        await doorstopServer.restart(workspaceFolder!.uri.fsPath, pythonPath);
-      } else {
-        await doorstopServer.start(workspaceFolder!.uri.fsPath, pythonPath);
-      }
+      await withDelayedProgress(
+        restart ? 'Restarting Doorstop server…' : 'Starting Doorstop server…',
+        () => restart
+          ? doorstopServer.restart(workspaceFolder!.uri.fsPath, pythonPath)
+          : doorstopServer.start(workspaceFolder!.uri.fsPath, pythonPath)
+      );
       console.log('[Doorstop][server] Server is ready at 127.0.0.1:7867');
       void vscode.window.showInformationMessage('Doorstop server is ready.');
       // A restart means the tree may have changed underneath us; on the first
@@ -114,6 +104,13 @@ export async function activate(context: vscode.ExtensionContext) {
       return;
     }
 
+    // FR-013: the prompt may have been open while the environment changed. Install
+    // nothing into the old one; the environment watcher below restarts the check
+    // for the new one.
+    if (!sameInterpreter(await getActivePythonPath(), pythonPath)) {
+      return;
+    }
+
     const outcome = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
@@ -129,7 +126,7 @@ export async function activate(context: vscode.ExtensionContext) {
     } else {
       console.error('[Doorstop][server] Package install failed:', outcome.output);
       // Nothing is recorded here beyond this call returning, so the next
-      // server-start or "Doorstop: Restart Server" attempt re-checks and
+      // server-start or "Doorstop: Restart Extension" attempt re-checks and
       // re-prompts rather than remembering this as a permanent failure (FR-007).
       void vscode.window.showErrorMessage(
         `Failed to install ${SERVER_PACKAGE_NAME}: ${outcome.output.trim() || 'unknown error'}`
@@ -137,18 +134,8 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  const startDoorstopServer = async (restart = false): Promise<void> => {
-    if (!workspaceFolder || !(await findDoorstopMarker())) {
-      void vscode.window.showWarningMessage('No .doorstop.yml project was found in the workspace.');
-      return;
-    }
-
-    let pythonPath: string;
-    try {
-      pythonPath = await getActivePythonPath();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      void vscode.window.showWarningMessage(`Doorstop server unavailable: ${message}`);
+  const startDoorstopServer = async (pythonPath: string, restart = false): Promise<void> => {
+    if (!workspaceFolder) {
       return;
     }
 
@@ -162,18 +149,53 @@ export async function activate(context: vscode.ExtensionContext) {
     await spawnServerProcess(pythonPath, restart);
   };
 
-  const restartServerCommand = registerCommand(
-    'doorstop.restartServer',
-    () => startDoorstopServer(true)
-  );
-  context.subscriptions.push(restartServerCommand);
+  let waitingNoticeShown = false;
+  const notifyWaitingForPython = (): void => {
+    if (!waitingNoticeShown) {
+      waitingNoticeShown = true;
+      void vscode.window.showInformationMessage(
+        'Doorstop: waiting for the Python environment to be activated. The server starts as soon as it is.'
+      );
+    }
+  };
+
+  // Spec 029 FR-014: re-resolve the environment, re-check the package, restart the
+  // server and refresh the views.
+  const restartExtensionCommand = registerCommand('doorstop.restartExtension', async () => {
+    const pythonPath = await getActivePythonPath();
+    if (pythonPath) {
+      await startDoorstopServer(pythonPath, true);
+    } else {
+      notifyWaitingForPython();
+    }
+    refreshViews();
+  });
+  context.subscriptions.push(restartExtensionCommand);
 
   if (workspaceFolder) {
-    await startDoorstopServer();
+    // Starts now if an environment is active, otherwise as soon as one becomes
+    // active (FR-011, FR-012); a later switch restarts with the new interpreter.
+    // Only the first start is awaited so activation never blocks on the wait.
+    let started = false;
+    const api = await getPythonApi();
+    if (!api) {
+      void vscode.window.showWarningMessage('Doorstop server unavailable: The Python extension is not installed.');
+    } else {
+      context.subscriptions.push(await watchInterpreter(api, workspaceFolder.uri, async pythonPath => {
+        const restart = started;
+        started = true;
+        await startDoorstopServer(pythonPath, restart);
+      }, notifyWaitingForPython));
+    }
   }
 
   const treeProvider = new DoorstopTreeProvider(doorstopServer);
   const commandsProvider = new DoorstopCommandsProvider();
+  refreshViews = () => {
+    treeProvider.refresh();
+    commandsProvider.refresh();
+    problemsProvider?.scheduleRefresh();
+  };
   context.subscriptions.push(...registerDoorstopCommands({
     context,
     server: doorstopServer,
@@ -205,7 +227,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // Forces a full re-check, bypassing the debounce (FR-013).
     context.subscriptions.push(registerCommand(
       'doorstop.recheckProblems',
-      () => problemsProvider?.refreshNow()
+      () => withDelayedProgress('Doorstop: Checking requirements…', () => problemsProvider?.refreshNow() ?? Promise.resolve())
     ));
     // A problem kind switched on or off in the settings shows at once (spec 020 FR-004).
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
@@ -266,22 +288,9 @@ export async function activate(context: vscode.ExtensionContext) {
   const diagramEditorProvider: vscode.CustomEditorProvider<DoorstopDiagramDocument> = {
     onDidChangeCustomDocument: documentChangeEvent.event,
     async openCustomDocument(uri, openContext) {
-      // After a crash or reload VS Code hands back the backup it last took, and the
-      // editor must reopen from that hot-exit copy rather than from the (stale)
-      // file on disk - otherwise every unsaved diagram edit is silently lost.
-      // backupCustomDocument returns the destination URI as the backup id.
-      const backupUri = openContext.backupId ? vscode.Uri.parse(openContext.backupId) : undefined;
-      let diagram;
-      if (backupUri) {
-        try {
-          diagram = await DoorstopDiagramPanel.readDiagram(backupUri);
-        } catch (e) {
-          console.warn('[Doorstop][diagram] Backup could not be read, falling back to the saved file:', e);
-        }
-      }
       return {
         uri,
-        diagram: diagram ?? await DoorstopDiagramPanel.readDiagram(uri),
+        diagram: await DoorstopDiagramPanel.readDiagramOrBackup(uri, openContext.backupId),
         dispose() { }
       };
     },
@@ -365,7 +374,7 @@ export async function activate(context: vscode.ExtensionContext) {
       return;
     }
     if (!DoorstopDiagramPanel.currentPanel) {
-      vscode.window.showInformationMessage('Open the Doorstop Traceability Graph first (Doorstop: Open Traceability Graph).');
+      vscode.window.showInformationMessage('Open a diagram file (*.doorstop.json) or create one with "New Diagram" first.');
       return;
     }
     DoorstopDiagramPanel.currentPanel.addRequirementToDiagram(item.resourceUri.fsPath);
@@ -434,23 +443,9 @@ export async function activate(context: vscode.ExtensionContext) {
     await vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', true);
   });
 
-  const showDiagramCommand = registerCommand('doorstop.showDiagram', async () => {
-    const [uri] = (await vscode.window.showOpenDialog({
-      defaultUri: workspaceFolder?.uri,
-      filters: { 'Doorstop Diagram': ['json'] },
-      canSelectMany: false,
-      openLabel: 'Open Diagram'
-    })) ?? [];
-    if (!uri) {
-      return;
-    }
-    await vscode.commands.executeCommand('vscode.openWith', uri, 'doorstop.diagram');
-  });
-
   context.subscriptions.push(
     treeView,
     commandsView,
-    showDiagramCommand,
     activateRequirementCommand,
     toggleAutoRevealCommand,
     enableAutoRevealCommand

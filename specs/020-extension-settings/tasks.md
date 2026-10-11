@@ -91,3 +91,13 @@ stories append a section to that array.
 2. Add US2 (T005–T007) → validate.
 3. Add US3 (T008–T012) → validate.
 4. Polish (T013–T015).
+
+## Phase 7: Convergence
+
+Constitution v1.4.0 Principle VIII: every FR needs an automated CI test carrying a `Spec 020 FR-NNN` trace comment.
+
+- [ ] T017 CRITICAL Add a manifest test in `src/test/` (reads `package.json` `contributes.configuration`) asserting: one boolean per problem check id defaulting to true with a description (`# Spec 020 FR-001`, `FR-002`); `doorstop.newDocument` itemFormat enum yaml/markdown default yaml, separator enum ""/-/./_ default "", digits integer min 1 max 9 default 3 (`FR-005`, `FR-008`); `doorstop.publish.template` string default "" (`FR-009`); all settings in "Doorstop"-titled configuration sections with scope not `machine` (`FR-012`) per Constitution VIII (missing)
+- [ ] T018 CRITICAL Add a test in `src/test/regressionFixture.test.ts` that changes `doorstop.newDocument.*` settings and asserts existing documents' config is unchanged (`# Spec 020 FR-007`) per Constitution VIII (missing)
+- [ ] T019 CRITICAL Add a test that, with all settings at default, Create Document, Publish and the Problems panel behave as before (`# Spec 020 FR-013`) per Constitution VIII (missing)
+- [ ] T020 CRITICAL Add a test that `doorstop.publish` sends `template` in the request body when `doorstop.publish.template` is non-empty and omits it when empty (`# Spec 020 FR-010`), and that a failing template error message names the template and the setting `doorstop.publish.template` (`# Spec 020 FR-011`) per Constitution VIII (partial: only server-side 400 is tested)
+- [ ] T021 CRITICAL Add trace comments to existing tests: `# Spec 020 FR-001`/`FR-003`/`FR-004` on 'Settings: an unticked problem kind...' (`src/test/regressionFixture.test.ts`); `# Spec 020 FR-006` on 'Create Document applies the new-document settings'; `# Spec 020 FR-010`/`FR-011` on `test_publish_with_missing_template_is_a_doorstop_error` (`server/tests/test_documents.py`); existing comments use "(020 US1)" style, not the required format per Constitution VIII (partial)

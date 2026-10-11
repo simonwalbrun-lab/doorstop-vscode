@@ -10,15 +10,43 @@ import * as vscode from 'vscode';
 
 import { registerDefinitionProvider } from '../definitionProvider';
 import { buildDeriveTargets, DocumentHierarchyNode } from '../deriveProvider';
+import { DoorstopCommandsProvider } from '../commandsProvider';
+import { DoorstopDiagramPanel } from '../diagrammPanel';
 import { DoorstopServer } from '../doorstopServer';
 import { TreeResponse } from '../doorstopTypes';
 
 suite('Extension Test Suite', () => {
 	vscode.window.showInformationMessage('Start all tests.');
 
-	test('Sample test', () => {
-		assert.strictEqual(-1, [1, 2, 3].indexOf(5));
-		assert.strictEqual(-1, [1, 2, 3].indexOf(0));
+	suite('Diagram hot-exit backup recovery (spec 008)', () => {
+		const diagramAt = (x: number) => JSON.stringify({ nodes: [{ id: 'REQ-001', x, y: 0 }], edges: [] });
+		let dir: string;
+		let saved: vscode.Uri;
+
+		setup(async () => {
+			dir = await fs.mkdtemp(path.join(os.tmpdir(), 'doorstop-backup-'));
+			saved = vscode.Uri.file(path.join(dir, 'saved.doorstop.json'));
+			await fs.writeFile(saved.fsPath, diagramAt(10));
+		});
+		teardown(() => fs.rm(dir, { recursive: true, force: true }));
+
+		test('reopens from the backup, not the stale saved file', async () => {
+			const backup = vscode.Uri.file(path.join(dir, 'backup.doorstop.json'));
+			await fs.writeFile(backup.fsPath, diagramAt(99));
+			// backupCustomDocument hands VS Code `destination.toString()` as the id.
+			const diagram = await DoorstopDiagramPanel.readDiagramOrBackup(saved, backup.toString());
+			assert.strictEqual(diagram.nodes[0].x, 99);
+		});
+
+		test('falls back to the saved file when the backup is missing or invalid', async () => {
+			const missing = vscode.Uri.file(path.join(dir, 'missing.doorstop.json'));
+			const invalid = vscode.Uri.file(path.join(dir, 'invalid.doorstop.json'));
+			await fs.writeFile(invalid.fsPath, '{ not json');
+			for (const backup of [missing, invalid]) {
+				const diagram = await DoorstopDiagramPanel.readDiagramOrBackup(saved, backup.toString());
+				assert.strictEqual(diagram.nodes[0].x, 10);
+			}
+		});
 	});
 
 	test('Auto-reveal toggle suppresses reveal on both gated paths', async function () {
@@ -358,5 +386,110 @@ suite('Go to Definition & Usage Navigation', () => {
 		await waitForActiveEditor(uri => uri.fsPath === childUri.fsPath);
 
 		assert.strictEqual(vscode.window.activeTextEditor?.selection.active.line, linkLine);
+	});
+});
+
+suite('Diagram path reconciliation (spec 025)', () => {
+	const root = path.join(os.tmpdir(), 'doorstop-025');
+	const oldPath = path.join(root, 'a', 'REQ-001.yml');
+	const newPath = path.join(root, 'b', 'REQ-001.yml');
+	const diagramAt = (fileUri: string) => ({
+		nodes: [{ id: 'REQ-001', fileUri, x: 12, y: 34 }],
+		edges: [{ from: 'REQ-002', to: 'REQ-001' }]
+	});
+
+	test('a moved item gets its new path', () => {
+		const input = diagramAt(oldPath);
+		const result = DoorstopDiagramPanel.reconcilePaths(input, { 'REQ-001': { path: newPath } });
+		assert.deepStrictEqual(result.corrected, [{ uid: 'REQ-001', from: oldPath, to: newPath }]);
+		assert.deepStrictEqual(result.unresolved, []);
+		assert.strictEqual(result.diagram.nodes[0].fileUri, newPath);
+		assert.strictEqual(result.diagram.nodes[0].x, 12);
+		assert.strictEqual(result.diagram.nodes[0].y, 34);
+		assert.deepStrictEqual(result.diagram.edges, input.edges);
+		assert.strictEqual(input.nodes[0].fileUri, oldPath, 'the input diagram is not mutated');
+	});
+
+	test('matching paths change nothing and return the same diagram object', () => {
+		const input = diagramAt(oldPath);
+		const result = DoorstopDiagramPanel.reconcilePaths(input, { 'REQ-001': { path: oldPath } });
+		assert.deepStrictEqual(result.corrected, []);
+		assert.deepStrictEqual(result.unresolved, []);
+		assert.strictEqual(result.diagram, input);
+	});
+
+	// The server and path.resolve can disagree on drive-letter case (`c:` vs `C:`);
+	// on Windows that must not count as a move, or every open would dirty the diagram.
+	test('path case follows the platform: ignored on Windows, significant elsewhere', () => {
+		const lower = path.join(root, 'a', 'req-001.yml');
+		const upper = path.join(root, 'a', 'REQ-001.yml');
+		const input = diagramAt(lower);
+		const result = DoorstopDiagramPanel.reconcilePaths(input, { 'REQ-001': { path: upper } });
+		if (process.platform === 'win32') {
+			assert.deepStrictEqual(result.corrected, []);
+			assert.strictEqual(result.diagram, input);
+		} else {
+			assert.strictEqual(result.corrected.length, 1);
+		}
+	});
+
+	test('an unknown UID is reported and left untouched', () => {
+		const input = { nodes: [{ id: 'NOPE-999', fileUri: oldPath, x: 1, y: 2 }], edges: [] };
+		const result = DoorstopDiagramPanel.reconcilePaths(input, { 'REQ-001': { path: newPath } });
+		assert.deepStrictEqual(result.unresolved, ['NOPE-999']);
+		assert.deepStrictEqual(result.corrected, []);
+		assert.strictEqual(result.diagram, input);
+	});
+
+	test('an empty diagram yields empty results', () => {
+		const result = DoorstopDiagramPanel.reconcilePaths({ nodes: [], edges: [] }, {});
+		assert.deepStrictEqual(result.corrected, []);
+		assert.deepStrictEqual(result.unresolved, []);
+	});
+});
+
+suite('Diagram entry point (spec 025)', () => {
+	interface MenuEntry { command: string; when?: string }
+	let manifest: any;
+
+	suiteSetup(async () => {
+		manifest = JSON.parse(await fs.readFile(path.resolve(__dirname, '..', '..', 'package.json'), 'utf8'));
+	});
+
+	test('"Open Traceability Graph" is gone from commands and every menu', () => {
+		const commands: Array<{ command: string }> = manifest.contributes.commands;
+		assert.ok(!commands.some(c => c.command === 'doorstop.showDiagram'));
+		for (const [menu, entries] of Object.entries<MenuEntry[]>(manifest.contributes.menus)) {
+			assert.ok(!entries.some(e => e.command === 'doorstop.showDiagram'), `still referenced in ${menu}`);
+		}
+	});
+
+	test('the TreeView title bar has no diagram buttons', () => {
+		const titleEntries: MenuEntry[] = manifest.contributes.menus['view/title'];
+		const diagramButtons = titleEntries.filter(e => e.command.includes('Diagram') && e.when?.includes('doorstop.treeView'));
+		assert.deepStrictEqual(diagramButtons, []);
+	});
+
+	test('New Diagram is still contributed, under the panel\'s name', () => {
+		const newDiagram = manifest.contributes.commands.find((c: { command: string }) => c.command === 'doorstop.newDiagram');
+		assert.ok(newDiagram, 'doorstop.newDiagram must stay contributed');
+		assert.strictEqual(newDiagram.title, 'Doorstop: New Diagram');
+	});
+
+	test('Add to Diagram stays in the TreeView item context menu (FR-005)', () => {
+		const itemMenu: MenuEntry[] = manifest.contributes.menus['view/item/context'];
+		assert.ok(itemMenu.some(e => e.command === 'doorstop.addToDiagram' && e.when?.includes('view == doorstop.treeView')));
+	});
+
+	test('*.doorstop.json files open in the diagram editor by default (FR-004)', () => {
+		const editor = manifest.contributes.customEditors.find((e: { viewType: string }) => e.viewType === 'doorstop.diagram');
+		assert.ok(editor, 'doorstop.diagram custom editor must be contributed');
+		assert.strictEqual(editor.priority, 'default');
+		assert.ok(editor.selector.some((s: { filenamePattern: string }) => s.filenamePattern === '*.doorstop.json'));
+	});
+
+	test('the Commands panel lists New Diagram', () => {
+		const items = new DoorstopCommandsProvider().getChildren();
+		assert.ok(items.some(item => item.command?.command === 'doorstop.newDiagram'));
 	});
 });

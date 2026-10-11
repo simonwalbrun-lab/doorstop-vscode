@@ -197,6 +197,8 @@ export function registerFilterNotebook(context: vscode.ExtensionContext, server:
     vscode.notebooks.createRendererMessaging(RENDERER_ID).onDidReceiveMessage(event => {
       if (event.message?.type === 'open' && typeof event.message.path === 'string') {
         void openFilterItem(event.message.path);
+      } else if (event.message?.type === 'openDocument') {
+        void vscode.commands.executeCommand('doorstop.openFilterAsDocument', event.message.uids);
       }
     }),
     registerCommand('doorstop.newFilterNotebook', async () => {

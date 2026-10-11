@@ -55,8 +55,7 @@ the tree scrolls to and highlights the matching node.
 **Acceptance Scenarios**:
 
 1. **Given** a requirement file is opened in the active editor, **When** the active
-   editor changes, **Then** the Explorer tree reveals and selects the corresponding
-   item node.
+   editor changes, **Then**, while auto-reveal is enabled (default on; switchable with the Explorer title-bar toggle, spec 010), the Explorer tree reveals and selects the corresponding item node.
 
 ---
 
@@ -64,7 +63,7 @@ the tree scrolls to and highlights the matching node.
 
 As a developer, I want a second panel listing the main Doorstop actions (Add,
 Reorder, Link, Clear, Review, Import, Export, Publish) as clickable rows, as an
-alternative to hunting through the Command Palette or context menus.
+alternative to hunting through the Command Palette or context menus. The list is not exhaustive; later specs add rows (021: Generate Status Report; 022: New Filter Notebook; 025: New Diagram).
 
 **Why this priority**: Convenience/discoverability for less-frequent actions.
 
@@ -127,7 +126,7 @@ confirm a new document exists in the tree afterward.
 - **FR-004**: Users MUST be able to manually refresh the tree to reload current
   data from the server.
 - **FR-005**: System MUST automatically reveal and select the tree node matching
-  the active editor's requirement file, when the active editor changes.
+  the active editor's requirement file, when the active editor changes, while auto-reveal is enabled (default on; user can switch it off with the Explorer title-bar toggle, spec 010).
 - **FR-006**: System MUST provide a separate panel listing the primary Doorstop
   actions as directly clickable entries.
 - **FR-007**: Users MUST be able to create a new Doorstop document by specifying a
@@ -169,8 +168,4 @@ confirm a new document exists in the tree afterward.
   unique functionality.
 - Sorting within a document is by level then UID; no user-configurable sort order
   is assumed in scope.
-- FR-009/FR-010 (parent-document quick-select on creation) describe intended
-  behavior clarified 2026-09-09, not what "Doorstop: Create Document" does
-  today — today it only prompts for a prefix and destination folder, with no
-  parent selection step. This is a real gap to close, not a documentation
-  correction; run `/speckit-plan` against this spec before implementing it.
+- FR-009 to FR-011 (parent quick-select on creation, explicit "None (create as root document)" entry, cancel on dismiss) are implemented (`chooseParentPrefix` in `src/doorstopCommands.ts`).

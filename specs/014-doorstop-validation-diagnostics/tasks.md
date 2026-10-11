@@ -270,3 +270,15 @@ After Foundational: Developer A takes US1+US2 (link-focused, shared anchoring co
 - **Out of scope**: quick fixes from a problem (e.g. "clear the suspicion" from the warning) — the spec limits this feature to display; the dedicated commands from feature 013 cover the actions
 - **Do not implement** `linked_to_self`, `link_cycle` or `child_link_inactive`; T013 reserves their ids and nothing more
 - Commit after each task or logical group; stop at any checkpoint to validate a story independently
+
+## Phase 9: Convergence
+
+**Purpose**: Constitution Principle VIII (v1.4.0) retrofit. No `Spec 014 FR-NNN` trace comment exists on any test yet.
+
+- [ ] T057 CRITICAL Add `# Spec 014 FR-NNN` trace comments (listing every FR each verifies) above each validation test in `server/tests/test_validation.py` (FR-001, FR-003, FR-004, FR-005, FR-006..FR-009, FR-011, FR-015, FR-017) per Constitution VIII (partial)
+- [ ] T058 CRITICAL Add `// Spec 014 FR-NNN` trace comments to the `Problems:` tests in `src/test/regressionFixture.test.ts` (lines ~880-1010: FR-002, FR-003, FR-004, FR-009, FR-012, FR-014, FR-016 as applicable) per Constitution VIII (partial)
+- [ ] T059 Add an extension test for the `doorstop.recheckProblems` command forcing a refresh that bypasses debounce, tagged `// Spec 014 FR-013`, in `src/test/regressionFixture.test.ts` per FR-013 (missing)
+- [ ] T060 Add an extension test that diagnostics for a deleted requirement file are cleared, tagged `// Spec 014 FR-016`, per FR-016 (missing)
+- [ ] T061 Add extension tests for the remaining anchors (`derived`, `links` block, `reviewed`, `level`, `ref`/`references` per FR-007/FR-008) and the FR-010 start-of-content fallback when the anchored field is absent, tagged `// Spec 014 FR-006, FR-007, FR-008, FR-010` per FR-006 (partial)
+- [ ] T062 Add an extension test that an unknown-check issue (FR-011) and a multi-UID issue (FR-005, duplicate_level) surface as diagnostics on each affected file with identical message/severity, tagged `// Spec 014 FR-005, FR-011` per FR-011 (partial)
+- [ ] T063 Add an extension test that an extension-initiated action (e.g. review or clear-suspect command) refreshes diagnostics, tagged `// Spec 014 FR-012` per FR-012 (partial)

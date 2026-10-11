@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { DoorstopServer } from './doorstopServer';
+import { withDelayedProgress } from './progress';
 import { measure, registerCommand } from './timing';
 import { TreeResponse } from './doorstopTypes';
 import { RequirementTreeItem } from './requirementTree';
@@ -280,14 +281,16 @@ export function registerDeriveProvider(
       const target = choice.label;
 
       try {
-        const addResult = await options.server.request<{ uid: string; path: string }>(
-          'POST', `/documents/${encodeURIComponent(target)}/items`, {}
-        );
+        const addResult = await withDelayedProgress('Doorstop: Derive Requirement…', async () => {
+          const added = await options.server.request<{ uid: string; path: string }>(
+            'POST', `/documents/${encodeURIComponent(target)}/items`, {}
+          );
+          await options.server.request(
+            'POST', `/items/${encodeURIComponent(added.uid)}/links`, { parentUid: deriveContext.sourceUid }
+          );
+          return added;
+        });
         const childUid = addResult.uid;
-
-        await options.server.request(
-          'POST', `/items/${encodeURIComponent(childUid)}/links`, { parentUid: deriveContext.sourceUid }
-        );
 
         options.onChanged?.();
         void vscode.window.showInformationMessage(`${childUid} was derived from ${deriveContext.sourceUid}.`);

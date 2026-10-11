@@ -1,0 +1,961 @@
+<!doctype html><meta charset="utf-8"><title>Spec Kit workflow</title><style>
+body{margin:0;background:#e5e7eb;font-family:system-ui,sans-serif}
+.frame{width:1000px;height:820px;margin:16px auto;background:#fff;display:flex;flex-direction:column;overflow:hidden}
+.head{padding:14px 24px;background:#111827;color:#fff;font-size:20px}
+.head b{color:#93c5fd;font-family:monospace}
+.top{flex:0 0 25%;display:flex;align-items:center;justify-content:center;border-bottom:2px solid #e5e7eb;padding:8px}
+.top .mermaid{width:100%}
+.top svg{max-width:100%;height:auto}
+.bottom{flex:1;padding:16px 28px;background:#f9fafb}
+pre{margin:0;font:15px/1.3 Consolas,monospace;color:#374151}
+.new{background:#bbf7d0;color:#14532d;font-weight:bold}
+.mod{background:#fde68a;color:#78350f;font-weight:bold}
+#ctl{display:none;width:1000px;margin:16px auto 0;align-items:center;gap:8px;font:14px system-ui}
+#ctl input{flex:1}#ctl button{font-size:16px;padding:4px 10px;cursor:pointer}
+.player #ctl{display:flex}.player .frame{display:none;margin-top:8px}.player .frame.on{display:flex}
+.legend{float:right;font:13px system-ui;color:#6b7280}
+</style><div id="ctl"><button id="prev">&#9664;</button><button id="play"></button><button id="next">&#9654;</button><input id="sl" type="range" min="0" value="0"><span id="lbl"></span></div><section class="frame" data-ms="2000"><div class="head">Loop 1/3 &middot; Step 1/22: <b>/speckit.constitution</b> &mdash; Define the project principles</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class constitution active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── <span class="new">.specify/</span>
+│   └── <span class="new">memory/</span>
+│       └── <span class="new">constitution.md</span>
+├── src/
+│   └── main.py
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 1/3 &middot; Step 2/22: <b>/speckit.specify</b> &mdash; Describe WHAT to build and WHY</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class constitution done
+  class specify active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── <span class="new">specs/</span>
+│   └── <span class="new">001-photo-albums/</span>
+│       └── <span class="new">spec.md</span>
+├── src/
+│   └── main.py
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 1/3 &middot; Step 3/22: <b>/speckit.clarify</b> &mdash; Resolve open questions in the spec</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class constitution,specify done
+  class clarify active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   └── 001-photo-albums/
+│       └── <span class="mod">spec.md</span>
+├── src/
+│   └── main.py
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 1/3 &middot; Step 4/22: <b>/speckit.plan</b> &mdash; Choose tech stack and design artifacts</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class constitution,specify,clarify done
+  class plan active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   └── 001-photo-albums/
+│       ├── <span class="new">contracts.yaml</span>
+│       ├── <span class="new">data-model.md</span>
+│       ├── <span class="new">plan.md</span>
+│       ├── <span class="new">research.md</span>
+│       └── spec.md
+├── src/
+│   └── main.py
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 1/3 &middot; Step 5/22: <b>/speckit.tasks</b> &mdash; Break the plan into ordered tasks</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class constitution,specify,clarify,plan done
+  class tasks active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   └── 001-photo-albums/
+│       ├── contracts.yaml
+│       ├── data-model.md
+│       ├── plan.md
+│       ├── research.md
+│       ├── spec.md
+│       └── <span class="new">tasks.md</span>
+├── src/
+│   └── main.py
+└── README.md</pre></div></section><section class="frame" data-ms="1500"><div class="head">Loop 1/3 &middot; Step 6/22: <b>/speckit.analyze</b> &mdash; Check spec, plan and tasks for consistency</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class constitution,specify,clarify,plan,tasks done
+  class analyze active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   └── 001-photo-albums/
+│       ├── contracts.yaml
+│       ├── data-model.md
+│       ├── plan.md
+│       ├── research.md
+│       ├── spec.md
+│       └── tasks.md
+├── src/
+│   └── main.py
+└── README.md</pre></div></section><section class="frame" data-ms="3000"><div class="head">Loop 1/3 &middot; Step 7/22: <b>/speckit.implement</b> &mdash; Execute the tasks, write the code</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class constitution,specify,clarify,plan,tasks,analyze done
+  class implement active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   └── 001-photo-albums/
+│       ├── contracts.yaml
+│       ├── data-model.md
+│       ├── plan.md
+│       ├── research.md
+│       ├── spec.md
+│       └── <span class="mod">tasks.md</span>
+├── src/
+│   ├── <span class="new">albums/</span>
+│   │   ├── <span class="new">model.py</span>
+│   │   └── <span class="new">service.py</span>
+│   └── main.py
+├── <span class="new">tests/</span>
+│   └── <span class="new">test_albums.py</span>
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 1/3 &middot; Step 8/22: <b>/speckit.converge</b> &mdash; Append still-unbuilt work to tasks.md</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class constitution,specify,clarify,plan,tasks,analyze,implement done
+  class converge active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   └── 001-photo-albums/
+│       ├── contracts.yaml
+│       ├── data-model.md
+│       ├── plan.md
+│       ├── research.md
+│       ├── spec.md
+│       └── <span class="mod">tasks.md</span>
+├── src/
+│   ├── albums/
+│   │   ├── model.py
+│   │   └── service.py
+│   └── main.py
+├── tests/
+│   └── test_albums.py
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 2/3 &middot; Step 9/22: <b>/speckit.specify</b> &mdash; Describe WHAT to build and WHY</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class specify active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   ├── 001-photo-albums/ …
+│   └── <span class="new">002-photo-tags/</span>
+│       └── <span class="new">spec.md</span>
+├── src/
+│   ├── albums/ …
+│   └── main.py
+├── tests/
+│   └── test_albums.py
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 2/3 &middot; Step 10/22: <b>/speckit.clarify</b> &mdash; Resolve open questions in the spec</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class specify done
+  class clarify active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   ├── 001-photo-albums/ …
+│   └── 002-photo-tags/
+│       └── <span class="mod">spec.md</span>
+├── src/
+│   ├── albums/ …
+│   └── main.py
+├── tests/
+│   └── test_albums.py
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 2/3 &middot; Step 11/22: <b>/speckit.plan</b> &mdash; Choose tech stack and design artifacts</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class specify,clarify done
+  class plan active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   ├── 001-photo-albums/ …
+│   └── 002-photo-tags/
+│       ├── <span class="new">contracts.yaml</span>
+│       ├── <span class="new">data-model.md</span>
+│       ├── <span class="new">plan.md</span>
+│       ├── <span class="new">research.md</span>
+│       └── spec.md
+├── src/
+│   ├── albums/ …
+│   └── main.py
+├── tests/
+│   └── test_albums.py
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 2/3 &middot; Step 12/22: <b>/speckit.tasks</b> &mdash; Break the plan into ordered tasks</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class specify,clarify,plan done
+  class tasks active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   ├── 001-photo-albums/ …
+│   └── 002-photo-tags/
+│       ├── contracts.yaml
+│       ├── data-model.md
+│       ├── plan.md
+│       ├── research.md
+│       ├── spec.md
+│       └── <span class="new">tasks.md</span>
+├── src/
+│   ├── albums/ …
+│   └── main.py
+├── tests/
+│   └── test_albums.py
+└── README.md</pre></div></section><section class="frame" data-ms="3000"><div class="head">Loop 2/3 &middot; Step 13/22: <b>/speckit.implement</b> &mdash; Execute the tasks, write the code</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class specify,clarify,plan,tasks done
+  class implement active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   ├── 001-photo-albums/ …
+│   └── 002-photo-tags/
+│       ├── contracts.yaml
+│       ├── data-model.md
+│       ├── plan.md
+│       ├── research.md
+│       ├── spec.md
+│       └── <span class="mod">tasks.md</span>
+├── src/
+│   ├── albums/ …
+│   ├── <span class="new">tags/</span>
+│   │   ├── <span class="new">model.py</span>
+│   │   └── <span class="new">service.py</span>
+│   └── main.py
+├── tests/
+│   ├── test_albums.py
+│   └── <span class="new">test_tags.py</span>
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 2/3 &middot; Step 14/22: <b>/speckit.converge</b> &mdash; Append still-unbuilt work to tasks.md</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class specify,clarify,plan,tasks,implement done
+  class converge active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   ├── 001-photo-albums/ …
+│   └── 002-photo-tags/
+│       ├── contracts.yaml
+│       ├── data-model.md
+│       ├── plan.md
+│       ├── research.md
+│       ├── spec.md
+│       └── <span class="mod">tasks.md</span>
+├── src/
+│   ├── albums/ …
+│   ├── tags/
+│   │   ├── model.py
+│   │   └── service.py
+│   └── main.py
+├── tests/
+│   ├── test_albums.py
+│   └── test_tags.py
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 2/3 &middot; Step 15/22: <b>/speckit.implement</b> &mdash; Converge found gaps, implement the new tasks</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class specify,clarify,plan,tasks,converge done
+  class implement active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   ├── 001-photo-albums/ …
+│   └── 002-photo-tags/
+│       ├── contracts.yaml
+│       ├── data-model.md
+│       ├── plan.md
+│       ├── research.md
+│       ├── spec.md
+│       └── <span class="mod">tasks.md</span>
+├── src/
+│   ├── albums/ …
+│   ├── tags/
+│   │   ├── model.py
+│   │   ├── service.py
+│   │   └── <span class="new">utils.py</span>
+│   └── main.py
+├── tests/
+│   ├── test_albums.py
+│   └── test_tags.py
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 2/3 &middot; Step 16/22: <b>/speckit.converge</b> &mdash; Nothing left to build, move on</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class specify,clarify,plan,tasks,implement,implement done
+  class converge active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   ├── 001-photo-albums/ …
+│   └── 002-photo-tags/
+│       ├── contracts.yaml
+│       ├── data-model.md
+│       ├── plan.md
+│       ├── research.md
+│       ├── spec.md
+│       └── tasks.md
+├── src/
+│   ├── albums/ …
+│   ├── tags/
+│   │   ├── model.py
+│   │   ├── service.py
+│   │   └── utils.py
+│   └── main.py
+├── tests/
+│   ├── test_albums.py
+│   └── test_tags.py
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 3/3 &middot; Step 17/22: <b>/speckit.specify</b> &mdash; Describe WHAT to build and WHY</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class specify active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   ├── 001-photo-albums/ …
+│   ├── 002-photo-tags/ …
+│   └── <span class="new">003-photo-sharing/</span>
+│       └── <span class="new">spec.md</span>
+├── src/
+│   ├── albums/ …
+│   ├── tags/ …
+│   └── main.py
+├── tests/
+│   ├── test_albums.py
+│   └── test_tags.py
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 3/3 &middot; Step 18/22: <b>/speckit.plan</b> &mdash; Choose tech stack and design artifacts</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class specify done
+  class plan active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   ├── 001-photo-albums/ …
+│   ├── 002-photo-tags/ …
+│   └── 003-photo-sharing/
+│       ├── <span class="new">contracts.yaml</span>
+│       ├── <span class="new">data-model.md</span>
+│       ├── <span class="new">plan.md</span>
+│       ├── <span class="new">research.md</span>
+│       └── spec.md
+├── src/
+│   ├── albums/ …
+│   ├── tags/ …
+│   └── main.py
+├── tests/
+│   ├── test_albums.py
+│   └── test_tags.py
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 3/3 &middot; Step 19/22: <b>/speckit.tasks</b> &mdash; Break the plan into ordered tasks</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class specify,plan done
+  class tasks active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   ├── 001-photo-albums/ …
+│   ├── 002-photo-tags/ …
+│   └── 003-photo-sharing/
+│       ├── contracts.yaml
+│       ├── data-model.md
+│       ├── plan.md
+│       ├── research.md
+│       ├── spec.md
+│       └── <span class="new">tasks.md</span>
+├── src/
+│   ├── albums/ …
+│   ├── tags/ …
+│   └── main.py
+├── tests/
+│   ├── test_albums.py
+│   └── test_tags.py
+└── README.md</pre></div></section><section class="frame" data-ms="1500"><div class="head">Loop 3/3 &middot; Step 20/22: <b>/speckit.analyze</b> &mdash; Check spec, plan and tasks for consistency</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class specify,plan,tasks done
+  class analyze active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   ├── 001-photo-albums/ …
+│   ├── 002-photo-tags/ …
+│   └── 003-photo-sharing/
+│       ├── contracts.yaml
+│       ├── data-model.md
+│       ├── plan.md
+│       ├── research.md
+│       ├── spec.md
+│       └── tasks.md
+├── src/
+│   ├── albums/ …
+│   ├── tags/ …
+│   └── main.py
+├── tests/
+│   ├── test_albums.py
+│   └── test_tags.py
+└── README.md</pre></div></section><section class="frame" data-ms="3000"><div class="head">Loop 3/3 &middot; Step 21/22: <b>/speckit.implement</b> &mdash; Execute the tasks, write the code</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class specify,plan,tasks,analyze done
+  class implement active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   ├── 001-photo-albums/ …
+│   ├── 002-photo-tags/ …
+│   └── 003-photo-sharing/
+│       ├── contracts.yaml
+│       ├── data-model.md
+│       ├── plan.md
+│       ├── research.md
+│       ├── spec.md
+│       └── <span class="mod">tasks.md</span>
+├── src/
+│   ├── albums/ …
+│   ├── <span class="new">sharing/</span>
+│   │   ├── <span class="new">model.py</span>
+│   │   └── <span class="new">service.py</span>
+│   ├── tags/ …
+│   └── main.py
+├── tests/
+│   ├── test_albums.py
+│   ├── <span class="new">test_sharing.py</span>
+│   └── test_tags.py
+└── README.md</pre></div></section><section class="frame" data-ms="2000"><div class="head">Loop 3/3 &middot; Step 22/22: <b>/speckit.converge</b> &mdash; Append still-unbuilt work to tasks.md</div><div class="top"><pre class="mermaid">stateDiagram-v2
+  direction LR
+  classDef active fill:#2563eb,color:#fff,stroke:#1e3a8a,stroke-width:3px
+  classDef done fill:#dcfce7,color:#14532d,stroke:#16a34a
+  [*] --&gt; constitution
+  constitution : /speckit.constitution
+  specify : /speckit.specify
+  clarify : /speckit.clarify
+  plan : /speckit.plan
+  tasks : /speckit.tasks
+  analyze : /speckit.analyze
+  implement : /speckit.implement
+  converge : /speckit.converge
+  constitution --&gt; specify
+  specify --&gt; clarify
+  clarify --&gt; plan
+  plan --&gt; tasks
+  tasks --&gt; analyze
+  analyze --&gt; implement
+  specify --&gt; plan : skip clarify
+  tasks --&gt; implement : skip analyze
+  implement --&gt; converge
+  converge --&gt; implement : unbuilt work
+  converge --&gt; specify : next spec
+  class specify,plan,tasks,analyze,implement done
+  class converge active</pre></div><div class="bottom"><span class="legend"><span class="new">new</span> <span class="mod">changed</span></span><pre>my-project/
+├── .specify/
+│   └── memory/
+│       └── constitution.md
+├── specs/
+│   ├── 001-photo-albums/ …
+│   ├── 002-photo-tags/ …
+│   └── 003-photo-sharing/
+│       ├── contracts.yaml
+│       ├── data-model.md
+│       ├── plan.md
+│       ├── research.md
+│       ├── spec.md
+│       └── <span class="mod">tasks.md</span>
+├── src/
+│   ├── albums/ …
+│   ├── sharing/
+│   │   ├── model.py
+│   │   └── service.py
+│   ├── tags/ …
+│   └── main.py
+├── tests/
+│   ├── test_albums.py
+│   ├── test_sharing.py
+│   └── test_tags.py
+└── README.md</pre></div></section><script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js"></script><script>mermaid.initialize({startOnLoad:false,theme:"neutral",themeVariables:{fontSize:"16px"}});mermaid.run().then(()=>{window.ready=true;if(!location.search.includes('capture'))player()});
+function player(){
+  const F=[...document.querySelectorAll('.frame')],sl=document.getElementById('sl'),
+    play=document.getElementById('play');let i=0,t=null;
+  document.body.classList.add('player');sl.max=F.length-1;
+  function show(n){i=Math.max(0,Math.min(F.length-1,n));F.forEach((f,k)=>f.classList.toggle('on',k==i));
+    sl.value=i;lbl.textContent=(i+1)+' / '+F.length}
+  function stop(){clearTimeout(t);t=null;play.textContent='Play'}
+  function go(){play.textContent='Pause';t=setTimeout(()=>{if(i<F.length-1){show(i+1);go()}else stop()},+F[i].dataset.ms)}
+  play.onclick=()=>t?stop():(i==F.length-1&&show(0),go());
+  prev.onclick=()=>{stop();show(i-1)};next.onclick=()=>{stop();show(i+1)};
+  sl.oninput=()=>{stop();show(+sl.value)};
+  onkeydown=e=>{if(e.key=='ArrowLeft')prev.click();else if(e.key=='ArrowRight')next.click();else if(e.key==' '){e.preventDefault();play.click()}};
+  show(0);go();
+}
+</script>

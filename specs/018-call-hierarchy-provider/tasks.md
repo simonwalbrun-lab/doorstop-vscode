@@ -215,3 +215,14 @@ One developer can do this in order; with two, split US1's manifest+test work (T0
 - `link.suspect` is deliberately ignored (clarification Q5).
 - Fixture is read-only for this feature; no `withRestoredFile` needed.
 - Commit after each phase checkpoint; end commit messages with the attribution line from the session.
+
+---
+
+## Phase 8: Convergence
+
+- [ ] T027 [P] Add FR-011 test in `src/test/regressionFixture.test.ts` (Call Hierarchy (018) suite): inject `reportUnavailable` with an unavailable index, assert a message is reported and no hierarchy item is returned, with trace comment `// Spec 018 FR-011` per FR-011 / Constitution VIII (missing)
+- [ ] T028 [P] Add FR-012 test in the same suite: change a `links:` entry on a fixture item (use `withRestoredFile`), re-run `prepare`/`outgoing`/`incoming`, assert the new state is shown without restart, trace `// Spec 018 FR-012` per FR-012 / Constitution VIII (missing)
+- [ ] T029 [P] Add FR-008 test: assert incoming/outgoing results of the hierarchy agree with the index used by Go to Definition / Find All References for the same item, trace `// Spec 018 FR-008` per FR-008 / Constitution VIII (missing)
+- [ ] T030 [P] Add FR-003b test: after `doorstop.showCallHierarchy` on a tree item, assert the peek opens in outgoing mode (e.g. context key `callHierarchyMode`/`referenceSearchVisible` or equivalent), trace `// Spec 018 FR-003b` per FR-003b / Constitution VIII (partial: existing tree-command test checks only file and line)
+- [ ] T031 [P] Add FR-003a test in `src/test/packageMenus.test.ts`: assert `package.json` contributes no custom hierarchy view/panel and no second direction-switch command, trace `// Spec 018 FR-003a` per FR-003a / Constitution VIII (missing; widget behaviour itself stays manual per quickstart)
+- [ ] T032 Add trace comments to the existing 018 tests (no logic change): packageMenus.test.ts "inline icon on requirement rows only" -> `// Spec 018 FR-001`; regressionFixture.test.ts tests: root item label and no-header label -> `FR-004`; incoming calls -> `FR-003`; dangling link -> `FR-010`; no links -> `FR-009`; tree command -> `FR-002`; expansion -> `FR-005`; entries point at header -> `FR-006`; Go Back -> `FR-006`; from the editor -> `FR-007`; per Constitution VIII (partial)

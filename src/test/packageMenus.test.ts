@@ -60,7 +60,7 @@ suite('TreeView Call Hierarchy Icon (018 US1)', () => {
   test('Show Call Hierarchy is an inline icon on requirement rows only', () => {
     const inline = inlineEntries(COMMAND);
     assert.strictEqual(inline.length, 1, 'exactly one inline entry');
-    assert.ok(inline[0].when?.includes('viewItem == doorstop.item'), 'offered on requirement items');
+    assert.ok(inline[0].when?.includes('viewItem =~ /^doorstop[.]item/'), 'offered on requirement items (parents and leaves, spec 030)');
     assert.ok(!inline[0].when?.includes('doorstop.root'), 'never offered on document roots (FR-001)');
   });
 
@@ -85,6 +85,7 @@ suite('Document View contributions (019)', () => {
   const commandTitle = (id: string): string | undefined =>
     (manifest().contributes.commands as { command: string; title: string }[]).find(entry => entry.command === id)?.title;
 
+  // Spec 019 FR-001 FR-002
   test('both open commands exist with the spec wording', () => {
     assert.strictEqual(commandTitle('doorstop.openDocumentView'), 'Doorstop: Open Document View');
     assert.strictEqual(commandTitle('doorstop.openAsDocument'), 'Open as document');
@@ -92,6 +93,7 @@ suite('Document View contributions (019)', () => {
     assert.strictEqual(commandTitle('doorstop.documentView.restoreBlock'), 'Restore block structure');
   });
 
+  // Spec 019 FR-001
   test('"Open as document" is an inline icon and a context entry on document nodes only', () => {
     const entries = entriesFor('doorstop.openAsDocument');
     assert.strictEqual(entries.length, 2);
@@ -102,6 +104,7 @@ suite('Document View contributions (019)', () => {
     }
   });
 
+  // Spec 019 FR-030 FR-033
   test('lens-only commands are hidden from the palette', () => {
     const palette = manifest().contributes.menus.commandPalette as MenuEntry[];
     for (const id of ['doorstop.openAsDocument', 'doorstop.documentView.newItemBelow', 'doorstop.documentView.cancelPlaceholder', 'doorstop.documentView.restoreBlock']) {
@@ -110,6 +113,7 @@ suite('Document View contributions (019)', () => {
     assert.strictEqual(palette.find(entry => entry.command === 'doorstop.insertItemHere')?.when, 'resourceScheme == doorstop-document');
   });
 
+  // Spec 019 FR-040
   test('the alternating block colour has a default for every theme kind', () => {
     const colours = manifest().contributes.colors as { id: string; defaults: Record<string, string> }[];
     const colour = colours.find(entry => entry.id === 'doorstop.documentView.altBlockBackground');
@@ -117,5 +121,27 @@ suite('Document View contributions (019)', () => {
     for (const kind of ['dark', 'light', 'highContrast', 'highContrastLight']) {
       assert.match(colour!.defaults[kind], /^#[0-9a-f]{8}$/i, kind);
     }
+  });
+});
+
+suite('Section action on tree rows (030)', () => {
+  // Spec 030 FR-001
+  test('"Open as document" for a section is offered inline and in the context menu on parent items only', () => {
+    const entries = entriesFor('doorstop.openSectionAsDocument');
+    assert.strictEqual(entries.length, 2);
+    assert.ok(entries.every(entry => entry.when === 'view == doorstop.treeView && viewItem == doorstop.item.parent'));
+    assert.strictEqual(inlineEntries('doorstop.openSectionAsDocument').length, 1);
+  });
+
+  // Spec 030 FR-001
+  test('every item action still matches both item kinds and neither command shows in the palette', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'));
+    for (const entry of treeViewMenus()) {
+      if (entry.command !== 'doorstop.openSectionAsDocument' && entry.when?.includes('doorstop.item')) {
+        assert.ok(entry.when.includes('viewItem =~ /^doorstop[.]item/'), `${entry.command} must also match parent items`);
+      }
+    }
+    const hidden = manifest.contributes.menus.commandPalette.filter((entry: { when: string }) => entry.when === 'false').map((entry: { command: string }) => entry.command);
+    assert.ok(hidden.includes('doorstop.openSectionAsDocument') && hidden.includes('doorstop.openFilterAsDocument'));
   });
 });

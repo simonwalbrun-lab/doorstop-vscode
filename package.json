@@ -4,7 +4,7 @@
   "description": "VS Code integration for Doorstop requirements management system.",
   "publisher": "SimonWalbrun",
   "icon": "media/Icons-marketplace.png",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "preview": true,
   "license": "MIT",
   "repository": {
@@ -193,7 +193,38 @@
           "doorstop.publish.template": {
             "type": "string",
             "default": "",
-            "markdownDescription": "Template used for HTML and LaTeX publishing. Must name a template in the document's `template` folder. Empty = Doorstop's built-in template."
+            "markdownDescription": "Template used for HTML and LaTeX publishing. Must name a template in the document's `template` folder. Empty = Doorstop's built-in template. When publishing all documents one file each, a template kept next to one document is lent to the others."
+          },
+          "doorstop.publish.traceability": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "doorstop"
+            ],
+            "enumDescriptions": [
+              "Matrix includes every declared link, also links that skip a document level or cross branches.",
+              "Matrix exactly as Doorstop's own publish produces it."
+            ],
+            "default": "complete",
+            "markdownDescription": "Traceability matrix (`traceability.html`/`.csv`) produced when publishing all documents. Affects the matrix only; item child links always include cross-document links."
+          },
+          "doorstop.publish.noChildLinks": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Publish without child links on items (Doorstop's `--no-child-links`). Parent links are then labelled *Links:*. Does not change the traceability matrix."
+          }
+        }
+      },
+      {
+        "title": "Document View",
+        "properties": {
+          "doorstop.documentView.fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "markdownDescription": "Item YAML header fields (e.g. `ref`, `status`) shown for editing in document views, in this order. Only fields an item already has are shown. Applies the next time a view is opened. Protected fields such as `level`, `links` and `reviewed` cannot be listed."
           }
         }
       },
@@ -245,13 +276,8 @@
       "title": "Doorstop: Export Timing Data…"
     },
     {
-      "command": "doorstop.showDiagram",
-      "title": "Doorstop: Open Traceability Graph",
-      "icon": "$(graph)"
-    },
-    {
       "command": "doorstop.newDiagram",
-      "title": "Doorstop: New Traceability Graph",
+      "title": "Doorstop: New Diagram",
       "icon": "$(new-file)"
     },
     {
@@ -260,8 +286,8 @@
       "icon": "$(checklist)"
     },
     {
-      "command": "doorstop.restartServer",
-      "title": "Doorstop: Restart Server",
+      "command": "doorstop.restartExtension",
+      "title": "Doorstop: Restart Extension",
       "icon": "$(refresh)"
     },
     {
@@ -375,6 +401,19 @@
       "icon": "$(book)"
     },
     {
+      "command": "doorstop.documentView.reload",
+      "title": "Doorstop: Reload Document View from Disk"
+    },
+    {
+      "command": "doorstop.openSectionAsDocument",
+      "title": "Open as document",
+      "icon": "$(book)"
+    },
+    {
+      "command": "doorstop.openFilterAsDocument",
+      "title": "Doorstop: Open Filter Result as Document"
+    },
+    {
       "command": "doorstop.insertItemHere",
       "title": "Doorstop: Insert Item Here"
     },
@@ -437,25 +476,16 @@
       ]
     }
   ],
+    "viewsWelcome": [
+      {
+        "view": "doorstop.treeView",
+        "contents": "No Doorstop document yet. Use **Create Document** in the Commands view below."
+      }
+    ],
   "menus": {
     "view/title": [
       {
-        "command": "doorstop.createDoc",
-        "when": "view == doorstop.treeView",
-        "group": "navigation"
-      },
-      {
         "command": "doorstop.refresh",
-        "when": "view == doorstop.treeView",
-        "group": "navigation"
-      },
-      {
-        "command": "doorstop.showDiagram",
-        "when": "view == doorstop.treeView",
-        "group": "navigation"
-      },
-      {
-        "command": "doorstop.newDiagram",
         "when": "view == doorstop.treeView",
         "group": "navigation"
       },
@@ -473,7 +503,7 @@
     "view/item/context": [
       {
         "command": "doorstop.add",
-        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem == doorstop.item)",
+        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem =~ /^doorstop[.]item/)",
         "group": "inline@1"
       },
       {
@@ -482,18 +512,23 @@
         "group": "inline@2"
       },
       {
+        "command": "doorstop.openSectionAsDocument",
+        "when": "view == doorstop.treeView && viewItem == doorstop.item.parent",
+        "group": "inline@2"
+      },
+      {
         "command": "doorstop.showCallHierarchy",
-        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "when": "view == doorstop.treeView && viewItem =~ /^doorstop[.]item/",
         "group": "inline@3"
       },
       {
         "command": "doorstop.link",
-        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "when": "view == doorstop.treeView && viewItem =~ /^doorstop[.]item/",
         "group": "inline@4"
       },
       {
         "command": "doorstop.addToDiagram",
-        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "when": "view == doorstop.treeView && viewItem =~ /^doorstop[.]item/",
         "group": "7_diagram@1"
       },
       {
@@ -502,28 +537,33 @@
         "group": "1_requirement@0"
       },
       {
+        "command": "doorstop.openSectionAsDocument",
+        "when": "view == doorstop.treeView && viewItem == doorstop.item.parent",
+        "group": "1_requirement@0"
+      },
+      {
         "command": "doorstop.add",
-        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem == doorstop.item)",
+        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem =~ /^doorstop[.]item/)",
         "group": "1_requirement@1"
       },
       {
         "command": "doorstop.deriveRequirement",
-        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "when": "view == doorstop.treeView && viewItem =~ /^doorstop[.]item/",
         "group": "1_requirement@2"
       },
       {
         "command": "doorstop.review",
-        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem == doorstop.item)",
+        "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem =~ /^doorstop[.]item/)",
         "group": "1_requirement@3"
       },
       {
         "command": "doorstop.clear",
-        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "when": "view == doorstop.treeView && viewItem =~ /^doorstop[.]item/",
         "group": "1_requirement@4"
       },
       {
         "command": "doorstop.link",
-        "when": "view == doorstop.treeView && viewItem == doorstop.item",
+        "when": "view == doorstop.treeView && viewItem =~ /^doorstop[.]item/",
         "group": "1_requirement@5"
       }
     ],
@@ -542,6 +582,18 @@
       },
       {
         "command": "doorstop.openAsDocument",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.documentView.reload",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.openSectionAsDocument",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.openFilterAsDocument",
         "when": "false"
       },
       {

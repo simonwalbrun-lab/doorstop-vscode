@@ -8,7 +8,7 @@
 
 **Input**: User description: "We need to revise the code lenses. We keep the function but we change the location for user. instead of having the codelenses which provide the following features I want to have gutter icons to click, this means basically that the acees point moves from above to left of the respective line. + Derive Requirement --> type-hierarchy, Do Review --> check-compact, Clear all Suspect Links --> check-all, Clear Suspct Link --> check. We only use icons from VS Code Codicons lib. Also update the icons which are used in the doorstop TreeView. The function clear suspect link and review is no longer available by the icon on the requirements to click. (leave the context menu as it is.)"
 
-**Revision note**: VS Code has no public, stable API for an arbitrary custom-icon gutter glyph that runs a command on a single click (confirmed against the open, unimplemented feature request [microsoft/vscode#224134](https://github.com/microsoft/vscode/issues/224134)). After reviewing that constraint with the requester, the approach below was agreed instead: "Do Review" and the two "Clear Suspect Link(s)" actions attach to the Problems Doorstop's own validation already reports for those exact conditions (a real, clickable, left-of-line Quick Fix affordance), and "+ Derive Requirement" is explicitly kept unchanged, since Doorstop has no equivalent "problem" for it. The TreeView icon change is unaffected by this and proceeds as originally requested.
+**Revision note** (folder name `017-gutter-icon-actions` kept for history; the shipped feature is Quick Fix, not gutter icons; the FR-012 glyphs are not rendered in the Quick Fix titles, accepted: plain text): VS Code has no public, stable API for an arbitrary custom-icon gutter glyph that runs a command on a single click (confirmed against the open, unimplemented feature request [microsoft/vscode#224134](https://github.com/microsoft/vscode/issues/224134)). After reviewing that constraint with the requester, the approach below was agreed instead: "Do Review" and the two "Clear Suspect Link(s)" actions attach to the Problems Doorstop's own validation already reports for those exact conditions (a real, clickable, left-of-line Quick Fix affordance), and "+ Derive Requirement" is explicitly kept unchanged, since Doorstop has no equivalent "problem" for it. The TreeView icon change is unaffected by this and proceeds as originally requested.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -44,8 +44,8 @@ A requirements author browsing the Doorstop TreeView currently sees four small i
 
 **Acceptance Scenarios**:
 
-1. **Given** the Doorstop TreeView is open, **When** the author looks at a requirement item row, **Then** only the "Add Item" and "Link Items" icon buttons are visible on the row; no "Review" or "Clear Suspect" icon button is shown.
-2. **Given** the Doorstop TreeView is open, **When** the author looks at a document (root) row, **Then** only the "Add Item" icon button remains visible where "Review" previously also appeared inline.
+1. **Given** the Doorstop TreeView is open, **When** the author looks at a requirement item row, **Then** only the "Add Item" and "Link Items" icon buttons are visible on the row; no "Review" or "Clear Suspect" icon button is shown. (At delivery; the inline "calls" icon of spec 018 was added later.)
+2. **Given** the Doorstop TreeView is open, **When** the author looks at a document (root) row, **Then** only the "Add Item" icon button remains visible where "Review" previously also appeared inline. (At delivery; spec 019 later added an inline "Open as Document" icon.)
 3. **Given** a requirement item row, **When** the author right-clicks it, **Then** the context menu still lists "Review" and "Clear Suspect" exactly as it does today, and choosing either performs the same action as today.
 
 ---
@@ -65,7 +65,7 @@ A requirements author browsing the Doorstop TreeView currently sees four small i
 - **FR-001**: For an item Doorstop's validation reports as needing review, the system MUST offer a "Do Review" Quick Fix at the diagnostic already shown on that item's `reviewed:` line, performing the same review action (same server call, same unsaved-changes confirmation, same success/error messaging) the current "Do Review" CodeLens performs today.
 - **FR-002**: For an item Doorstop's validation reports as having a suspect link, the system MUST offer a "Clear Suspect Link" Quick Fix at each such diagnostic's link-entry line, clearing only that one suspect link, matching today's "Clear the Suspicion" CodeLens behavior.
 - **FR-003**: When an item has two or more suspect-link diagnostics at once, the system MUST additionally offer a "Clear All Suspect Links" Quick Fix (available alongside "Clear Suspect Link" at any of that item's suspect-link diagnostics), clearing every suspect link on the item, matching today's "Clear All Suspicions" CodeLens behavior.
-- **FR-004**: The "Do Review", "Clear Suspect Link", and "Clear All Suspect Links" CodeLenses MUST be removed once their Quick Fix equivalents are in place, so each of those three actions has exactly one entry point instead of two.
+- **FR-004**: In item files, the "Do Review", "Clear Suspect Link", and "Clear All Suspect Links" CodeLenses MUST be removed once their Quick Fix equivalents are in place, so each of those three actions has exactly one entry point instead of two (the Document View of spec 019 keeps its own action line).
 - **FR-005**: The "+ Derive Requirement" CodeLens MUST remain exactly as it is today - unchanged placement above the `derived:` line, unchanged trigger, unchanged behavior. This feature does not alter it.
 - **FR-006**: Selecting a Quick Fix action MUST produce exactly the outcome (server request, confirmation prompts, success/error feedback) its corresponding CodeLens produces today; only the entry point changes.
 - **FR-007**: Quick Fix actions introduced by this feature MUST only be offered where Doorstop's own validation already reports the corresponding problem (needs review / suspect link); the system MUST NOT invent new validation checks to support them.
@@ -73,7 +73,7 @@ A requirements author browsing the Doorstop TreeView currently sees four small i
 - **FR-009**: The doorstop TreeView MUST stop showing inline, directly-clickable icon buttons for "Review" and "Clear Suspect Link" on document and requirement item rows.
 - **FR-010**: The doorstop TreeView's right-click context menu MUST continue to offer "Review" and "Clear Suspect Link" unchanged - same wording, same position, and same behavior as before this change.
 - **FR-011**: The doorstop TreeView's existing inline icon buttons for "Add Item" and "Link Items" MUST remain exactly as they are today.
-- **FR-012**: Where the editor surface used for Quick Fix actions supports it, the "Do Review", "Clear Suspect Link", and "Clear All Suspect Links" action titles SHOULD carry a VS Code Codicon glyph (respectively echoing `check-compact`, `check`, and `check-all` from the original request) to keep some visual continuity with the icons originally asked for; a plain text title is acceptable wherever that glyph syntax is not rendered by the surface.
+- **FR-012**: Where the editor surface used for Quick Fix actions supports it, the "Do Review", "Clear Suspect Link", and "Clear All Suspect Links" action titles MAY carry a VS Code Codicon glyph (respectively echoing `check-compact`, `check`, and `check-all` from the original request) to keep some visual continuity with the icons originally asked for; a plain text title is acceptable wherever that glyph syntax is not rendered by the surface.
 
 ## Success Criteria *(mandatory)*
 
@@ -81,8 +81,8 @@ A requirements author browsing the Doorstop TreeView currently sees four small i
 
 - **SC-001**: A requirements author can resolve a "needs review" or "suspect link" problem by invoking Quick Fix at the point where Doorstop already reports it, with no separate above-line text link required for either action.
 - **SC-002**: The "Do Review", "Clear Suspect Link", and "Clear All Suspect Links" actions produce identical outcomes (confirmations, server changes, success/error messages) before and after this change, with no regression in existing automated test coverage for these actions.
-- **SC-003**: Zero "Do Review", "Clear the Suspicion", or "Clear All Suspicions" CodeLens text links remain in requirement documents after the change, while "+ Derive Requirement" continues to appear exactly as before.
-- **SC-004**: Each requirement row in the doorstop TreeView shows at most two inline icon buttons (down from four today), with "Review" and "Clear Suspect Link" reachable only through the right-click context menu.
+- **SC-003**: Zero "Do Review", "Clear the Suspicion", or "Clear All Suspicions" CodeLens text links remain in requirement item files (the Document View action line of spec 019 is out of scope) after the change, while "+ Derive Requirement" continues to appear exactly as before.
+- **SC-004**: Each requirement row in the doorstop TreeView shows at most two inline icon buttons at delivery (down from four; later specs 018/019 add "calls" and "Open as Document"), with "Review" and "Clear Suspect Link" reachable only through the right-click context menu.
 - **SC-005**: Every Quick Fix introduced by this feature is attached to a validation issue Doorstop itself already reports; no new validation logic is invented client-side or server-side to support it.
 
 ## Assumptions
@@ -92,3 +92,5 @@ A requirements author browsing the Doorstop TreeView currently sees four small i
 - Command Palette availability of the underlying review/clear-suspect actions is unchanged by this feature; only their in-editor entry point moves.
 - The existing Problems refresh cadence (debounced, on save, per `specs/014-doorstop-validation-diagnostics`) is reused unchanged; this feature does not alter how often or when Problems refresh.
 - Diagnostics describe on-disk state; a Quick Fix invoked while the buffer has unsaved edits still goes through the existing "save and continue" confirmation before it mutates anything, exactly as today's CodeLens actions do.
+- FR-012 outcome (accepted): the shipped Quick Fix titles are plain text ("Do Review", "Clear Suspect Link", "Clear All Suspect Links"); the Codicon glyphs are not rendered.
+- If the matching problem kind is disabled in settings (spec 020), no Problem and therefore no Quick Fix is offered; the tree context menu and Command Palette still work.

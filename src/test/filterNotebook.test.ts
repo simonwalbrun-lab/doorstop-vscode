@@ -143,3 +143,50 @@ suite('Filter notebook file (022 US5)', () => {
     assert.throws(() => serializer.deserializeNotebook(encode('{}')), /missing "cells"/);
   });
 });
+
+suite('Filter result "Open as document" (030)', () => {
+  /** Runs the renderer's `renderOutputItem` against a minimal DOM stub; returns what it drew and posted. */
+  function render(items: FilterItem[]): { buttons: { text: string; click: () => void }[]; posted: unknown[] } {
+    const source = fs.readFileSync(path.join(REPO_ROOT, 'src', 'webview', 'filterResults', 'renderer.js'), 'utf8')
+      .replace('export const activate', 'const activate') + '\nreturn activate;';
+    const buttons: { text: string; click: () => void }[] = [];
+    const makeElement = (tag: string): Record<string, unknown> => {
+      const element: Record<string, unknown> = {
+        tag, className: '', textContent: '', children: [],
+        append() { /* DOM structure is not under test */ },
+        replaceChildren() { /* ditto */ },
+        appendChild() { /* ditto */ },
+        addEventListener(type: string, handler: () => void) {
+          if (tag === 'button' && type === 'click') {
+            buttons.push({ get text() { return element.textContent as string; }, click: handler });
+          }
+        },
+        createTHead: () => ({ insertRow: () => ({ appendChild() { /* ditto */ } }) }),
+        createTBody: () => ({ insertRow: () => ({ insertCell: () => ({ appendChild() { /* ditto */ } }) }) })
+      };
+      return element;
+    };
+    const documentStub = { createElement: makeElement };
+    const posted: unknown[] = [];
+    const activate = new Function('document', source)(documentStub) as (context: unknown) => { renderOutputItem(output: unknown, element: unknown): void };
+    activate({ postMessage: (message: unknown) => posted.push(message) })
+      .renderOutputItem({ json: () => ({ columns: [], items }) }, makeElement('div'));
+    return { buttons, posted };
+  }
+
+  // Spec 030 FR-009
+  test('a non-empty result draws a button that posts every row UID', () => {
+    const { buttons, posted } = render([item('REQ-001'), item('REQ-002')]);
+    const open = buttons.find(button => button.text === 'Open as document');
+    assert.ok(open, 'button drawn');
+    open.click();
+    assert.deepStrictEqual(posted, [{ type: 'openDocument', uids: ['REQ-001', 'REQ-002'] }]);
+  });
+
+  // Spec 030 FR-011
+  test('an empty result is plain text without any document button', () => {
+    const output = resultOutput({ columns: [], items: [] });
+    assert.strictEqual(output.items[0].mime, 'text/markdown');
+    assert.strictEqual(decode(output.items[0].data), 'No items matched.');
+  });
+});

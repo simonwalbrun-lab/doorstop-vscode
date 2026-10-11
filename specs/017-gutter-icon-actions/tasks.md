@@ -211,3 +211,16 @@ pass; the full gate set was re-run green afterwards. Nothing remains open.
 
 - [X] T019 In `src/test/regressionFixture.test.ts`, extend the "QuickFix: the single-link fix clears only its own link" test so that, after the fix's command has run and before `withRestoredFile` restores the file, it awaits `problems.refreshNow()` and asserts `quickFixTitlesAt(filePath, <REQ-001 entry line>)` returns `[]` — proving the applied fix and its problem disappear on the next check, per FR-008 (partial)
 - [X] T020 In `src/test/regressionFixture.test.ts`, extend the "QuickFix: two suspect links offer both the single and the bulk clear" test to also assert `quickFixTitlesAt(filePath, <reviewed: line>)` returns `['Do Review']` for `REQ-010.yml`, covering the "item both needs review and has suspect links" edge case, per US1 edge cases (partial)
+
+---
+
+## Phase 7: Convergence
+
+Constitution v1.4.0 Principle VIII: every FR needs a CI-run test carrying a `Spec 017 FR-NNN` trace comment. No existing 017 test carries one.
+
+- [ ] T021 CRITICAL: In `src/test/regressionFixture.test.ts`, add `// Spec 017 FR-001`, `FR-002`, `FR-003`, `FR-007` and `FR-008` trace comments to the six `QuickFix:` tests (FR-001: unreviewed Do Review; FR-002: single-link clear and its disappearance; FR-003: bulk clear; FR-007: "nothing offered" and "unrelated diagnostic"; FR-008: the T019 post-refresh assertion), per Constitution VIII (partial)
+- [ ] T022 CRITICAL: In `src/test/packageMenus.test.ts`, add `// Spec 017 FR-009`, `FR-010` and `FR-011` trace comments to the three "TreeView Row Actions (017 US2)" tests (the existing `(FR-010)`/`(FR-011)` comments use the wrong format), per Constitution VIII (partial)
+- [ ] T023 CRITICAL: Add a CI-run test tagged `// Spec 017 FR-004` asserting no CodeLens is provided for `reviewed:` or suspect-link lines (executeCodeLensProvider on a fixture item returns no Do Review / Clear the Suspicion / Clear All Suspicions lenses, and the old lens commands are not contributed), per FR-004 (missing)
+- [ ] T024 CRITICAL: Add a CI-run test tagged `// Spec 017 FR-005` asserting the "+ Derive Requirement" CodeLens is still provided above the `derived:` line, per FR-005 (missing)
+- [ ] T025 CRITICAL: Add a CI-run test tagged `// Spec 017 FR-006` asserting each Quick Fix's command and arguments equal the ones the retired CodeLens used (`doorstop.doReview`, `doorstop.clearSuspicion`, `doorstop.clearAllSuspicions` with the same target), and that executing the single-link fix issues the same server request, per FR-006 (missing)
+- [ ] T026 CRITICAL: Add a CI-run test tagged `// Spec 017 FR-012` asserting the three Quick Fix titles carry the `check-compact`, `check` and `check-all` codicon glyphs (or document in the test why plain text is accepted), per FR-012 (missing)

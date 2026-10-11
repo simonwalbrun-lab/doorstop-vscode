@@ -1,0 +1,106 @@
+# Config for build.py. One entry in `steps` = one image in the GIF.
+# File lists are cumulative: `add` files stay in the tree for later steps.
+# All names are made-up demo data.
+
+title: Spec Kit workflow
+root: my-project/
+width: 1000
+height: 820
+duration: 2000        # default ms per frame, override per step
+
+# State flow (top half). Ids must be plain words.
+states:
+  constitution: /speckit.constitution
+  specify: /speckit.specify
+  clarify: /speckit.clarify
+  plan: /speckit.plan
+  tasks: /speckit.tasks
+  analyze: /speckit.analyze
+  implement: /speckit.implement
+  converge: /speckit.converge
+transitions:
+  - constitution -> specify
+  - specify -> clarify
+  - clarify -> plan
+  - plan -> tasks
+  - tasks -> analyze
+  - analyze -> implement
+  - "specify -> plan : skip clarify"
+  - "tasks -> implement : skip analyze"
+  - implement -> converge
+  - "converge -> implement : unbuilt work"
+  - "converge -> specify : next spec"
+
+# Directory before the first step (optional)
+initial:
+  - README.md
+  - src/main.py
+
+# The steps below are one cycle, repeated once per entry. <feature> and <module>
+# are replaced per loop; steps marked `once` only run in the first loop,
+# steps with `only: [n, ...]` only run in those loops.
+loops:
+  - {feature: 001-photo-albums, module: albums}
+  - {feature: 002-photo-tags, module: tags}
+  - {feature: 003-photo-sharing, module: sharing}
+
+# Directories shown folded ("name/ …") once their loop is over
+collapse_previous:
+  - specs/<feature>
+  - src/<module>
+
+steps:
+  - active: constitution
+    once: true       # only in the first loop
+    caption: Define the project principles
+    add: [.specify/memory/constitution.md]
+
+  - active: specify
+    caption: Describe WHAT to build and WHY
+    add: [specs/<feature>/spec.md]
+
+  - active: clarify
+    only: [1, 2]     # skipped in loop 3
+    caption: Resolve open questions in the spec
+    modify: [specs/<feature>/spec.md]
+
+  - active: plan
+    caption: Choose tech stack and design artifacts
+    add:
+      - specs/<feature>/plan.md
+      - specs/<feature>/data-model.md
+      - specs/<feature>/research.md
+      - specs/<feature>/contracts.yaml
+
+  - active: tasks
+    caption: Break the plan into ordered tasks
+    add: [specs/<feature>/tasks.md]
+
+  - active: analyze
+    only: [1, 3]     # skipped in loop 2
+    caption: Check spec, plan and tasks for consistency
+    duration: 1500
+
+  - active: implement
+    caption: Execute the tasks, write the code
+    add:
+      - src/<module>/model.py
+      - src/<module>/service.py
+      - tests/test_<module>.py
+    modify: [specs/<feature>/tasks.md]
+    duration: 3000
+
+  - active: converge
+    caption: Append still-unbuilt work to tasks.md
+    modify: [specs/<feature>/tasks.md]
+
+  # Reloop in the 2nd run: converge found unbuilt work -> implement -> converge again
+  - active: implement
+    only: [2]
+    caption: Converge found gaps, implement the new tasks
+    add: [src/<module>/utils.py]
+    modify: [specs/<feature>/tasks.md]
+
+  - active: converge
+    only: [2]
+    caption: Nothing left to build, move on

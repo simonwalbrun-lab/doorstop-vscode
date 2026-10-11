@@ -1,0 +1,17 @@
+{
+  "name": "doorstop-a4-pdf-export",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Exports a Doorstop document published with the A4 template to a paginated PDF with a running header/footer, via Playwright.",
+  "scripts": {
+    "install-browser": "playwright install --with-deps chromium",
+    "export": "node export-pdf.mjs"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}

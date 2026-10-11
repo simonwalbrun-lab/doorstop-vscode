@@ -330,8 +330,7 @@ record of intent; the three reserved checks simply produce no output today.
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% of the fifteen listed Doorstop checks are reported, each at
-  the specified severity and at the specified location.
+- **SC-001**: 100% of the fifteen listed Doorstop checks are reported, each at the specified severity and at the specified location (unless the user has disabled that problem kind in settings, see spec 020).
 - **SC-002**: A user opening a requirement that has problems sees them without
   performing any additional action beyond opening the file.
 - **SC-003**: For a problem concerning a single link, the problem appears on that
@@ -344,8 +343,7 @@ record of intent; the three reserved checks simply produce no output today.
 - **SC-006**: A user can go from an entry in the problems list to the exact
   offending field in the file in one click.
 - **SC-007**: No problem retrieved from the server is discarded without being
-  shown somewhere, including problems from checks not present in the anchor
-  tables.
+  shown somewhere, including problems from checks not present in the anchor tables (other than kinds the user has disabled in settings, see spec 020).
 - **SC-008**: When problem retrieval fails, 100% of such failures produce an
   explicit user-visible message rather than an empty problems list.
 
@@ -373,7 +371,8 @@ record of intent; the three reserved checks simply produce no output today.
   cannot be judged from one file alone).
 - Problem reporting is display-only for this feature; offering fixes (for
   example a quick action to clear a suspect link from the warning) is out of
-  scope and left to the existing dedicated commands.
+  scope and left to the existing dedicated commands. (Superseded for review/suspect-link problems by spec 017: Quick Fixes "Do Review", "Clear Suspect Link" and "Clear All Suspect Links" now attach to the diagnostics anchored by FR-007 "unreviewed changes" and "suspect link". The diagnostics themselves remain read-only; the fixes are separate commands. Spec 017 depends on the `reviewed:` anchor and the per-link anchor, FR-007 and FR-009.)
 - The requirements tree is local to the workspace and of a size where a
   whole-tree re-check on save is acceptable; no incremental per-file validation
   protocol is assumed.
+- Also applies to the virtual documents of the Document View (spec 019 FR-036/FR-037).

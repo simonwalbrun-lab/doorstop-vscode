@@ -37,6 +37,52 @@ export function levelDepth(level: string): number {
   return parts.length || 1;
 }
 
+/** Doorstop order: numeric level parts, then UID. Shared by the explorer and section views. */
+export function compareItemLevels(a: { level?: string; uid?: string }, b: { level?: string; uid?: string }): number {
+  const levelA = String(a.level || '').split('.').map(Number);
+  const levelB = String(b.level || '').split('.').map(Number);
+  for (let index = 0; index < Math.max(levelA.length, levelB.length); index++) {
+    const difference = (levelA[index] || 0) - (levelB[index] || 0);
+    if (difference !== 0) {return difference;}
+  }
+  return String(a.uid).localeCompare(String(b.uid));
+}
+
+/**
+ * Index of each item's parent in `sorted` (level order), or -1 for the document
+ * root: the nearest preceding item with a shallower outline depth. The one nesting
+ * rule of the explorer and of section views.
+ */
+export function outlineParents(sorted: { level?: string }[]): number[] {
+  const ancestors: { depth: number; index: number }[] = [];
+  return sorted.map((item, index) => {
+    const depth = levelDepth(String(item.level || ''));
+    while (ancestors.length > 0 && ancestors[ancestors.length - 1].depth >= depth) {
+      ancestors.pop();
+    }
+    const parent = ancestors.length > 0 ? ancestors[ancestors.length - 1].index : -1;
+    ancestors.push({ depth, index });
+    return parent;
+  });
+}
+
+/** UIDs of a section (spec 030): the item `rootUid` plus every item nested below it, in level order. */
+export function sectionUids(items: { uid: string; level: string }[], rootUid: string): string[] {
+  const ordered = [...items].sort(compareItemLevels);
+  const parents = outlineParents(ordered);
+  const members = new Set<number>([ordered.findIndex(item => item.uid === rootUid)]);
+  if (members.has(-1)) {
+    return [];
+  }
+  // A parent always precedes its children, so one pass collects the whole subtree.
+  parents.forEach((parent, index) => {
+    if (members.has(parent)) {
+      members.add(index);
+    }
+  });
+  return ordered.filter((_, index) => members.has(index)).map(item => item.uid);
+}
+
 export class RequirementTreeItem extends vscode.TreeItem {
   private readonly baseLabel: string;
 
@@ -221,6 +267,8 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
         ? vscode.TreeItemCollapsibleState.Collapsed
         : vscode.TreeItemCollapsibleState.None;
       item.setTreeIcon(this.childrenByItem.has(item) ? 'files' : 'file');
+      // Only nodes with sub-elements offer "Open as document" for their section (spec 030 FR-001).
+      item.contextValue = this.childrenByItem.has(item) ? 'doorstop.item.parent' : 'doorstop.item';
     }
 
     for (const root of this.roots) {
@@ -241,13 +289,9 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
   private attachHierarchy(root: RequirementTreeItem, items: RequirementTreeItem[]): void {
     this.sortItems(items);
 
-    const ancestors: { depth: number; node: RequirementTreeItem }[] = [];
-    for (const item of items) {
-      const depth = levelDepth(String(item.itemData.level || ''));
-      while (ancestors.length > 0 && ancestors[ancestors.length - 1].depth >= depth) {
-        ancestors.pop();
-      }
-      const parent = ancestors.length > 0 ? ancestors[ancestors.length - 1].node : root;
+    const parents = outlineParents(items.map(item => item.itemData));
+    for (const [index, item] of items.entries()) {
+      const parent = parents[index] >= 0 ? items[parents[index]] : root;
 
       const children = this.childrenByItem.get(parent) || [];
       children.push(item);
@@ -255,8 +299,6 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
       this.childrenById.set(parent.id || parent.resourceUri.toString(), children);
       this.parentByItem.set(item, parent);
       this.parentById.set(item.id || item.resourceUri.toString(), parent);
-
-      ancestors.push({ depth, node: item });
     }
 
     for (const children of this.childrenByItem.values()) {
@@ -265,14 +307,6 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
   }
 
   private sortItems(items: RequirementTreeItem[]): void {
-    items.sort((a, b) => {
-      const levelA = String(a.itemData.level || '').split('.').map(Number);
-      const levelB = String(b.itemData.level || '').split('.').map(Number);
-      for (let index = 0; index < Math.max(levelA.length, levelB.length); index++) {
-        const difference = (levelA[index] || 0) - (levelB[index] || 0);
-        if (difference !== 0) {return difference;}
-      }
-      return String(a.itemData.uid).localeCompare(String(b.itemData.uid));
-    });
+    items.sort((a, b) => compareItemLevels(a.itemData, b.itemData));
   }
 }

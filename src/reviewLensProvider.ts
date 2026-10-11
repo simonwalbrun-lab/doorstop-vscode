@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { DoorstopServer } from './doorstopServer';
+import { withDelayedProgress } from './progress';
 import { registerCommand } from './timing';
 
 /**
@@ -192,7 +193,7 @@ async function runLensAction(
   send: () => Promise<unknown>
 ): Promise<void> {
   try {
-    await send();
+    await withDelayedProgress('Doorstop: Updating review status…', send);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     void vscode.window.showErrorMessage(`Doorstop command failed: ${message}`);

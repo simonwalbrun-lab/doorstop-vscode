@@ -26,18 +26,20 @@
   const GAP = 20;
 
   /**
-   * Places `ids` on a rectangular grid as close to square as the count allows.
+   * Places nodes on a rectangular grid as close to square as the count allows.
    *
-   * `cellWidth`/`cellHeight` are the pitch between adjacent cell centers, so the
-   * caller is responsible for deriving them from the *largest* node extent plus a
-   * gap - that is what makes the no-overlap guarantee hold when the heading-label
-   * toggle widens every label (spec FR-018).
+   * `extents` are the measured { id, width, height } of each node. Every column is
+   * as wide as its widest node and every row as tall as its tallest, with `gap`
+   * between neighbours - so one long heading widens only its own column instead of
+   * spreading the whole grid apart, and no two boxes can overlap (spec 025 FR-014).
    *
-   * Returns [{ id, x, y }], row-major over `ids` sorted ascending so the same
-   * diagram always arranges the same way.
+   * Returns [{ id, x, y }], row-major over ids sorted ascending so the same diagram
+   * always arranges the same way, with the grid's bounding box centred on `center`.
    */
-  function gridPositions({ ids, cellWidth, cellHeight, center }) {
-    const list = Array.isArray(ids) ? ids.slice().sort() : [];
+  function gridPositions({ extents, gap = GAP, center }) {
+    const list = Array.isArray(extents)
+      ? extents.slice().sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      : [];
     const n = list.length;
     if (n === 0) {
       return [];
@@ -47,17 +49,69 @@
     const rows = Math.ceil(n / cols);
     const origin = center || { x: 0, y: 0 };
 
-    // Center the whole grid on `origin`: offset by half the span between the first
-    // and last cell center on each axis (not half the full box - the outer half-cell
-    // of padding is not part of the span between centers).
-    const offsetX = ((cols - 1) * cellWidth) / 2;
-    const offsetY = ((rows - 1) * cellHeight) / 2;
+    const colWidth = new Array(cols).fill(0);
+    const rowHeight = new Array(rows).fill(0);
+    list.forEach((e, index) => {
+      const c = index % cols;
+      const r = Math.floor(index / cols);
+      colWidth[c] = Math.max(colWidth[c], e.width);
+      rowHeight[r] = Math.max(rowHeight[r], e.height);
+    });
 
-    return list.map((id, index) => ({
-      id,
-      x: origin.x - offsetX + (index % cols) * cellWidth,
-      y: origin.y - offsetY + Math.floor(index / cols) * cellHeight
+    // Cell centres measured from the grid's top-left corner.
+    const colCenter = [];
+    let x = 0;
+    colWidth.forEach(w => { colCenter.push(x + w / 2); x += w + gap; });
+    const rowCenter = [];
+    let y = 0;
+    rowHeight.forEach(h => { rowCenter.push(y + h / 2); y += h + gap; });
+    const totalWidth = x - gap;
+    const totalHeight = y - gap;
+
+    return list.map((e, index) => ({
+      id: e.id,
+      x: origin.x - totalWidth / 2 + colCenter[index % cols],
+      y: origin.y - totalHeight / 2 + rowCenter[Math.floor(index / cols)]
     }));
+  }
+
+  /**
+   * Spacing options for vis-network's hierarchical layout. vis spaces nodes by
+   * centre distance and ignores label size, so the spacing must cover the largest
+   * node plus a gap (spec 025 FR-015). vis's own defaults stay the floor, so
+   * short-label diagrams look as they did before.
+   */
+  function hierarchicalSpacing(extents) {
+    const list = Array.isArray(extents) ? extents : [];
+    const maxWidth = Math.max(0, ...list.map(e => e.width));
+    const maxHeight = Math.max(0, ...list.map(e => e.height));
+    return {
+      nodeSpacing: Math.max(100, maxWidth + GAP),
+      levelSeparation: Math.max(150, maxHeight + GAP),
+      treeSpacing: Math.max(200, maxWidth + GAP)
+    };
+  }
+
+  /**
+   * Wraps a heading at the first space after the first `limit` characters,
+   * repeatedly; a segment with no later space stays whole (spec 025 FR-017/018).
+   */
+  function wrapHeading(text, limit = 30) {
+    if (typeof text !== 'string' || text.length === 0) {
+      return '';
+    }
+    const lines = [];
+    let rest = text;
+    while (rest.length > limit) {
+      const index = rest.indexOf(' ', limit);
+      if (index === -1) {
+        break;
+      }
+      lines.push(rest.slice(0, index));
+      rest = rest.slice(index + 1);
+    }
+    lines.push(rest);
+    return lines.join('\n');
   }
 
   function boxesOverlap(a, b) {
@@ -116,5 +170,5 @@
     return last;
   }
 
-  return { gridPositions, findFreeSlot, GAP };
+  return { gridPositions, hierarchicalSpacing, wrapHeading, findFreeSlot, GAP };
 });

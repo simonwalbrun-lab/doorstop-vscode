@@ -30,7 +30,7 @@ export const PORT_IN_USE_REGEX = /address already in use|EADDRINUSE|WinError 100
 export function portInUseHint(port: number): string {
   return `\n\nPort ${port} is already in use. Another Doorstop server (perhaps from a `
     + 'second VS Code window, or a previous session that did not shut down) is still '
-    + 'bound to it. Close it, then run "Doorstop: Restart Server".';
+    + 'bound to it. Close it, then run "Doorstop: Restart Extension".';
 }
 
 interface ErrorPayload {
