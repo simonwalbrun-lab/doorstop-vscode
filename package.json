@@ -316,6 +316,16 @@
       "icon": "$(file-directory-create)"
     },
     {
+      "command": "doorstop.skipDocument",
+      "title": "Doorstop: Disable Document",
+      "icon": "$(eye-closed)"
+    },
+    {
+      "command": "doorstop.enableDocument",
+      "title": "Doorstop: Enable Document",
+      "icon": "$(eye)"
+    },
+    {
       "command": "doorstop.refresh",
       "title": "Doorstop: Refresh",
       "icon": "$(refresh)"
@@ -502,6 +512,16 @@
     ],
     "view/item/context": [
       {
+        "command": "doorstop.skipDocument",
+        "when": "view == doorstop.treeView && viewItem == doorstop.root",
+        "group": "inline@4"
+      },
+      {
+        "command": "doorstop.enableDocument",
+        "when": "view == doorstop.treeView && viewItem == doorstop.root.skipped",
+        "group": "inline@4"
+      },
+      {
         "command": "doorstop.add",
         "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem =~ /^doorstop[.]item/)",
         "group": "inline@1"
@@ -568,6 +588,14 @@
       }
     ],
     "commandPalette": [
+      {
+        "command": "doorstop.skipDocument",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.enableDocument",
+        "when": "false"
+      },
       {
         "command": "doorstop.timing.showSummary",
         "when": "config.doorstop.timing.enabled"

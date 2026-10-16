@@ -1,0 +1,9 @@
+# Research: Toggle Document Skip
+
+- **Decision**: The marker is `.doorstop.skip` in the document folder (`Document.SKIP`; `Document.skip` checks it; `doorstop.core.builder` drops such documents). **Rationale**: confirmed in the installed Doorstop source; it is the mechanism the user asked for. **Alternatives**: a setting listing prefixes (rejected: not shared via the repository, FR-010); the `.doorstop.skip-all` marker (rejected: affects nested documents, violates FR-009).
+- **Decision**: The server discovers skipped documents with a pruned walk plus `Document(path, root)`. **Rationale**: `doorstop.build` drops them, so they cannot come from the tree. **Alternatives**: the extension scans disk (rejected: Principle I); patching `build` (rejected: monkey-patching Doorstop).
+- **Decision**: A separate `skippedDocuments` field on `/tree` rather than flagged entries in `documents`. **Rationale**: the document view, status report, diagnostics and hover index all iterate `documents`; disabled entries there would leak into them.
+- **Decision**: Toggle by `markerPath`, not prefix. **Rationale**: a skipped document is not in the tree, so `find_document(prefix)` fails.
+- **Decision**: Button only inline on tree view document rows, hidden from the palette. **Rationale**: spec clarification (tree view only).
+- **Decision**: File watcher on `**/.doorstop.skip` in the extension. **Rationale**: FR-007; the server's fingerprint already invalidates its cache on `.doorstop*` changes.
+- **Decision**: Disabling cascades to all descendants inside the one server request (spec clarification 2026-10-14); enabling does not cascade. **Rationale**: Doorstop cannot build a tree with a missing parent, so a half-disabled branch must never exist on disk; a single request keeps it atomic from the user view. **Alternatives**: refusing while children are enabled (rejected by the user); cascading enable (rejected: re-enables children disabled on purpose).

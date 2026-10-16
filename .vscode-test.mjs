@@ -77,4 +77,11 @@ export default defineConfig([
 		label: 'packageMenus',
 		files: 'out/test/packageMenus.test.js',
 	},
+	{
+		// Spec 031: toggle button placement (package.json) and disabled tree rows (stubbed
+		// server). The tree provider only needs some workspace folder.
+		label: 'documentSkip',
+		files: 'out/test/documentSkip.test.js',
+		workspaceFolder: 'testdata/regression',
+	},
 ]);

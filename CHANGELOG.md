@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Disable/enable documents from the tree view via `.doorstop.skip`
+
 ## [0.3.0] - 2026-10-11
 
 ### Added

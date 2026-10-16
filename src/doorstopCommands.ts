@@ -270,6 +270,17 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     }));
   });
 
+  // Disable / enable a document through its `.doorstop.skip` file (spec 031). Tree view rows only.
+  const setSkipped = (skip: boolean) => async (value?: unknown): Promise<void> => {
+    const item = itemArgument(value);
+    if (!item) {return;}
+    await run(skip ? 'Disable Document' : 'Enable Document', () => options.server.request(
+      'POST', '/documents/skip', { markerPath: item.resourceUri.fsPath, skip }
+    ));
+  };
+  const skipDocument = register('doorstop.skipDocument', setSkipped(true));
+  const enableDocument = register('doorstop.enableDocument', setSkipped(false));
+
   // Awaiting getChildren shares the load VS Code starts for the view, so the
   // notification covers the real reload (spec 026).
   const refresh = register('doorstop.refresh', () => withDelayedProgress('Doorstop: Refresh…', async () => {
@@ -634,5 +645,5 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     }
   });
 
-  return [createDoc, refresh, add, review, clear, link, reorder, importCommand, exportCommand, publish, statusReport];
+  return [createDoc, skipDocument, enableDocument, refresh, add, review, clear, link, reorder, importCommand, exportCommand, publish, statusReport];
 }

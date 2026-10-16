@@ -22,6 +22,7 @@ All documents and items in the side bar.
 
 - Items ordered by level, one list per document
 - Add, Derive, Review, Link and Clear Suspect per item
+- Disable/enable a document with the eye button on its row (adds/removes Doorstop's `.doorstop.skip`; disabling also disables child documents); disabled documents are not validated or modified, which speeds things up
 - **Commands** view: Create, Reorder, Import, Export, Publish
 - **Generate Status Report**: Mermaid charts of items, problems, changes
 

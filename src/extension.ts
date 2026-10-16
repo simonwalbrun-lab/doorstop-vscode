@@ -239,6 +239,11 @@ export async function activate(context: vscode.ExtensionContext) {
       treeProvider.refresh();
       problemsProvider?.scheduleRefresh();
     };
+    // A `.doorstop.skip` added or removed outside the extension (spec 031 FR-007).
+    const skipWatcher = vscode.workspace.createFileSystemWatcher('**/.doorstop.skip');
+    skipWatcher.onDidCreate(onChanged);
+    skipWatcher.onDidDelete(onChanged);
+    context.subscriptions.push(skipWatcher);
     registerDeriveProvider(context, { server: doorstopServer, onChanged });
     registerReviewCommands(context, { server: doorstopServer, onChanged });
     // Offers those commands as Quick Fixes on the problems registered above.
