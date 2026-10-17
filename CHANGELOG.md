@@ -6,11 +6,17 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Fold the YAML header of Markdown items, optionally folded on open (button in the Doorstop tree view title bar, setting `doorstop.foldYamlHeaderOnOpen`)
 - Disable/enable documents from the tree view via `.doorstop.skip`
 - Problem checks run in a separate background process; the editor and server stay responsive on large trees
 - Setting `doorstop.problemReporting` (Automatic / On demand / Off) with a tree view button
 - The server reloads only changed documents
 - Faster server on large trees: libyaml, cached tree answers, cheaper change checks, much faster publish
+- Problem type "linked to inactive item" (`doorstop.problems`), reported by newer Doorstop versions
+
+### Fixed
+
+- Published child links also list links written in another case or zero padding (`req-1` for `REQ-001`)
 
 ### Removed
 

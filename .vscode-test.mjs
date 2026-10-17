@@ -91,4 +91,9 @@ export default defineConfig([
 		files: 'out/test/documentSkip.test.js',
 		workspaceFolder: 'testdata/regression',
 	},
+	{
+		// Spec 034: folding provider and button, temp fixture, no workspace, no server.
+		label: 'headerFolding',
+		files: 'out/test/headerFolding.test.js',
+	},
 ]);

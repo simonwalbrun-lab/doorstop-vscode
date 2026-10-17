@@ -130,6 +130,11 @@
                 "default": true,
                 "description": "parent is '…', but linked to: <UID> — a link points outside the parent document."
               },
+              "linked_to_inactive_item": {
+                "type": "boolean",
+                "default": true,
+                "description": "linked to inactive item: <UID> — a link points to an inactive item (Doorstop 3.3+)."
+              },
               "unknown": {
                 "type": "boolean",
                 "default": true,
@@ -155,6 +160,7 @@
               "needs_initial_review": true,
               "prefix_differs_from_document": true,
               "unexpected_parent_prefix": true,
+              "linked_to_inactive_item": true,
               "unknown": true
             }
           }
@@ -252,8 +258,23 @@
             "markdownDescription": "Record how long extension operations and server requests take, and print them to the *Doorstop Timing* output channel. Intended for developing the extension."
           }
         }
+      },
+      {
+        "title": "Editor",
+        "properties": {
+          "doorstop.foldYamlHeaderOnOpen": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Fold the YAML header of Markdown requirement items when they are opened, also in the peek editor of references and call hierarchy."
+          }
+        }
       }
     ],
+    "configurationDefaults": {
+      "[markdown]": {
+        "editor.foldingImportsByDefault": true
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -309,6 +330,16 @@
       "command": "doorstop.problemReporting.toAutomatic",
       "title": "Problems: Off (click for Automatic)",
       "icon": "$(eye-closed)"
+    },
+    {
+      "command": "doorstop.foldYamlHeaderOnOpen.on",
+      "title": "Fold YAML header on open: Off (click to turn on)",
+      "icon": "$(unfold)"
+    },
+    {
+      "command": "doorstop.foldYamlHeaderOnOpen.off",
+      "title": "Fold YAML header on open: On (click to turn off)",
+      "icon": "$(fold)"
     },
     {
       "command": "doorstop.restartExtension",
@@ -547,6 +578,16 @@
       {
         "command": "doorstop.problemReporting.toAutomatic",
         "when": "view == doorstop.treeView && doorstop.problemReporting == off",
+        "group": "navigation"
+      },
+      {
+        "command": "doorstop.foldYamlHeaderOnOpen.on",
+        "when": "view == doorstop.treeView && !config.doorstop.foldYamlHeaderOnOpen",
+        "group": "navigation"
+      },
+      {
+        "command": "doorstop.foldYamlHeaderOnOpen.off",
+        "when": "view == doorstop.treeView && config.doorstop.foldYamlHeaderOnOpen",
         "group": "navigation"
       }
     ],

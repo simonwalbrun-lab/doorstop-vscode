@@ -18,6 +18,7 @@ import { ProblemsProvider, problemReportingMode, registerProblemsProvider, watch
 import { DocumentViewHandle, registerDocumentView } from './documentViewProvider';
 import { registerDocumentViewLanguage } from './documentViewLanguage';
 import { registerFilterNotebook } from './filterNotebook';
+import { registerHeaderFolding } from './headerFolding';
 import { getActiveInterpreter, PythonEnvironmentsApi, sameInterpreter, watchInterpreter } from './pythonEnvironment';
 interface DoorstopDiagramDocument extends vscode.CustomDocument {
   diagram: unknown;
@@ -218,6 +219,7 @@ export async function activate(context: vscode.ExtensionContext) {
     ));
   }
   context.subscriptions.push(watchProblemReportingMode(() => problemsProvider));
+  registerHeaderFolding(context);
   // Filter notebooks (spec 022). Registered even without a server: a run then
   // reports "server not available" in the cell instead of the notebook failing to open.
   registerFilterNotebook(context, doorstopServer);

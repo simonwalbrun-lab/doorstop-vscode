@@ -85,7 +85,7 @@ function getRequirementUid(document: vscode.TextDocument): string | undefined {
  * `links:` line written in the prose body cannot sprout lenses.
  * Returns undefined when a `.md` file has no frontmatter at all.
  */
-function getMetadataLineRange(
+export function getMetadataLineRange(
   document: vscode.TextDocument,
   lines: string[]
 ): { start: number; end: number } | undefined {

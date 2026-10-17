@@ -25,6 +25,7 @@ checkbox list). Each property is a check id, `boolean`, default `true`:
 - `needs_initial_review`
 - `prefix_differs_from_document`
 - `unexpected_parent_prefix`
+- `linked_to_inactive_item`
 - `unknown`
 
 Rule: an issue is kept unless `doorstop.problems[issue.check] === false`. A
