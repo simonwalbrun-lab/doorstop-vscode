@@ -14,7 +14,7 @@ import { registerDefinitionProvider } from './definitionProvider';
 import { registerCallHierarchyProvider } from './callHierarchyProvider';
 import { DoorstopCommandsProvider } from './commandsProvider';
 import { registerDoorstopCommands } from './doorstopCommands';
-import { ProblemsProvider, registerProblemsProvider } from './problemsProvider';
+import { ProblemsProvider, problemReportingMode, registerProblemsProvider, watchProblemReportingMode } from './problemsProvider';
 import { DocumentViewHandle, registerDocumentView } from './documentViewProvider';
 import { registerDocumentViewLanguage } from './documentViewLanguage';
 import { registerFilterNotebook } from './filterNotebook';
@@ -206,8 +206,18 @@ export async function activate(context: vscode.ExtensionContext) {
         problemsProvider?.scheduleRefresh();
       }
     },
-    workspaceFolder: workspaceFolder || vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder
+    workspaceFolder: workspaceFolder || vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder,
+    problems: () => problemsProvider
   }));
+  // The tree view's eye button cycles the problem-reporting mode (spec 032
+  // FR-017..019): one command per target mode, each with its own icon.
+  for (const mode of ['onDemand', 'off', 'automatic'] as const) {
+    const id = `doorstop.problemReporting.to${mode[0].toUpperCase()}${mode.slice(1)}`;
+    context.subscriptions.push(registerCommand(id, () =>
+      vscode.workspace.getConfiguration('doorstop').update('problemReporting', mode, vscode.ConfigurationTarget.Workspace)
+    ));
+  }
+  context.subscriptions.push(watchProblemReportingMode(() => problemsProvider));
   // Filter notebooks (spec 022). Registered even without a server: a run then
   // reports "server not available" in the cell instead of the notebook failing to open.
   registerFilterNotebook(context, doorstopServer);
@@ -221,18 +231,15 @@ export async function activate(context: vscode.ExtensionContext) {
     // Only worth a first pass if a server actually came up; when it did not,
     // startDoorstopServer has already told the user why, and a second warning
     // about problems would just be noise.
-    if (doorstopServer.isRunning) {
+    // Only in Automatic mode: On demand and Off never check at startup (spec 032 FR-011).
+    if (doorstopServer.isRunning && problemReportingMode() === 'automatic') {
       void problemsProvider.refreshNow();
     }
-    // Forces a full re-check, bypassing the debounce (FR-013).
-    context.subscriptions.push(registerCommand(
-      'doorstop.recheckProblems',
-      () => withDelayedProgress('Doorstop: Checking requirements…', () => problemsProvider?.refreshNow() ?? Promise.resolve())
-    ));
-    // A problem kind switched on or off in the settings shows at once (spec 020 FR-004).
+    // A problem kind switched on or off in the settings shows at once (spec 020
+    // FR-004), re-filtering the last result rather than checking again (spec 032 FR-015).
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
-      if (event.affectsConfiguration('doorstop.problems') && doorstopServer.isRunning) {
-        void problemsProvider?.refreshNow();
+      if (event.affectsConfiguration('doorstop.problems')) {
+        void problemsProvider?.refilter();
       }
     }));
     const onChanged = (): void => {

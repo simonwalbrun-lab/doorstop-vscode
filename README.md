@@ -58,7 +58,8 @@ Doorstop's own validation, inline at the affected field.
 <img src="media/promotion/09_problem_report.png" alt="Doorstop problems in the Problems panel" width=600>
 
 - **Do Review** and **Clear Suspect Link(s)** via `Ctrl+.`
-- Refreshes on save; or *Doorstop: Re-check Problems*
+- Checks in the background on save; **Refresh** re-checks
+- The eye button in the tree view cycles **Automatic** / **On demand** / **Off** (`doorstop.problemReporting`)
 
 <img src="media/promotion/08_review_and_clear.gif" alt="Quick fix: Do Review and Clear Suspect Link" width=600>
 

@@ -26,9 +26,24 @@
       {
         "title": "Problems",
         "properties": {
+          "doorstop.problemReporting": {
+            "type": "string",
+            "enum": [
+              "automatic",
+              "onDemand",
+              "off"
+            ],
+            "enumItemLabels": [
+              "Automatic",
+              "On demand",
+              "Off"
+            ],
+            "default": "automatic",
+            "markdownDescription": "When Doorstop problems are checked. **Automatic**: after every change. **On demand**: only on Refresh. **Off**: never."
+          },
           "doorstop.problems": {
             "type": "object",
-            "markdownDescription": "Doorstop problem kinds to show in the Problems panel and the document view. Untick a kind to hide it.",
+            "markdownDescription": "Doorstop problem kinds to show in the Problems panel and the document view. Untick a kind to hide it. Applies only while Problem Reporting is not Off.",
             "properties": {
               "invalid_uid_in_links": {
                 "type": "boolean",
@@ -281,9 +296,19 @@
       "icon": "$(new-file)"
     },
     {
-      "command": "doorstop.recheckProblems",
-      "title": "Doorstop: Re-check Problems",
-      "icon": "$(checklist)"
+      "command": "doorstop.problemReporting.toOnDemand",
+      "title": "Problems: Automatic (click for On demand)",
+      "icon": "$(eye)"
+    },
+    {
+      "command": "doorstop.problemReporting.toOff",
+      "title": "Problems: On demand (click for Off)",
+      "icon": "$(eye-watch)"
+    },
+    {
+      "command": "doorstop.problemReporting.toAutomatic",
+      "title": "Problems: Off (click for Automatic)",
+      "icon": "$(eye-closed)"
     },
     {
       "command": "doorstop.restartExtension",
@@ -508,6 +533,21 @@
         "command": "doorstop.enableAutoReveal",
         "when": "view == doorstop.treeView && !doorstop.autoRevealEnabled",
         "group": "navigation"
+      },
+      {
+        "command": "doorstop.problemReporting.toOnDemand",
+        "when": "view == doorstop.treeView && doorstop.problemReporting == automatic",
+        "group": "navigation"
+      },
+      {
+        "command": "doorstop.problemReporting.toOff",
+        "when": "view == doorstop.treeView && doorstop.problemReporting == onDemand",
+        "group": "navigation"
+      },
+      {
+        "command": "doorstop.problemReporting.toAutomatic",
+        "when": "view == doorstop.treeView && doorstop.problemReporting == off",
+        "group": "navigation"
       }
     ],
     "view/item/context": [
@@ -588,6 +628,18 @@
       }
     ],
     "commandPalette": [
+      {
+        "command": "doorstop.problemReporting.toOnDemand",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.problemReporting.toOff",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.problemReporting.toAutomatic",
+        "when": "false"
+      },
       {
         "command": "doorstop.skipDocument",
         "when": "false"

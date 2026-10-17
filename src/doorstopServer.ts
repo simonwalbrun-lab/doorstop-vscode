@@ -143,11 +143,21 @@ export class DoorstopServer {
    * one at a time, each re-reading the whole project. Any non-GET resets the
    * sharing, so a caller asking after a change never gets data from before it.
    * Each caller parses its own copy, so no caller sees another's mutations.
+   * A request with a `signal` is never shared: an abortable problem check must
+   * not join an older one still running for the state before a change (spec 032).
    */
-  async request<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', pathName: string, body?: unknown): Promise<T> {
+  async request<T>(
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    pathName: string,
+    body?: unknown,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<T> {
     if (method !== 'GET') {
       this.inflightGets.clear();
       return parseBody<T>(await this.send(method, pathName, body));
+    }
+    if (options.signal) {
+      return parseBody<T>(await this.send(method, pathName, body, options.signal));
     }
     let pending = this.inflightGets.get(pathName);
     if (!pending) {
@@ -165,7 +175,7 @@ export class DoorstopServer {
   }
 
   /** One HTTP round trip; resolves to the raw body text (undefined for 204). */
-  private async send(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', pathName: string, body?: unknown): Promise<string | undefined> {
+  private async send(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', pathName: string, body?: unknown, signal?: AbortSignal): Promise<string | undefined> {
     // Decided at the start, like measure(): a toggle mid-request records nothing partial.
     const timed = timingActive();
     const t0 = performance.now();
@@ -175,7 +185,8 @@ export class DoorstopServer {
       response = await fetch(`http://${this.host}:${this.port}${pathName}`, {
         method,
         headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
-        body: body !== undefined ? JSON.stringify(body) : undefined
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal
       });
 
       if (!response.ok) {

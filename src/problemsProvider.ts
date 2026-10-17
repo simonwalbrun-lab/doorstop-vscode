@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
-import { DoorstopServer } from './doorstopServer';
+import { DoorstopApiError, DoorstopServer } from './doorstopServer';
+import { withDelayedProgress } from './progress';
 import { measure } from './timing';
 import { DocumentNode, FieldAnchor, TreeResponse, ValidationIssue, ValidationResponse } from './doorstopTypes';
 
@@ -280,20 +281,63 @@ export async function buildDiagnostics(
   return byFile;
 }
 
+/** When problems are checked (spec 032): after every change, only on Refresh, or never. */
+export type ProblemReportingMode = 'automatic' | 'onDemand' | 'off';
+
+export function problemReportingMode(): ProblemReportingMode {
+  return vscode.workspace.getConfiguration('doorstop').get<ProblemReportingMode>('problemReporting', 'automatic');
+}
+
+/**
+ * Keeps the tree view's mode button and the provider in step with the setting,
+ * whoever changed it - button, Settings UI or settings file (spec 032 FR-019).
+ * The context key picks which of the three button commands is shown.
+ */
+export function watchProblemReportingMode(
+  problems: () => ProblemsProvider | undefined,
+  setContext: (mode: ProblemReportingMode) => unknown = mode =>
+    vscode.commands.executeCommand('setContext', 'doorstop.problemReporting', mode)
+): vscode.Disposable {
+  setContext(problemReportingMode());
+  return vscode.workspace.onDidChangeConfiguration(event => {
+    if (event.affectsConfiguration('doorstop.problemReporting')) {
+      setContext(problemReportingMode());
+      problems()?.setMode(problemReportingMode());
+    }
+  });
+}
+
 export interface ProblemsRefresh {
+  /** As the server reported it: re-filtering and the status report start from here. */
+  unfiltered: ValidationResponse;
+  /** Without the problem kinds switched off in the settings (spec 020 US1). */
   validation: ValidationResponse;
   tree: TreeResponse;
 }
 
 export interface ProblemsProvider {
-  /** Refreshes now, bypassing the debounce. */
+  /** Checks now, bypassing the debounce; does nothing in Off mode. */
   refreshNow(): Promise<void>;
-  /** Refreshes after the debounce interval, superseding any pending refresh. */
+  /** Checks after the debounce interval, superseding any pending refresh; Automatic mode only. */
   scheduleRefresh(): void;
-  /** Fires after every successful pass with the data it was built from (spec 019 projection). */
-  readonly onDidRefresh: vscode.Event<ProblemsRefresh>;
-  /** The last successful pass, or undefined after a failure. */
+  /** A check the user asked for (Refresh): cancellable notification, nothing in Off mode (spec 032 FR-008). */
+  checkExplicitly(): Promise<void>;
+  /** Re-applies the per-kind settings to the last result without a new check (spec 032 FR-015). */
+  refilter(): Promise<void>;
+  /** Applies a mode change (spec 032 data-model "Mode transitions"). */
+  setMode(mode: ProblemReportingMode): void;
+  /** Fires after every successful pass, and with undefined when problems are cleared (spec 019 projection). */
+  readonly onDidRefresh: vscode.Event<ProblemsRefresh | undefined>;
+  /** The last successful pass, or undefined after a failure or in Off mode. */
   getLastRefresh(): ProblemsRefresh | undefined;
+}
+
+/** A check the server stopped (409 CANCELLED, spec 032 R3) or the client aborted: not a failure (FR-009). */
+function cancellationOf(error: unknown): 'changed' | 'other' | undefined {
+  if (error instanceof DoorstopApiError && error.code === 'CANCELLED') {
+    return error.message === 'changed' ? 'changed' : 'other';
+  }
+  return error instanceof Error && error.name === 'AbortError' ? 'other' : undefined;
 }
 
 export function registerProblemsProvider(
@@ -304,58 +348,67 @@ export function registerProblemsProvider(
   const reportFailure = options.reportFailure
     ?? ((message: string) => void vscode.window.showWarningMessage(message));
 
+  let mode = problemReportingMode();
   let debounceTimer: NodeJS.Timeout | undefined;
   // Only the newest refresh may write to the collection: a burst of saves
   // collapses to one visible result instead of racing older responses onto
   // the screen.
   let latestPass = 0;
+  // The request of the newest pass; a newer pass or Off aborts it (spec 032 FR-002).
+  let running: AbortController | undefined;
   // Guards the failure notification so it fires once per failure transition,
   // not once per debounce tick.
   let lastPassFailed = false;
-  const refreshEmitter = new vscode.EventEmitter<ProblemsRefresh>();
+  const refreshEmitter = new vscode.EventEmitter<ProblemsRefresh | undefined>();
   let lastRefresh: ProblemsRefresh | undefined;
   // The newest pass, so a superseded refreshNow() resolves only once the
   // collection reflects a result - not while a newer pass is still in flight.
   let latestRun: Promise<void> = Promise.resolve();
 
-  const refreshNow = (): Promise<void> => {
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-      debounceTimer = undefined;
-    }
-    latestRun = runPass(++latestPass);
-    return latestRun;
+  const filtered = (unfiltered: ValidationResponse): ValidationResponse => {
+    // Problem kinds the user switched off in the settings (spec 020 US1) are
+    // dropped here, so the Problems panel and the document view agree.
+    const enabled = vscode.workspace.getConfiguration('doorstop').get<Record<string, boolean>>('problems', {});
+    return { issues: unfiltered.issues.filter(issue => enabled[issue.check] !== false) };
   };
 
-  const runPass = async (pass: number): Promise<void> => {
+  // Replaces the whole set at once, so a problem that has been fixed - or an
+  // item that no longer exists - disappears (FR-016), and nothing half-built
+  // is ever on screen (spec 032 FR-004).
+  const show = (refresh: ProblemsRefresh, byFile: Awaited<ReturnType<typeof buildDiagnostics>>): void => {
+    collection.clear();
+    for (const entry of byFile.values()) {
+      collection.set(entry.uri, entry.diagnostics);
+    }
+    lastRefresh = refresh;
+    refreshEmitter.fire(refresh);
+  };
+
+  const runPass = async (pass: number, signal: AbortSignal): Promise<void> => {
     try {
       const [unfiltered, tree] = await measure('validation.run', () => Promise.all([
-        options.server.request<ValidationResponse>('GET', '/validate'),
+        options.server.request<ValidationResponse>('GET', '/validate', undefined, { signal }),
         options.server.request<TreeResponse>('GET', '/tree')
       ]));
-      // Problem kinds the user switched off in the settings (spec 020 US1) are
-      // dropped here, so the Problems panel and the document view agree.
-      const enabled = vscode.workspace.getConfiguration('doorstop').get<Record<string, boolean>>('problems', {});
-      const validation: ValidationResponse = {
-        issues: unfiltered.issues.filter(issue => enabled[issue.check] !== false)
-      };
+      const validation = filtered(unfiltered);
       const byFile = await buildDiagnostics(validation, tree);
       if (pass !== latestPass) {
         return latestRun;
       }
-
-      // Replaces the whole set every pass, so a problem that has been fixed -
-      // or an item that no longer exists - disappears (FR-016).
-      collection.clear();
-      for (const entry of byFile.values()) {
-        collection.set(entry.uri, entry.diagnostics);
-      }
       lastPassFailed = false;
-      lastRefresh = { validation, tree };
-      refreshEmitter.fire(lastRefresh);
+      show({ unfiltered, validation, tree }, byFile);
     } catch (error) {
       if (pass !== latestPass) {
         return latestRun;
+      }
+      const cancelled = cancellationOf(error);
+      if (cancelled) {
+        // The previous problems stay and nothing is reported (FR-009). A check
+        // stopped by a change still owes a result for the new state (R5).
+        if (cancelled === 'changed') {
+          debounced();
+        }
+        return;
       }
       // Never leave stale problems on screen presenting themselves as current
       // (FR-014): an empty list plus a message is unambiguous, a five-minute-old
@@ -370,7 +423,33 @@ export function registerProblemsProvider(
     }
   };
 
-  const scheduleRefresh = (): void => {
+  const start = (wrap: (work: () => Promise<void>, controller: AbortController) => Promise<void>): Promise<void> => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = undefined;
+    }
+    running?.abort();
+    const controller = new AbortController();
+    running = controller;
+    const pass = ++latestPass;
+    latestRun = wrap(() => runPass(pass, controller.signal), controller);
+    return latestRun;
+  };
+
+  // Background work the user did not trigger: the status-bar spinner, no
+  // notification (Principle VII exemption, spec 032 FR-007).
+  const refreshNow = (): Promise<void> => mode === 'off'
+    ? Promise.resolve()
+    : start(work => withDelayedProgress('Checking Doorstop problems…', work, { location: vscode.ProgressLocation.Window }));
+
+  const checkExplicitly = (): Promise<void> => mode === 'off'
+    ? Promise.resolve()
+    : start((work, controller) => withDelayedProgress('Doorstop: Checking problems…', (_report, token) => {
+      token.onCancellationRequested(() => controller.abort());
+      return work();
+    }, { cancellable: true }));
+
+  function debounced(): void {
     if (debounceTimer) {
       clearTimeout(debounceTimer);
     }
@@ -378,6 +457,44 @@ export function registerProblemsProvider(
       debounceTimer = undefined;
       void refreshNow();
     }, DEBOUNCE_MS);
+  }
+
+  const scheduleRefresh = (): void => {
+    if (mode === 'automatic') {
+      debounced();
+    }
+  };
+
+  const refilter = async (): Promise<void> => {
+    const source = lastRefresh;
+    if (!source) {
+      return;
+    }
+    const validation = filtered(source.unfiltered);
+    const byFile = await buildDiagnostics(validation, source.tree);
+    // A newer pass or Off may have replaced the result while anchors resolved.
+    if (lastRefresh === source) {
+      show({ ...source, validation }, byFile);
+    }
+  };
+
+  const setMode = (next: ProblemReportingMode): void => {
+    mode = next;
+    if (next === 'automatic') {
+      void refreshNow();
+    } else if (next === 'off') {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = undefined;
+      }
+      running?.abort();
+      latestPass++;
+      latestRun = Promise.resolve();
+      collection.clear();
+      lastRefresh = undefined;
+      refreshEmitter.fire(undefined);
+    }
+    // onDemand: a running check is not obsolete; it finishes and is shown.
   };
 
   const isRequirementFile = (document: vscode.TextDocument): boolean => {
@@ -392,10 +509,6 @@ export function registerProblemsProvider(
     }
   });
 
-  // The `doorstop.recheckProblems` command is registered by extension.ts, not
-  // here: a command id can only be registered once per host, and keeping it out
-  // of the provider is what lets a second, independent provider be constructed
-  // (a test does exactly that to exercise the failure path).
   context.subscriptions.push(
     collection,
     refreshEmitter,
@@ -403,5 +516,13 @@ export function registerProblemsProvider(
     { dispose: () => debounceTimer && clearTimeout(debounceTimer) }
   );
 
-  return { refreshNow, scheduleRefresh, onDidRefresh: refreshEmitter.event, getLastRefresh: () => lastRefresh };
+  return {
+    refreshNow,
+    scheduleRefresh,
+    checkExplicitly,
+    refilter,
+    setMode,
+    onDidRefresh: refreshEmitter.event,
+    getLastRefresh: () => lastRefresh
+  };
 }

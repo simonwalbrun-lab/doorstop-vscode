@@ -299,7 +299,8 @@ record of intent; the three reserved checks simply produce no output today.
   requirement file is saved and after any extension-initiated action that
   changes requirement state.
 - **FR-013**: Users MUST be able to re-check all requirement problems on demand
-  through an explicit action.
+  through an explicit action. (Superseded by spec 032 FR-014: re-check via the
+  tree-view Refresh button; the command was removed.)
 - **FR-014**: When problems cannot be retrieved, the extension MUST tell the user
   explicitly that problem reporting is unavailable and MUST NOT leave stale
   problems presented as current.

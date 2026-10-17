@@ -1,6 +1,51 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 1.5.0 → 1.6.0
+Rationale for 1.6.0: MINOR. Principle I gained a "Background validation"
+exception to one-at-a-time processing. Background Doorstop validation must run
+in a separate thread or process with no influence on interactive response
+times, read-only, on its own copy of the project state. This is motivated by
+the user's tests on huge datasets: yielding the request lock between documents
+(spec 032) still blocks the user while one large document is checked. No
+principle was removed. One-at-a-time processing still applies to every request.
+
+Modified principles:
+  - I. Server Is the Single Source of Truth (added "Background validation";
+    rationale extended)
+
+Added sections: none
+Removed sections: none
+Deferred / TODO placeholders: none.
+
+Follow-up (non-governance): spec 032 FR-001 ("one document at a time, serve
+waiting requests between documents") and its plan/tasks (research R2, the lock
+yielding in routers/validation.py) no longer satisfy Principle I and must be
+reworked to a separate validation process.
+
+---
+Prior report (1.5.0, superseded by the above):
+Version change: 1.4.0 → 1.5.0
+Rationale for 1.5.0: MINOR — Principle I was materially expanded: a request
+already running on the server may now be cancelled, but only for one of a
+closed list of reasons, and only without leaving the repository in a partial
+state. Motivated by spec 032 (background problem checking), where a long
+whole-tree validation must give way to interactive requests. No principle was
+removed; the one-request-at-a-time rule is unchanged.
+
+Modified principles:
+  - I. Server Is the Single Source of Truth (added "Cancelling a running
+    request" rules)
+
+Added sections: none
+Removed sections: none
+Deferred / TODO placeholders: none.
+
+Follow-up (non-governance): spec 032 plan must name each cancellation point
+and its reason; no existing endpoint supports cancellation yet.
+
+---
+Prior report (1.4.0, superseded by the above):
 Version change: 1.3.0 → 1.4.0
 Rationale for 1.4.0: MINOR — a new principle (VIII. Every Functional
 Requirement Has a Traceable Automated Test) was added, raising the test floor
@@ -151,11 +196,61 @@ read and write exclusively through the server's API. Concurrent requests
 reaching the server MUST be processed one at a time so no two mutations race
 against the same Doorstop repository.
 
+Background validation: Doorstop validation that runs as background work (not
+a request the user is waiting on) is the one exception to one-at-a-time
+processing. It MUST run in a separate thread or process, alongside request
+handling and not inside it, so that it has no influence on how fast the
+server answers the user. Concretely:
+
+- No interactive request may wait for background validation at any point:
+  validation MUST NOT hold the request lock or any other lock that requests
+  need, and MUST NOT run on the thread or event loop that serves requests.
+- Interactive response times MUST stay close to the same (20% deviation 
+  allowed) whether or not a validation
+  is running. The plan of the feature MUST state how this is achieved and
+  measured. In CPython a thread shares the interpreter lock with request
+  handling, so a CPU-bound validation thread on its own does not satisfy
+  this rule; a separate process is the expected way to meet it.
+- Validation MUST be strictly read-only and MUST work on its own copy of the
+  project state (for example its own Doorstop tree loaded from disk), never on
+  objects that requests read or mutate.
+- A result computed from a state that changed while it ran MUST NOT be shown
+  as current; the cancellation rules below apply to it.
+
+Cancelling a running request: a request the server has already started MAY be
+cancelled before it finishes, but only for one of these reasons:
+
+- the user explicitly cancelled it (e.g. from its progress toast, Principle VII);
+- its result became obsolete: a newer request for the same result superseded
+  it, or the feature that asked for it was switched off;
+- it is read-only background work the user did not explicitly trigger, and it
+  gives way so an interactive request can be served promptly;
+- the server is shutting down or restarting.
+
+Any other cancellation (e.g. a timeout chosen only to hide slowness) is not
+allowed. Cancellation MUST leave the Doorstop repository exactly as if the
+request had either never run or fully completed: a mutation MUST NOT be
+cancelled once it has started writing to disk. A cancelled request MUST end
+with a structured "cancelled" response (Principle III), which the extension
+MUST treat as a cancellation, not as a failure, so no error message is shown.
+Each feature that cancels requests MUST name every cancellation point and its
+reason in its plan.
+
 Rationale: an earlier design had the extension re-parse files itself, which
 could disagree with Doorstop's own generated index; consolidating on one
 server implementation keeps behavior consistent, confines the blast radius of
 a Doorstop API change to one adapter layer, and the single-writer discipline
 prevents concurrent mutations from corrupting the underlying repository.
+Cancellation exists because one-at-a-time processing lets a single long,
+read-only request (such as a whole-tree validation on a large project) hold up
+every interactive request behind it. The closed list of reasons keeps
+cancellation from becoming a way to hide slow or failing work, and the
+no-partial-writes rule keeps the single-writer guarantee intact. Tests on very
+large projects showed that letting waiting requests go between documents is
+not enough: checking a single huge document still blocks the user. Validation
+therefore runs beside request handling. Because it is read-only and works on
+its own copy, it cannot race with mutations, so the single-writer guarantee
+still holds.
 
 ### II. No Reinvention of Doorstop Functionality
 
@@ -360,4 +455,4 @@ Unjustified complexity, or a deliberate deviation from a principle, MUST be
 called out explicitly (e.g. in the PR/commit description) rather than left
 implicit.
 
-**Version**: 1.4.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-10-10
+**Version**: 1.6.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-10-17

@@ -145,3 +145,48 @@ suite('Section action on tree rows (030)', () => {
     assert.ok(hidden.includes('doorstop.openSectionAsDocument') && hidden.includes('doorstop.openFilterAsDocument'));
   });
 });
+
+suite('Problem Reporting Mode (032 US4)', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'));
+  const commands = manifest.contributes.commands as { command: string; title: string; icon?: string }[];
+  const properties = Object.assign({}, ...manifest.contributes.configuration.map((section: { properties: object }) => section.properties));
+  const BUTTONS = [
+    { command: 'doorstop.problemReporting.toOnDemand', shownIn: 'automatic', icon: '$(eye)' },
+    { command: 'doorstop.problemReporting.toOff', shownIn: 'onDemand', icon: '$(eye-watch)' },
+    { command: 'doorstop.problemReporting.toAutomatic', shownIn: 'off', icon: '$(eye-closed)' }
+  ];
+
+  // Spec 032 FR-010
+  test('one mode setting: Automatic (default), On demand, Off', () => {
+    const setting = properties['doorstop.problemReporting'];
+    assert.deepStrictEqual(setting.enum, ['automatic', 'onDemand', 'off']);
+    assert.strictEqual(setting.default, 'automatic');
+  });
+
+  // Spec 032 FR-014
+  test('there is no re-check command; Refresh is the way to re-check', () => {
+    const recheck = commands.filter(entry => /re-?check/i.test(entry.command) || /re-?check/i.test(entry.title));
+    assert.deepStrictEqual(recheck, []);
+  });
+
+  // Spec 032 FR-015
+  test('the per-kind problem settings say they apply only while not Off', () => {
+    assert.ok(properties['doorstop.problems'].markdownDescription.includes('Applies only while Problem Reporting is not Off'));
+  });
+
+  // Spec 032 FR-017, FR-018
+  test('one tree-view button per mode, each with its own icon and a tooltip naming the next mode', () => {
+    const titleMenu = manifest.contributes.menus['view/title'] as MenuEntry[];
+    const palette = manifest.contributes.menus.commandPalette as MenuEntry[];
+    for (const button of BUTTONS) {
+      const command = commands.find(entry => entry.command === button.command);
+      assert.strictEqual(command?.icon, button.icon, button.command);
+      assert.match(command.title, /^Problems: .+ \(click for .+\)$/);
+      assert.deepStrictEqual(
+        titleMenu.filter(entry => entry.command === button.command),
+        [{ command: button.command, when: `view == doorstop.treeView && doorstop.problemReporting == ${button.shownIn}`, group: 'navigation' }]
+      );
+      assert.ok(palette.some(entry => entry.command === button.command && entry.when === 'false'), `${button.command} hidden from the palette`);
+    }
+  });
+});

@@ -7,6 +7,14 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Disable/enable documents from the tree view via `.doorstop.skip`
+- Problem checks run in a separate background process; the editor and server stay responsive on large trees
+- Setting `doorstop.problemReporting` (Automatic / On demand / Off) with a tree view button
+- The server reloads only changed documents
+- Faster server on large trees: libyaml, cached tree answers, cheaper change checks, much faster publish
+
+### Removed
+
+- **Doorstop: Re-check Problems** (use Refresh)
 
 ## [0.3.0] - 2026-10-11
 

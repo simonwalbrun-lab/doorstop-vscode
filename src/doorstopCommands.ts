@@ -8,7 +8,8 @@ import { DoorstopServer } from './doorstopServer';
 import { ensurePdfTooling, offerBrowserInstall, runExportScript } from './pdfExport';
 import { ProgressReport, withDelayedProgress } from './progress';
 import { registerCommand } from './timing';
-import { TreeResponse, ValidationResponse } from './doorstopTypes';
+import { TreeResponse, ValidationIssue } from './doorstopTypes';
+import { ProblemsProvider, problemReportingMode } from './problemsProvider';
 import { DoorstopTreeProvider, RequirementTreeItem } from './requirementTree';
 import { buildStatusReport, parseGitLog, readGitLog, weeklyVolatility } from './statusReport';
 
@@ -24,6 +25,8 @@ interface CommandOptions {
   tree: DoorstopTreeProvider;
   utilities: { refresh(): void };
   workspaceFolder: vscode.WorkspaceFolder;
+  /** A getter: the problems provider is created after these commands (extension.ts). */
+  problems: () => ProblemsProvider | undefined;
 }
 
 /** True when `folderPath` or an ancestor holds a `.git` entry (directory or worktree/submodule file). */
@@ -283,9 +286,12 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
 
   // Awaiting getChildren shares the load VS Code starts for the view, so the
   // notification covers the real reload (spec 026).
+  // Refresh is also the explicit problem check (spec 032 FR-014), in its own
+  // cancellable notification so it never holds up the tree.
   const refresh = register('doorstop.refresh', () => withDelayedProgress('Doorstop: Refresh…', async () => {
     options.tree.refresh();
     options.utilities.refresh();
+    void options.problems()?.checkExplicitly();
     await options.tree.getChildren();
   }));
 
@@ -619,10 +625,17 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
   const statusReport = register('doorstop.statusReport', async () => {
     const uri = await run('Generate Status Report', async () => {
       // Tree and problems come first: if either fails, nothing is written (FR-019).
-      const [tree, validation] = await Promise.all([
-        options.server.request<TreeResponse>('GET', '/tree'),
-        options.server.request<ValidationResponse>('GET', '/validate')
-      ]);
+      // Problems go through the provider, so the reporting mode applies (spec 032 FR-016).
+      const tree = await options.server.request<TreeResponse>('GET', '/tree');
+      let issues: ValidationIssue[] | 'off' = 'off';
+      if (problemReportingMode() !== 'off') {
+        await options.problems()?.refreshNow();
+        const last = options.problems()?.getLastRefresh();
+        if (!last) {
+          throw new Error('the problem check did not complete');
+        }
+        issues = last.unfiltered.issues;
+      }
       const root = options.workspaceFolder.uri.fsPath;
       // Missing git or history only blanks its own section (FR-017).
       const volatility = await readGitLog(root).then(
@@ -633,7 +646,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
         projectName: options.workspaceFolder.name,
         generatedAt: new Date(),
         documents: tree.documents,
-        issues: validation.issues,
+        issues,
         volatility
       });
       const target = vscode.Uri.joinPath(options.workspaceFolder.uri, 'doorstop-status.md');

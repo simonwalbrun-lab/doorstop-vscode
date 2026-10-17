@@ -27,7 +27,8 @@ export interface StatusReportInput {
   projectName: string;
   generatedAt: Date;
   documents: DocumentNode[];
-  issues: ValidationIssue[];
+  /** 'off' when problem reporting is switched off (spec 032 FR-016). */
+  issues: ValidationIssue[] | 'off';
   volatility: WeekCount[] | { unavailable: string };
 }
 
@@ -168,11 +169,14 @@ export function buildStatusReport(input: StatusReportInput): string {
   }
 
   lines.push('', '## Problems per Document', '');
-  if (documents.length === 0) {
+  const issues = input.issues === 'off' ? undefined : input.issues;
+  if (!issues) {
+    lines.push('Problem reporting is off.', '');
+  } else if (documents.length === 0) {
     lines.push('No documents.');
   }
-  for (const document of documents) {
-    const problems = problemsByType(document.prefix, input.issues);
+  for (const document of issues ? documents : []) {
+    const problems = problemsByType(document.prefix, issues ?? []);
     lines.push(`### ${document.prefix}`, '');
     if (problems.length === 0) {
       lines.push('No problems.');
