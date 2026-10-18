@@ -485,9 +485,8 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     // document without a `template` folder (spec 020 research R5).
     const publishSettings = vscode.workspace.getConfiguration('doorstop.publish');
     const configured = publishSettings.get<string>('template', '').trim();
-    // Spec 028: matrix mode and Doorstop's --no-child-links, applied server-side.
+    // Doorstop's --no-child-links, applied server-side.
     const linkOptions = {
-      traceability: publishSettings.get<'complete' | 'doorstop'>('traceability', 'complete'),
       childLinks: !publishSettings.get<boolean>('noChildLinks', false)
     };
     const template = format.value === 'markdown' ? '' : configured;

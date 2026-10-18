@@ -108,9 +108,10 @@ Query items with YAML filters, like Obsidian Bases. Run a cell, get a table.
 | `doorstop.newDocument.separator` | none | UID separator, e.g. `REQ-001` |
 | `doorstop.newDocument.digits` | `3` | UID digits for new documents |
 | `doorstop.publish.template` | Doorstop's | Template from the document's `template` folder |
-| `doorstop.publish.traceability` | `complete` | `complete` or Doorstop's own matrix |
 | `doorstop.publish.noChildLinks` | off | Doorstop's `--no-child-links` |
 | `doorstop.documentView.fields` | none | Header fields editable in document views |
+| `doorstop.problemReporting` | Automatic | `Automatic`, `On demand` or `Off` |
+| `doorstop.foldYamlHeaderOnOpen` | off | Fold the YAML header of Markdown items on open |
 | `doorstop.timing.enabled` | off | Timing log, for extension developers |
 
 ## Requirements

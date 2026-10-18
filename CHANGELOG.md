@@ -2,7 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.4.0] - 2026-10-18
+
+### Removed
+
+- Traceability cross-link injection into Doorstop's publisher: setting `doorstop.publish.traceability`, request field `traceability` and the `python -m doorstop_server.publish` CI command. Publishing equals `doorstop publish`; links that skip a document level are not added to the matrix or child links. `doorstop.publish.noChildLinks` stays.
 
 ### Added
 

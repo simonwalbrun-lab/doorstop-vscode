@@ -1,6 +1,30 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 1.6.0 → 1.7.0
+Rationale for 1.7.0: MINOR. Principle V was materially expanded: linting is
+mandatory for all code (TypeScript and Python), a linter MUST be established
+per language and configured in the repo, and lint MUST pass in CI. Before
+this, only TypeScript lint was named; Python had pylint configured in
+server/pyproject.toml but no rule requiring it and no CI step.
+
+Modified principles:
+  - V. Typed, Linted, and Tested Before It Ships (linting made mandatory and
+    extended to Python; CI enforcement added)
+
+Modified sections:
+  - Development Workflow (lint is part of "done" and of the CI gate)
+
+Added sections: none
+Removed sections: none
+Deferred / TODO placeholders: none.
+
+Follow-up (non-governance): no CI job runs lint yet and no pylint run is
+wired in; add both (e.g. `npm run lint` and `pylint` in ci.yml). Existing
+pylint findings are not fixed by this amendment.
+
+---
+Prior report (1.6.0, superseded by the above):
 Version change: 1.5.0 → 1.6.0
 Rationale for 1.6.0: MINOR. Principle I gained a "Background validation"
 exception to one-at-a-time processing. Background Doorstop validation must run
@@ -295,8 +319,22 @@ correctness or supply-chain problem behind a version bump nobody reviewed.
 
 ### V. Typed, Linted, and Tested Before It Ships
 
-TypeScript changes MUST pass type-checking (`check-types`) and linting
-(`lint`) before being packaged — these already gate `npm run package` and
+Linting is mandatory for all code in this repository. Every language in use
+MUST have an established linter, configured in a committed file, and all code
+MUST pass it with no errors before it is merged:
+
+- TypeScript: ESLint (`eslint.config.mjs`, run as `npm run lint`).
+- Python (`server/`): pylint (configured in `server/pyproject.toml`, installed
+  via the `dev` extra).
+- A new language or file type added to the repository MUST come with a linter
+  in the same change.
+- Lint MUST run in CI (`.github/workflows/ci.yml`) and a failing lint job
+  blocks merge. A lint rule MAY be disabled or suppressed only in the linter
+  configuration or on the affected line, with a comment giving the reason;
+  blanket suppression of a whole file or rule set to get green is prohibited.
+
+TypeScript changes MUST also pass type-checking (`check-types`) before being
+packaged — type-checking and `lint` already gate `npm run package` and
 `pretest` and MUST NOT be bypassed. Server (Python) changes affecting
 requirement CRUD, linking, review/clear, reorder, import/export/publish,
 error-response shape, or concurrency behavior MUST be covered by the
@@ -305,8 +343,10 @@ temporary Doorstop project; mocking Doorstop itself in these tests is
 prohibited, since it can hide exactly the kind of divergence Principles I and
 II exist to prevent.
 
-Rationale: this codifies practice the project already follows — the build
-scripts already enforce type/lint gates, and the existing server suite
+Rationale: unlinted code drifts in style and hides defects (unused names,
+unsafe patterns) that review misses; a linter makes that check automatic and
+uniform. This codifies practice the project already follows — the build
+scripts already enforce type/lint gates for TypeScript, and the existing server suite
 already validates against real Doorstop projects instead of mocks. This
 principle sets the per-change quality gate; Principle VI sets the per-feature
 coverage floor.
@@ -424,10 +464,11 @@ requirement does.
 ## Development Workflow
 
 - Before a change is considered done: extension changes MUST pass
-  `npm run compile` (type-check + lint + build); server changes touching the
-  areas listed in Principle V MUST pass the `server/tests` pytest suite.
+  `npm run compile` (type-check + lint + build); all server changes MUST pass
+  pylint, and those touching the areas listed in Principle V MUST pass the
+  `server/tests` pytest suite.
 - Every feature branch MUST leave CI green. The CI workflow
-  (`.github/workflows/ci.yml`) runs the server pytest suite, the extension
+  (`.github/workflows/ci.yml`) runs the linters, the server pytest suite, the extension
   build/package, and the extension integration tests on every pull request.
   A change MUST NOT be merged while any of those jobs is failing, and CI jobs
   MUST NOT be disabled or narrowed to make a change pass.
@@ -455,4 +496,4 @@ Unjustified complexity, or a deliberate deviation from a principle, MUST be
 called out explicitly (e.g. in the PR/commit description) rather than left
 implicit.
 
-**Version**: 1.6.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-10-17
+**Version**: 1.7.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-10-18

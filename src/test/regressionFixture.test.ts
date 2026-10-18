@@ -592,34 +592,7 @@ suite('Regression Fixture Integration Suite', () => {
     );
   }
 
-  // Spec 028 FR-011
-  test('Publish honours doorstop.publish.traceability (028)', async function () {
-    this.timeout(60000);
-    const settings = vscode.workspace.getConfiguration('doorstop.publish');
-    assert.strictEqual(settings.inspect('traceability')?.defaultValue, 'complete');
-    // The fixture has no cross-branch link: add MD-001 -> ARCH-001 (siblings
-    // under REQ) for this test and put the file back byte for byte afterwards.
-    const mdItem = path.join(FIXTURE_ROOT, 'children', 'MD', 'MD-001.md');
-    const original = await fs.readFile(mdItem);
-    const crossRow = (csv: string) => csv.split(/\r?\n/).some(line => line.includes('ARCH-001') && line.includes('MD-001'));
-    try {
-      await server.request('POST', '/items/MD-001/links', { parentUid: 'ARCH-001' });
-      await withTempDir(async dir => {
-        await publishCombined('HTML', dir);
-        assert.ok(crossRow(await fs.readFile(path.join(dir, 'traceability.csv'), 'utf8')), 'complete matrix has the cross row');
-      });
-      await settings.update('traceability', 'doorstop', vscode.ConfigurationTarget.Global);
-      await withTempDir(async dir => {
-        await publishCombined('HTML', dir);
-        assert.ok(!crossRow(await fs.readFile(path.join(dir, 'traceability.csv'), 'utf8')), "Doorstop's matrix drops it");
-      });
-    } finally {
-      await settings.update('traceability', undefined, vscode.ConfigurationTarget.Global);
-      await fs.writeFile(mdItem, original);
-    }
-  });
-
-  // Spec 028 FR-012
+  // Spec 028 FR-004
   test('Publish honours doorstop.publish.noChildLinks (028)', async function () {
     this.timeout(60000);
     const settings = vscode.workspace.getConfiguration('doorstop.publish');

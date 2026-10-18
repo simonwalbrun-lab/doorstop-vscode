@@ -1,6 +1,6 @@
 // End-to-end PDF export (spec 027): real Doorstop HTML publish, real headless
 // Chromium, real PDFs. Runs under `node --test` in the CI job `pdf-export`, which
-// installs the server package (Doorstop + spec 028's publish command), the tooling's npm packages and Chromium beforehand - the
+// installs Doorstop, the tooling's npm packages and Chromium beforehand - the
 // test itself needs no network. Default Doorstop HTML, no template (FR-007a).
 
 import { test, after } from "node:test";
@@ -27,24 +27,14 @@ after(() => temps.forEach((dir) => rmSync(dir, { recursive: true, force: true })
 
 const exportPdf = (...args) => spawnSync(process.execPath, [SCRIPT, ...args], { encoding: "utf8" });
 
-// Spec 028 FR-008, FR-009
+// Spec 028 FR-005
 test("publish all as HTML, then one PDF per document plus traceability.pdf", async () => {
   const tmp = tempDir();
   const project = join(tmp, "project");
   cpSync(join(REPO, "testdata", "regression"), project, { recursive: true });
   // Doorstop looks for a VCS root above the documents.
   execFileSync("git", ["init", "-q"], { cwd: project });
-  // A cross-branch link (MD and ARCH are siblings under REQ): plain Doorstop drops it from the matrix (spec 028).
-  execFileSync("doorstop", ["link", "MD-001", "ARCH-001"], { cwd: project, stdio: "pipe" });
-  // The CI publish command: `doorstop publish` with complete cross-document links.
-  execFileSync(process.env.PYTHON ?? "python", ["-m", "doorstop_server.publish", "all", join(tmp, "out"), "--html"], {
-    cwd: project,
-    stdio: "pipe"
-  });
-  // traceability.pdf is a 1:1 print of traceability.html, whose rows equal the CSV;
-  // pdf-lib cannot extract text, so the cross row is checked here.
-  const csv = readFileSync(join(tmp, "out", "traceability.csv"), "utf8");
-  assert.ok(csv.split("\n").some((line) => line.includes("ARCH-001") && line.includes("MD-001")), csv);
+  execFileSync("doorstop", ["publish", "all", join(tmp, "out"), "--html"], { cwd: project, stdio: "pipe" });
 
   const result = exportPdf(join(tmp, "out"), join(tmp, "pdf"));
   assert.equal(result.status, 0, result.stderr);
