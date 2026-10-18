@@ -281,6 +281,13 @@ export async function buildDiagnostics(
   return byFile;
 }
 
+/** A `.yml`/`.md` file inside the workspace folder, the files a Doorstop item can live in. */
+export function isRequirementFile(document: vscode.TextDocument, workspaceFolder: vscode.WorkspaceFolder): boolean {
+  const fsPath = document.uri.fsPath.toLowerCase();
+  return (fsPath.endsWith('.yml') || fsPath.endsWith('.md'))
+    && fsPath.startsWith(workspaceFolder.uri.fsPath.toLowerCase());
+}
+
 /** When problems are checked (spec 032): after every change, only on Refresh, or never. */
 export type ProblemReportingMode = 'automatic' | 'onDemand' | 'off';
 
@@ -497,14 +504,8 @@ export function registerProblemsProvider(
     // onDemand: a running check is not obsolete; it finishes and is shown.
   };
 
-  const isRequirementFile = (document: vscode.TextDocument): boolean => {
-    const fsPath = document.uri.fsPath.toLowerCase();
-    return (fsPath.endsWith('.yml') || fsPath.endsWith('.md'))
-      && fsPath.startsWith(options.workspaceFolder.uri.fsPath.toLowerCase());
-  };
-
   const onSave = vscode.workspace.onDidSaveTextDocument(document => {
-    if (isRequirementFile(document)) {
+    if (isRequirementFile(document, options.workspaceFolder)) {
       scheduleRefresh();
     }
   });

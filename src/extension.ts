@@ -14,7 +14,7 @@ import { registerDefinitionProvider } from './definitionProvider';
 import { registerCallHierarchyProvider } from './callHierarchyProvider';
 import { DoorstopCommandsProvider } from './commandsProvider';
 import { registerDoorstopCommands } from './doorstopCommands';
-import { ProblemsProvider, problemReportingMode, registerProblemsProvider, watchProblemReportingMode } from './problemsProvider';
+import { isRequirementFile, ProblemsProvider, problemReportingMode, registerProblemsProvider, watchProblemReportingMode } from './problemsProvider';
 import { DocumentViewHandle, registerDocumentView } from './documentViewProvider';
 import { registerDocumentViewLanguage } from './documentViewLanguage';
 import { registerFilterNotebook } from './filterNotebook';
@@ -253,6 +253,13 @@ export async function activate(context: vscode.ExtensionContext) {
     skipWatcher.onDidCreate(onChanged);
     skipWatcher.onDidDelete(onChanged);
     context.subscriptions.push(skipWatcher);
+    // A hand edit saved in the editor can change titles and order. Ids stay the
+    // same, so VS Code keeps expanded nodes open across the reload.
+    context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
+      if (isRequirementFile(document, workspaceFolder)) {
+        treeProvider.refresh();
+      }
+    }));
     registerDeriveProvider(context, { server: doorstopServer, onChanged });
     registerReviewCommands(context, { server: doorstopServer, onChanged });
     // Offers those commands as Quick Fixes on the problems registered above.

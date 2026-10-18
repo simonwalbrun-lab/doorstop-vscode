@@ -92,6 +92,10 @@ async function withRestoredFile<T>(filePath: string, fn: () => Promise<T>): Prom
     return await fn();
   } finally {
     await fs.writeFile(filePath, original);
+    // The server spots changes by modified time and size; restored bytes have the
+    // original size, so move the time on to make sure the restore is seen as a change.
+    const later = new Date(Date.now() + 2000);
+    await fs.utimes(filePath, later, later);
   }
 }
 
@@ -108,6 +112,17 @@ async function findTreeItem(
     queue.push(...(await tree.getChildren(item)));
   }
   return undefined;
+}
+
+async function waitFor(predicate: () => boolean | Promise<boolean>, what: string, timeoutMs = 5000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await predicate()) {
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.fail(`timed out waiting for: ${what}`);
 }
 
 suite('Regression Fixture Integration Suite', () => {
@@ -172,6 +187,47 @@ suite('Regression Fixture Integration Suite', () => {
     assert.strictEqual(byPrefix.get('REQ')!.items.length, 10);
     assert.strictEqual(byPrefix.get('ARCH')!.items.length, 1);
     assert.strictEqual(byPrefix.get('EMPTY')!.items.length, 0, 'EMPTY document should have zero items');
+  });
+
+  test('Tree view: a save in the editor reloads the tree and keeps expanded documents open', async function () {
+    this.timeout(30000);
+    const file = path.join(FIXTURE_ROOT, 'REQ-003.yml');
+    const [root] = (await treeProvider.getChildren()).filter(item => item.itemData.prefix === 'REQ');
+    // VS Code asks for a node's children only while it is expanded.
+    const asked: string[] = [];
+    const getChildren = treeProvider.getChildren;
+    treeProvider.getChildren = element => {
+      if (element?.id) {
+        asked.push(element.id);
+      }
+      return getChildren.call(treeProvider, element);
+    };
+    const save = async (header: string): Promise<void> => {
+      const document = await vscode.workspace.openTextDocument(file);
+      const edit = new vscode.WorkspaceEdit();
+      edit.replace(document.uri, document.lineAt(2).range, `header: ${header}`);
+      await vscode.workspace.applyEdit(edit);
+      asked.length = 0;
+      await document.save();
+    };
+    const label = async () => (await treeProvider.setActiveResource(vscode.Uri.file(file)))?.label;
+    try {
+      await withRestoredFile(file, async () => {
+        await vscode.commands.executeCommand('doorstop.activateRequirement', file);
+        await save('Saved title');
+        await waitFor(async () => await label() === 'Saved title', 'new title in the tree');
+        await waitFor(() => asked.includes(root.id!), 'expanded REQ asked for its children again');
+
+        await vscode.commands.executeCommand('workbench.actions.treeView.doorstop.treeView.collapseAll');
+        await save('Second title');
+        await waitFor(async () => await label() === 'Second title', 'second title in the tree');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        assert.ok(!asked.includes(root.id!), 'a collapsed document stays collapsed');
+      });
+    } finally {
+      treeProvider.getChildren = getChildren;
+      treeProvider.refresh();
+    }
   });
 
   test('Timing (023): a server request nests under its operation with wait/load/work stages', async () => {
@@ -1427,17 +1483,6 @@ suite('Regression Fixture Integration Suite', () => {
     const VIEW_SCHEME = 'doorstop-document';
     const REQ_SEPARATOR = (uid: string, level: string): string =>
       `<!-- ${uid} · ${level} · item separator. keep this line -->`;
-
-    async function waitFor(predicate: () => boolean | Promise<boolean>, what: string, timeoutMs = 5000): Promise<void> {
-      const deadline = Date.now() + timeoutMs;
-      while (Date.now() < deadline) {
-        if (await predicate()) {
-          return;
-        }
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      assert.fail(`timed out waiting for: ${what}`);
-    }
 
     async function listFiles(dir: string): Promise<string[]> {
       const out: string[] = [];
