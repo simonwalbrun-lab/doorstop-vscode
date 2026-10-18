@@ -4,7 +4,7 @@
   "description": "VS Code integration for Doorstop requirements management system.",
   "publisher": "SimonWalbrun",
   "icon": "media/Icons-marketplace.png",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "preview": true,
   "license": "MIT",
   "repository": {
@@ -26,9 +26,24 @@
       {
         "title": "Problems",
         "properties": {
+          "doorstop.problemReporting": {
+            "type": "string",
+            "enum": [
+              "automatic",
+              "onDemand",
+              "off"
+            ],
+            "enumItemLabels": [
+              "Automatic",
+              "On demand",
+              "Off"
+            ],
+            "default": "automatic",
+            "markdownDescription": "When Doorstop problems are checked. **Automatic**: after every change. **On demand**: only on Refresh. **Off**: never."
+          },
           "doorstop.problems": {
             "type": "object",
-            "markdownDescription": "Doorstop problem kinds to show in the Problems panel and the document view. Untick a kind to hide it.",
+            "markdownDescription": "Doorstop problem kinds to show in the Problems panel and the document view. Untick a kind to hide it. Applies only while Problem Reporting is not Off.",
             "properties": {
               "invalid_uid_in_links": {
                 "type": "boolean",
@@ -115,6 +130,11 @@
                 "default": true,
                 "description": "parent is '…', but linked to: <UID> — a link points outside the parent document."
               },
+              "linked_to_inactive_item": {
+                "type": "boolean",
+                "default": true,
+                "description": "linked to inactive item: <UID> — a link points to an inactive item (Doorstop 3.3+)."
+              },
               "unknown": {
                 "type": "boolean",
                 "default": true,
@@ -140,6 +160,7 @@
               "needs_initial_review": true,
               "prefix_differs_from_document": true,
               "unexpected_parent_prefix": true,
+              "linked_to_inactive_item": true,
               "unknown": true
             }
           }
@@ -195,23 +216,10 @@
             "default": "",
             "markdownDescription": "Template used for HTML and LaTeX publishing. Must name a template in the document's `template` folder. Empty = Doorstop's built-in template. When publishing all documents one file each, a template kept next to one document is lent to the others."
           },
-          "doorstop.publish.traceability": {
-            "type": "string",
-            "enum": [
-              "complete",
-              "doorstop"
-            ],
-            "enumDescriptions": [
-              "Matrix includes every declared link, also links that skip a document level or cross branches.",
-              "Matrix exactly as Doorstop's own publish produces it."
-            ],
-            "default": "complete",
-            "markdownDescription": "Traceability matrix (`traceability.html`/`.csv`) produced when publishing all documents. Affects the matrix only; item child links always include cross-document links."
-          },
           "doorstop.publish.noChildLinks": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "Publish without child links on items (Doorstop's `--no-child-links`). Parent links are then labelled *Links:*. Does not change the traceability matrix."
+            "markdownDescription": "Publish without child links on items (Doorstop's `--no-child-links`). Parent links are then labelled *Links:*."
           }
         }
       },
@@ -237,8 +245,23 @@
             "markdownDescription": "Record how long extension operations and server requests take, and print them to the *Doorstop Timing* output channel. Intended for developing the extension."
           }
         }
+      },
+      {
+        "title": "Editor",
+        "properties": {
+          "doorstop.foldYamlHeaderOnOpen": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Fold the YAML header of Markdown requirement items when they are opened, also in the peek editor of references and call hierarchy."
+          }
+        }
       }
     ],
+    "configurationDefaults": {
+      "[markdown]": {
+        "editor.foldingImportsByDefault": true
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -281,9 +304,29 @@
       "icon": "$(new-file)"
     },
     {
-      "command": "doorstop.recheckProblems",
-      "title": "Doorstop: Re-check Problems",
-      "icon": "$(checklist)"
+      "command": "doorstop.problemReporting.toOnDemand",
+      "title": "Problems: Automatic (click for On demand)",
+      "icon": "$(eye)"
+    },
+    {
+      "command": "doorstop.problemReporting.toOff",
+      "title": "Problems: On demand (click for Off)",
+      "icon": "$(eye-watch)"
+    },
+    {
+      "command": "doorstop.problemReporting.toAutomatic",
+      "title": "Problems: Off (click for Automatic)",
+      "icon": "$(eye-closed)"
+    },
+    {
+      "command": "doorstop.foldYamlHeaderOnOpen.on",
+      "title": "Fold YAML header on open: Off (click to turn on)",
+      "icon": "$(unfold)"
+    },
+    {
+      "command": "doorstop.foldYamlHeaderOnOpen.off",
+      "title": "Fold YAML header on open: On (click to turn off)",
+      "icon": "$(fold)"
     },
     {
       "command": "doorstop.restartExtension",
@@ -314,6 +357,16 @@
       "command": "doorstop.createDoc",
       "title": "Doorstop: Create Document",
       "icon": "$(file-directory-create)"
+    },
+    {
+      "command": "doorstop.skipDocument",
+      "title": "Doorstop: Disable Document",
+      "icon": "$(eye-closed)"
+    },
+    {
+      "command": "doorstop.enableDocument",
+      "title": "Doorstop: Enable Document",
+      "icon": "$(eye)"
     },
     {
       "command": "doorstop.refresh",
@@ -498,9 +551,44 @@
         "command": "doorstop.enableAutoReveal",
         "when": "view == doorstop.treeView && !doorstop.autoRevealEnabled",
         "group": "navigation"
+      },
+      {
+        "command": "doorstop.problemReporting.toOnDemand",
+        "when": "view == doorstop.treeView && doorstop.problemReporting == automatic",
+        "group": "navigation"
+      },
+      {
+        "command": "doorstop.problemReporting.toOff",
+        "when": "view == doorstop.treeView && doorstop.problemReporting == onDemand",
+        "group": "navigation"
+      },
+      {
+        "command": "doorstop.problemReporting.toAutomatic",
+        "when": "view == doorstop.treeView && doorstop.problemReporting == off",
+        "group": "navigation"
+      },
+      {
+        "command": "doorstop.foldYamlHeaderOnOpen.on",
+        "when": "view == doorstop.treeView && !config.doorstop.foldYamlHeaderOnOpen",
+        "group": "navigation"
+      },
+      {
+        "command": "doorstop.foldYamlHeaderOnOpen.off",
+        "when": "view == doorstop.treeView && config.doorstop.foldYamlHeaderOnOpen",
+        "group": "navigation"
       }
     ],
     "view/item/context": [
+      {
+        "command": "doorstop.skipDocument",
+        "when": "view == doorstop.treeView && viewItem == doorstop.root",
+        "group": "inline@4"
+      },
+      {
+        "command": "doorstop.enableDocument",
+        "when": "view == doorstop.treeView && viewItem == doorstop.root.skipped",
+        "group": "inline@4"
+      },
       {
         "command": "doorstop.add",
         "when": "view == doorstop.treeView && (viewItem == doorstop.root || viewItem =~ /^doorstop[.]item/)",
@@ -568,6 +656,26 @@
       }
     ],
     "commandPalette": [
+      {
+        "command": "doorstop.problemReporting.toOnDemand",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.problemReporting.toOff",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.problemReporting.toAutomatic",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.skipDocument",
+        "when": "false"
+      },
+      {
+        "command": "doorstop.enableDocument",
+        "when": "false"
+      },
       {
         "command": "doorstop.timing.showSummary",
         "when": "config.doorstop.timing.enabled"

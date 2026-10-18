@@ -18,25 +18,40 @@ export function setProgressForTest(fn: typeof vscode.window.withProgress | undef
 /** Updates the notification's message, e.g. the document currently being worked on. */
 export type ProgressReport = (message: string) => void;
 
+export interface DelayedProgressOptions {
+  /** Offers Cancel on the notification; `work`'s token fires when it is clicked. */
+  cancellable?: boolean;
+  /** Defaults to a notification; `Window` is the status-bar spinner for background work (spec 032). */
+  location?: vscode.ProgressLocation;
+}
+
 /**
  * Runs `work` now; resolves or rejects exactly like it. Messages `work` reports
  * before the notification appears are kept, so it opens with the latest one.
  */
-export function withDelayedProgress<T>(title: string, work: (report: ProgressReport) => Promise<T>): Promise<T> {
+export function withDelayedProgress<T>(
+  title: string,
+  work: (report: ProgressReport, token: vscode.CancellationToken) => Promise<T>,
+  options: DelayedProgressOptions = {}
+): Promise<T> {
   let latest: string | undefined;
   let forward: ProgressReport | undefined;
+  // Handed to `work` up front; Cancel can only be clicked once the notification shows.
+  const cancellation = new vscode.CancellationTokenSource();
   const running = work(message => {
     latest = message;
     forward?.(message);
-  });
+  }, cancellation.token);
   const timer = setTimeout(() => {
     if (showing.has(title)) {
       return;
     }
     showing.add(title);
+    const location = options.location ?? vscode.ProgressLocation.Notification;
     // The notification closes when the work settles; its copy of a failure is
     // dropped here because the caller already receives the original one.
-    void Promise.resolve(progress({ location: vscode.ProgressLocation.Notification, title }, notification => {
+    void Promise.resolve(progress({ location, title, cancellable: options.cancellable }, (notification, token) => {
+      token.onCancellationRequested(() => cancellation.cancel());
       forward = message => notification.report({ message });
       if (latest !== undefined) {
         forward(latest);
@@ -46,7 +61,10 @@ export function withDelayedProgress<T>(title: string, work: (report: ProgressRep
       .catch(() => undefined)
       .then(() => showing.delete(title));
   }, DELAY_MS);
-  const clear = (): void => clearTimeout(timer);
+  const clear = (): void => {
+    clearTimeout(timer);
+    cancellation.dispose();
+  };
   running.then(clear, clear);
   return running;
 }

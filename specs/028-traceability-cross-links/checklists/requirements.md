@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Traceability Cross-Document Links
+# Specification Quality Checklist: Publish Without Child Links
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-10-10

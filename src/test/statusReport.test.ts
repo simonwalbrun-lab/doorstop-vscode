@@ -71,6 +71,14 @@ suite('Status Report (021 US3)', () => {
     assert.ok(!markdown.includes('xychart'), markdown);
   });
 
+  // Spec 032 FR-016
+  test('problem reporting switched off says so instead of charting problems', () => {
+    const markdown = report({ issues: 'off' });
+    assert.ok(markdown.includes('## Problems per Document\n\nProblem reporting is off.'), markdown);
+    assert.ok(!markdown.includes('### REQ'), markdown);
+    assert.ok(!markdown.includes('Problems in'), markdown);
+  });
+
   test('missing history is reported, not charted', () => {
     const markdown = report();
     assert.ok(markdown.includes('Version history unavailable: not a git repository.'), markdown);

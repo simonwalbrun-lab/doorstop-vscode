@@ -12,7 +12,7 @@ The first PDF publish asks to add a `doorstop-pdf/` folder to the workspace with
 
 CI runs the same script, so a pipeline produces the same PDFs. Page breaks only match exactly between your machine and the runner when the template brings its own fonts. With system fonts, such as Doorstop's default HTML, line and page breaks can differ between operating systems.
 
-CI publishes with `python -m doorstop_server.publish` from the server package instead of `doorstop publish`, so the traceability matrix and child links include cross-document links exactly as in the extension. It takes the same arguments as `doorstop publish`, plus `--traceability doorstop` for Doorstop's own matrix; add `--template <name>` if your project uses one and `--no-child-links` to match that setting.
+CI publishes with plain `doorstop publish`; add `--template <name>` if your project uses one and `--no-child-links` to match the `doorstop.publish.noChildLinks` setting. The server package (`doorstop-vscode-server`) pins the Doorstop version. Known limitation: Doorstop only looks for child links in the documents directly below an item's document, so a link that skips a document level or points outside the parent chain is missing from the traceability matrix and from the target's child links (the linking item's page still lists it).
 
 GitHub Actions:
 
@@ -29,7 +29,7 @@ GitHub Actions:
   run: |
     npm ci
     npx playwright install --with-deps chromium
-- run: python -m doorstop_server.publish all out --html
+- run: doorstop publish all out --html
 - run: node doorstop-pdf/export-pdf.mjs out out/pdf
 - uses: actions/upload-artifact@v4
   with:
@@ -46,7 +46,7 @@ publish-pdf:
     - apt-get update && apt-get install -y python3-pip git
     - pip install --break-system-packages doorstop-vscode-server
     - (cd doorstop-pdf && npm ci)
-    - python3 -m doorstop_server.publish all out --html
+    - doorstop publish all out --html
     - node doorstop-pdf/export-pdf.mjs out out/pdf
   artifacts:
     paths:

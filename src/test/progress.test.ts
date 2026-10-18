@@ -76,6 +76,29 @@ suite('Delayed progress (026)', function () {
     assert.deepStrictEqual(shown.map(call => call.options.title).sort(), ['Doorstop: Other…', 'Doorstop: Refresh…']);
   });
 
+  // Spec 032 FR-008
+  test('a cancellable notification passes Cancel through to the work', async () => {
+    setProgressForTest(async (options, task) => {
+      shown.push({ atMs: Date.now() - start, options, settled: false, messages: [] });
+      const source = new vscode.CancellationTokenSource();
+      const result = task({ report: () => undefined }, source.token);
+      source.cancel();
+      return result;
+    });
+    const cancelled = await withDelayedProgress('Doorstop: Cancellable…', (_report, token) =>
+      new Promise<boolean>(resolve => token.onCancellationRequested(() => resolve(true))),
+    { cancellable: true });
+    assert.strictEqual(cancelled, true);
+    assert.strictEqual(shown[0].options.cancellable, true);
+  });
+
+  // Spec 032 FR-007
+  test('a Window location is passed through for background work', async () => {
+    await withDelayedProgress('Doorstop: Background…', () => sleep(1200), { location: vscode.ProgressLocation.Window });
+    assert.strictEqual(shown.length, 1);
+    assert.strictEqual(shown[0].options.location, vscode.ProgressLocation.Window);
+  });
+
   test('slow failing work shows one notification and rethrows the original error', async () => {
     const boom = new Error('boom');
     const unhandled: unknown[] = [];

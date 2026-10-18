@@ -133,6 +133,8 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
   private parentByItem = new Map<RequirementTreeItem, RequirementTreeItem>(); // Neu: Speichert Eltern-Elemente
   private parentById = new Map<string, RequirementTreeItem>();
   private roots: RequirementTreeItem[] = [];
+  /** Disabled documents, listed after the enabled ones (spec 031). */
+  private skipped: RequirementTreeItem[] = [];
   private loaded = false;
   /** The running load, shared by every caller that arrives meanwhile (getChildren, reveal, ...). */
   private loading: Promise<void> | undefined;
@@ -152,6 +154,7 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     this.parentByItem.clear(); // Neu: Parent-Lookup leeren
     this.parentById.clear();
     this.roots = [];
+    this.skipped = [];
     this._onDidChangeTreeData.fire();
   }
 
@@ -173,7 +176,7 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
   async getChildren(element?: RequirementTreeItem): Promise<RequirementTreeItem[]> {
     await this.loadItems();
     if (!element) {
-      return this.roots;
+      return [...this.roots, ...this.skipped];
     }
     return this.childrenByItem.get(element)
       || (element.id ? this.childrenById.get(element.id) : undefined)
@@ -262,8 +265,25 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
       this.attachHierarchy(root, items);
     }
 
+    // Disabled documents (spec 031): not `isDoorstopRoot`, so pickers never offer them.
+    for (const document of response.skippedDocuments ?? []) {
+      const label = path.basename(path.dirname(document.markerPath));
+      const node = new RequirementTreeItem(
+        label,
+        vscode.TreeItemCollapsibleState.None,
+        vscode.Uri.file(document.markerPath),
+        { prefix: document.prefix, markerPath: document.markerPath, skipped: true },
+        label
+      );
+      node.contextValue = 'doorstop.root.skipped';
+      node.description = `${document.prefix} (disabled)`;
+      node.iconPath = new vscode.ThemeIcon('eye-closed', new vscode.ThemeColor('disabledForeground'));
+      node.command = undefined;
+      this.skipped.push(node);
+    }
+
     for (const item of this.items.values()) {
-      item.collapsibleState = this.childrenByItem.has(item)
+      item.collapsibleState =this.childrenByItem.has(item)
         ? vscode.TreeItemCollapsibleState.Collapsed
         : vscode.TreeItemCollapsibleState.None;
       item.setTreeIcon(this.childrenByItem.has(item) ? 'files' : 'file');

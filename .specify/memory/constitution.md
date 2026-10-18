@@ -1,6 +1,75 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 1.6.0 → 1.7.0
+Rationale for 1.7.0: MINOR. Principle V was materially expanded: linting is
+mandatory for all code (TypeScript and Python), a linter MUST be established
+per language and configured in the repo, and lint MUST pass in CI. Before
+this, only TypeScript lint was named; Python had pylint configured in
+server/pyproject.toml but no rule requiring it and no CI step.
+
+Modified principles:
+  - V. Typed, Linted, and Tested Before It Ships (linting made mandatory and
+    extended to Python; CI enforcement added)
+
+Modified sections:
+  - Development Workflow (lint is part of "done" and of the CI gate)
+
+Added sections: none
+Removed sections: none
+Deferred / TODO placeholders: none.
+
+Follow-up (non-governance): no CI job runs lint yet and no pylint run is
+wired in; add both (e.g. `npm run lint` and `pylint` in ci.yml). Existing
+pylint findings are not fixed by this amendment.
+
+---
+Prior report (1.6.0, superseded by the above):
+Version change: 1.5.0 → 1.6.0
+Rationale for 1.6.0: MINOR. Principle I gained a "Background validation"
+exception to one-at-a-time processing. Background Doorstop validation must run
+in a separate thread or process with no influence on interactive response
+times, read-only, on its own copy of the project state. This is motivated by
+the user's tests on huge datasets: yielding the request lock between documents
+(spec 032) still blocks the user while one large document is checked. No
+principle was removed. One-at-a-time processing still applies to every request.
+
+Modified principles:
+  - I. Server Is the Single Source of Truth (added "Background validation";
+    rationale extended)
+
+Added sections: none
+Removed sections: none
+Deferred / TODO placeholders: none.
+
+Follow-up (non-governance): spec 032 FR-001 ("one document at a time, serve
+waiting requests between documents") and its plan/tasks (research R2, the lock
+yielding in routers/validation.py) no longer satisfy Principle I and must be
+reworked to a separate validation process.
+
+---
+Prior report (1.5.0, superseded by the above):
+Version change: 1.4.0 → 1.5.0
+Rationale for 1.5.0: MINOR — Principle I was materially expanded: a request
+already running on the server may now be cancelled, but only for one of a
+closed list of reasons, and only without leaving the repository in a partial
+state. Motivated by spec 032 (background problem checking), where a long
+whole-tree validation must give way to interactive requests. No principle was
+removed; the one-request-at-a-time rule is unchanged.
+
+Modified principles:
+  - I. Server Is the Single Source of Truth (added "Cancelling a running
+    request" rules)
+
+Added sections: none
+Removed sections: none
+Deferred / TODO placeholders: none.
+
+Follow-up (non-governance): spec 032 plan must name each cancellation point
+and its reason; no existing endpoint supports cancellation yet.
+
+---
+Prior report (1.4.0, superseded by the above):
 Version change: 1.3.0 → 1.4.0
 Rationale for 1.4.0: MINOR — a new principle (VIII. Every Functional
 Requirement Has a Traceable Automated Test) was added, raising the test floor
@@ -151,11 +220,61 @@ read and write exclusively through the server's API. Concurrent requests
 reaching the server MUST be processed one at a time so no two mutations race
 against the same Doorstop repository.
 
+Background validation: Doorstop validation that runs as background work (not
+a request the user is waiting on) is the one exception to one-at-a-time
+processing. It MUST run in a separate thread or process, alongside request
+handling and not inside it, so that it has no influence on how fast the
+server answers the user. Concretely:
+
+- No interactive request may wait for background validation at any point:
+  validation MUST NOT hold the request lock or any other lock that requests
+  need, and MUST NOT run on the thread or event loop that serves requests.
+- Interactive response times MUST stay close to the same (20% deviation 
+  allowed) whether or not a validation
+  is running. The plan of the feature MUST state how this is achieved and
+  measured. In CPython a thread shares the interpreter lock with request
+  handling, so a CPU-bound validation thread on its own does not satisfy
+  this rule; a separate process is the expected way to meet it.
+- Validation MUST be strictly read-only and MUST work on its own copy of the
+  project state (for example its own Doorstop tree loaded from disk), never on
+  objects that requests read or mutate.
+- A result computed from a state that changed while it ran MUST NOT be shown
+  as current; the cancellation rules below apply to it.
+
+Cancelling a running request: a request the server has already started MAY be
+cancelled before it finishes, but only for one of these reasons:
+
+- the user explicitly cancelled it (e.g. from its progress toast, Principle VII);
+- its result became obsolete: a newer request for the same result superseded
+  it, or the feature that asked for it was switched off;
+- it is read-only background work the user did not explicitly trigger, and it
+  gives way so an interactive request can be served promptly;
+- the server is shutting down or restarting.
+
+Any other cancellation (e.g. a timeout chosen only to hide slowness) is not
+allowed. Cancellation MUST leave the Doorstop repository exactly as if the
+request had either never run or fully completed: a mutation MUST NOT be
+cancelled once it has started writing to disk. A cancelled request MUST end
+with a structured "cancelled" response (Principle III), which the extension
+MUST treat as a cancellation, not as a failure, so no error message is shown.
+Each feature that cancels requests MUST name every cancellation point and its
+reason in its plan.
+
 Rationale: an earlier design had the extension re-parse files itself, which
 could disagree with Doorstop's own generated index; consolidating on one
 server implementation keeps behavior consistent, confines the blast radius of
 a Doorstop API change to one adapter layer, and the single-writer discipline
 prevents concurrent mutations from corrupting the underlying repository.
+Cancellation exists because one-at-a-time processing lets a single long,
+read-only request (such as a whole-tree validation on a large project) hold up
+every interactive request behind it. The closed list of reasons keeps
+cancellation from becoming a way to hide slow or failing work, and the
+no-partial-writes rule keeps the single-writer guarantee intact. Tests on very
+large projects showed that letting waiting requests go between documents is
+not enough: checking a single huge document still blocks the user. Validation
+therefore runs beside request handling. Because it is read-only and works on
+its own copy, it cannot race with mutations, so the single-writer guarantee
+still holds.
 
 ### II. No Reinvention of Doorstop Functionality
 
@@ -200,8 +319,22 @@ correctness or supply-chain problem behind a version bump nobody reviewed.
 
 ### V. Typed, Linted, and Tested Before It Ships
 
-TypeScript changes MUST pass type-checking (`check-types`) and linting
-(`lint`) before being packaged — these already gate `npm run package` and
+Linting is mandatory for all code in this repository. Every language in use
+MUST have an established linter, configured in a committed file, and all code
+MUST pass it with no errors before it is merged:
+
+- TypeScript: ESLint (`eslint.config.mjs`, run as `npm run lint`).
+- Python (`server/`): pylint (configured in `server/pyproject.toml`, installed
+  via the `dev` extra).
+- A new language or file type added to the repository MUST come with a linter
+  in the same change.
+- Lint MUST run in CI (`.github/workflows/ci.yml`) and a failing lint job
+  blocks merge. A lint rule MAY be disabled or suppressed only in the linter
+  configuration or on the affected line, with a comment giving the reason;
+  blanket suppression of a whole file or rule set to get green is prohibited.
+
+TypeScript changes MUST also pass type-checking (`check-types`) before being
+packaged — type-checking and `lint` already gate `npm run package` and
 `pretest` and MUST NOT be bypassed. Server (Python) changes affecting
 requirement CRUD, linking, review/clear, reorder, import/export/publish,
 error-response shape, or concurrency behavior MUST be covered by the
@@ -210,8 +343,10 @@ temporary Doorstop project; mocking Doorstop itself in these tests is
 prohibited, since it can hide exactly the kind of divergence Principles I and
 II exist to prevent.
 
-Rationale: this codifies practice the project already follows — the build
-scripts already enforce type/lint gates, and the existing server suite
+Rationale: unlinted code drifts in style and hides defects (unused names,
+unsafe patterns) that review misses; a linter makes that check automatic and
+uniform. This codifies practice the project already follows — the build
+scripts already enforce type/lint gates for TypeScript, and the existing server suite
 already validates against real Doorstop projects instead of mocks. This
 principle sets the per-change quality gate; Principle VI sets the per-feature
 coverage floor.
@@ -329,10 +464,11 @@ requirement does.
 ## Development Workflow
 
 - Before a change is considered done: extension changes MUST pass
-  `npm run compile` (type-check + lint + build); server changes touching the
-  areas listed in Principle V MUST pass the `server/tests` pytest suite.
+  `npm run compile` (type-check + lint + build); all server changes MUST pass
+  pylint, and those touching the areas listed in Principle V MUST pass the
+  `server/tests` pytest suite.
 - Every feature branch MUST leave CI green. The CI workflow
-  (`.github/workflows/ci.yml`) runs the server pytest suite, the extension
+  (`.github/workflows/ci.yml`) runs the linters, the server pytest suite, the extension
   build/package, and the extension integration tests on every pull request.
   A change MUST NOT be merged while any of those jobs is failing, and CI jobs
   MUST NOT be disabled or narrowed to make a change pass.
@@ -360,4 +496,4 @@ Unjustified complexity, or a deliberate deviation from a principle, MUST be
 called out explicitly (e.g. in the PR/commit description) rather than left
 implicit.
 
-**Version**: 1.4.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-10-10
+**Version**: 1.7.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-10-18

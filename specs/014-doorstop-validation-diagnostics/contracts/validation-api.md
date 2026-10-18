@@ -124,6 +124,7 @@ extension does with `field`.
 | `needs_initial_review` | `needs initial review` | `reviewed` |
 | `prefix_differs_from_document` | `prefix differs from document ({prefix})` | `null` |
 | `unexpected_parent_prefix` | `parent is '{prefix}', but linked to: {uid}` | `link_entry` |
+| `linked_to_inactive_item` | `linked to inactive item: {uid}` (Doorstop 3.3+; 3.2 reports `linked_to_unknown_item`) | `link_entry` |
 
 ### 2d. Reserved — not emitted by Doorstop 3.2
 

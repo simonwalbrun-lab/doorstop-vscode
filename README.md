@@ -22,6 +22,7 @@ All documents and items in the side bar.
 
 - Items ordered by level, one list per document
 - Add, Derive, Review, Link and Clear Suspect per item
+- Disable/enable a document with the eye button on its row (adds/removes Doorstop's `.doorstop.skip`; disabling also disables child documents); disabled documents are not validated or modified, which speeds things up
 - **Commands** view: Create, Reorder, Import, Export, Publish
 - **Generate Status Report**: Mermaid charts of items, problems, changes
 
@@ -57,7 +58,8 @@ Doorstop's own validation, inline at the affected field.
 <img src="media/promotion/09_problem_report.png" alt="Doorstop problems in the Problems panel" width=600>
 
 - **Do Review** and **Clear Suspect Link(s)** via `Ctrl+.`
-- Refreshes on save; or *Doorstop: Re-check Problems*
+- Checks in the background on save; **Refresh** re-checks
+- The eye button in the tree view cycles **Automatic** / **On demand** / **Off** (`doorstop.problemReporting`)
 
 <img src="media/promotion/08_review_and_clear.gif" alt="Quick fix: Do Review and Clear Suspect Link" width=600>
 
@@ -106,9 +108,10 @@ Query items with YAML filters, like Obsidian Bases. Run a cell, get a table.
 | `doorstop.newDocument.separator` | none | UID separator, e.g. `REQ-001` |
 | `doorstop.newDocument.digits` | `3` | UID digits for new documents |
 | `doorstop.publish.template` | Doorstop's | Template from the document's `template` folder |
-| `doorstop.publish.traceability` | `complete` | `complete` or Doorstop's own matrix |
 | `doorstop.publish.noChildLinks` | off | Doorstop's `--no-child-links` |
 | `doorstop.documentView.fields` | none | Header fields editable in document views |
+| `doorstop.problemReporting` | Automatic | `Automatic`, `On demand` or `Off` |
+| `doorstop.foldYamlHeaderOnOpen` | off | Fold the YAML header of Markdown items on open |
 | `doorstop.timing.enabled` | off | Timing log, for extension developers |
 
 ## Requirements

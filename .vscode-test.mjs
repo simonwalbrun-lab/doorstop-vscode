@@ -77,4 +77,23 @@ export default defineConfig([
 		label: 'packageMenus',
 		files: 'out/test/packageMenus.test.js',
 	},
+	{
+		// Spec 032: background problem checks and reporting modes against a stubbed
+		// server. Needs a workspace folder for the mode setting and button commands.
+		label: 'problemReporting',
+		files: 'out/test/problemReporting.test.js',
+		workspaceFolder: 'testdata/regression',
+	},
+	{
+		// Spec 031: toggle button placement (package.json) and disabled tree rows (stubbed
+		// server). The tree provider only needs some workspace folder.
+		label: 'documentSkip',
+		files: 'out/test/documentSkip.test.js',
+		workspaceFolder: 'testdata/regression',
+	},
+	{
+		// Spec 034: folding provider and button, temp fixture, no workspace, no server.
+		label: 'headerFolding',
+		files: 'out/test/headerFolding.test.js',
+	},
 ]);

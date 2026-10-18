@@ -32,8 +32,15 @@ export interface DocumentNode {
   items: ItemNode[];
 }
 
+/** A document Doorstop skips because of its `.doorstop.skip` file (spec 031). */
+export interface SkippedDocument {
+  prefix: string;
+  markerPath: string;
+}
+
 export interface TreeResponse {
   documents: DocumentNode[];
+  skippedDocuments?: SkippedDocument[];
 }
 
 /** Semantic anchor hint from the server: which field a problem belongs on. */
