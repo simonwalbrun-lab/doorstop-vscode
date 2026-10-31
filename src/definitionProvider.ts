@@ -3,10 +3,9 @@ import * as vscode from 'vscode';
 
 import { DoorstopIndex, getDocumentUid, loadDoorstopIndex } from './doorstopIndex';
 import { DoorstopServer } from './doorstopServer';
+import { DERIVED_LINE_REGEX, UID_REGEX } from './itemFile';
 import { DOCUMENT_VIEW_SCHEME } from './documentViewModel';
 
-export const UID_REGEX = /\b[A-Z0-9_-]+-\d+\b/g;
-const DERIVED_LINE_REGEX = /^\s*derived\s*:/i;
 const YAML_HEADER_LINE_REGEX = /^\s*header\s*:/i;
 const MARKDOWN_HEADING_LINE_REGEX = /^#{1,6}\s+/;
 

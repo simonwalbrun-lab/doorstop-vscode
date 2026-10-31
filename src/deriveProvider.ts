@@ -1,7 +1,8 @@
-import * as path from 'node:path';
 import * as vscode from 'vscode';
 
+import { DoorstopIndex, IndexedDocument } from './doorstopIndex';
 import { DoorstopServer } from './doorstopServer';
+import { DERIVED_LINE_REGEX, uidFromItemPath } from './itemFile';
 import { withDelayedProgress } from './progress';
 import { measure, registerCommand } from './timing';
 import { TreeResponse } from './doorstopTypes';
@@ -30,33 +31,21 @@ interface DeriveProviderOptions {
 }
 
 /**
- * A document as the server reports it. Sourced from GET /tree (the server's own
- * computed truth) rather than globbing and re-parsing .doorstop.yml markers
- * client-side - document discovery, config parsing and hierarchy computation all
- * belong to Doorstop, behind the server. See
- * specs/013-review-suspect-codelenses/research.md section 5.
+ * The documents as the server reports them, and the one that owns `sourceUid`
+ * (by UID, not guessed from the file's directory). Sourced from GET /tree rather
+ * than globbing and re-parsing .doorstop.yml markers client-side - document
+ * discovery, config parsing and hierarchy computation all belong to Doorstop,
+ * behind the server. See specs/013-review-suspect-codelenses/research.md
+ * section 5. A server error propagates, so callers can report it.
  */
-interface DoorstopDocumentInfo {
-  prefix: string;
-  parentPrefix?: string;
-  itemUids: Set<string>;
+async function loadDeriveSource(
+  server: DoorstopServer,
+  sourceUid: string
+): Promise<{ sourcePrefix: string | undefined; documents: IndexedDocument[] }> {
+  const index = DoorstopIndex.fromTree(await server.request<TreeResponse>('GET', '/tree'));
+  return { sourcePrefix: index.getItem(sourceUid)?.documentPrefix, documents: index.documents };
 }
 
-async function loadDocuments(server: DoorstopServer): Promise<DoorstopDocumentInfo[]> {
-  const response = await server.request<TreeResponse>('GET', '/tree');
-  return response.documents
-    .map(document => ({
-      prefix: document.prefix,
-      parentPrefix: document.parentPrefix,
-      itemUids: new Set(document.items.map(item => item.uid))
-    }))
-    .sort((left, right) => left.prefix.localeCompare(right.prefix));
-}
-
-/** The document that actually owns this item, by UID - not guessed from the file's directory. */
-function getSourceDocumentPrefix(sourceUid: string, documents: DoorstopDocumentInfo[]): string | undefined {
-  return documents.find(document => document.itemUids.has(sourceUid))?.prefix;
-}
 
 /**
  * How a candidate document is related to the source item's document, in family
@@ -195,17 +184,8 @@ export async function getDeriveTargets(
   server: DoorstopServer,
   sourceUid: string
 ): Promise<DeriveTarget[] | undefined> {
-  const documents = await loadDocuments(server);
-  const sourcePrefix = getSourceDocumentPrefix(sourceUid, documents);
+  const { sourcePrefix, documents } = await loadDeriveSource(server, sourceUid);
   return sourcePrefix ? buildDeriveTargets(sourcePrefix, documents) : undefined;
-}
-
-function getSourceUid(document: vscode.TextDocument): string | undefined {
-  const extension = path.extname(document.fileName).toLowerCase();
-  if (extension !== '.yml' && extension !== '.md') {
-    return undefined;
-  }
-  return path.basename(document.fileName, extension);
 }
 
 export function registerDeriveProvider(
@@ -217,8 +197,8 @@ export function registerDeriveProvider(
       return measure('codeLens.derive', () => {
         const lenses: vscode.CodeLens[] = [];
         for (let line = 0; line < document.lineCount; line++) {
-          const sourceUid = getSourceUid(document);
-          if (sourceUid && /^\s*derived\s*:/i.test(document.lineAt(line).text)) {
+          const sourceUid = uidFromItemPath(document.fileName);
+          if (sourceUid && DERIVED_LINE_REGEX.test(document.lineAt(line).text)) {
             lenses.push(new vscode.CodeLens(new vscode.Range(line, 0, line, 0), {
               command: 'doorstop.deriveRequirement',
               title: '+ Derive Requirement',
@@ -245,16 +225,16 @@ export function registerDeriveProvider(
 
       // An unreachable server used to be swallowed here, silently shortening the
       // target list; report it instead of offering a wrong set of choices.
-      let documents: DoorstopDocumentInfo[];
+      let source: Awaited<ReturnType<typeof loadDeriveSource>>;
       try {
-        documents = await loadDocuments(options.server);
+        source = await loadDeriveSource(options.server, deriveContext.sourceUid);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         void vscode.window.showErrorMessage(`Could not load Doorstop documents: ${message}`);
         return;
       }
 
-      const sourcePrefix = getSourceDocumentPrefix(deriveContext.sourceUid, documents);
+      const { sourcePrefix, documents } = source;
       if (!sourcePrefix) {
         void vscode.window.showWarningMessage('The source document is not inside a Doorstop document.');
         return;

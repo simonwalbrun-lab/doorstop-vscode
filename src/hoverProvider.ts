@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 import { DoorstopIndex, getDocumentUid, loadDoorstopIndex } from './doorstopIndex';
 import { DoorstopServer } from './doorstopServer';
+import { DERIVED_LINE_REGEX, UID_REGEX } from './itemFile';
 import { measure } from './timing';
 import { DOCUMENT_VIEW_SCHEME } from './documentViewModel';
 
@@ -14,8 +15,6 @@ import { DOCUMENT_VIEW_SCHEME } from './documentViewModel';
  * section 5.
  */
 
-const UID_REGEX = /\b[A-Z0-9_-]+-\d+\b/g;
-const DERIVED_LINE_REGEX = /^\s*derived\s*:/i;
 const LINK_ENTRY_LINE_REGEX = /^\s*(-|\s)\s*[A-Z0-9_-]+-\d+/i;
 const LINKS_FIELD_LINE_REGEX = /^\s*links\s*:/i;
 

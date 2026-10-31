@@ -1,12 +1,11 @@
 import * as vscode from 'vscode';
 
-import { DoorstopTreeProvider,RequirementTreeItem } from './requirementTree';
-import { DoorstopDiagramPanel } from './diagrammPanel';
+import { DoorstopTreeProvider, registerTreeViews } from './requirementTree';
+import { registerDiagramEditor } from './diagrammPanel';
 import { registerHoverProvider } from './hoverProvider';
 import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
-import { DoorstopServer, installServerPackage, isServerPackageInstalled, SERVER_PACKAGE_NAME } from './doorstopServer';
+import { DoorstopServer } from './doorstopServer';
 import { initTiming, registerCommand } from './timing';
-import { withDelayedProgress } from './progress';
 import { registerDeriveProvider } from './deriveProvider';
 import { registerReviewCodeActionProvider } from './reviewCodeActionProvider';
 import { registerReviewCommands } from './reviewLensProvider';
@@ -19,42 +18,15 @@ import { DocumentViewHandle, registerDocumentView } from './documentViewProvider
 import { registerDocumentViewLanguage } from './documentViewLanguage';
 import { registerFilterNotebook } from './filterNotebook';
 import { registerHeaderFolding } from './headerFolding';
-import { getActiveInterpreter, PythonEnvironmentsApi, sameInterpreter, watchInterpreter } from './pythonEnvironment';
-interface DoorstopDiagramDocument extends vscode.CustomDocument {
-  diagram: unknown;
-}
+import { registerServerStartup } from './serverStartup';
+
 export async function activate(context: vscode.ExtensionContext) {
   initTiming(context);
 
   const doorstopServer = new DoorstopServer();
   context.subscriptions.push(doorstopServer);
 
-  // Persisted per-user preference (not workspace config): whether the Explorer
-  // tree automatically reveals the active requirement. Defaults to true (today's
-  // existing behavior) if unset or unreadable. Mirrored into a when-clause
-  // context key so the two view/title toggle buttons can react to it.
-  let autoRevealEnabled = context.globalState.get<boolean>('doorstop.autoRevealEnabled', true);
-  void vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', autoRevealEnabled);
-
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-  // Spec 029 FR-011/FR-012: only the interpreter of the Python environment VS Code
-  // has activated is ever used; no fallback. null while the extension is missing.
-  const getPythonApi = async (): Promise<PythonEnvironmentsApi | undefined> => {
-    const pythonExtension = vscode.extensions.getExtension('ms-python.python');
-    if (!pythonExtension) {
-      return undefined;
-    }
-    if (!pythonExtension.isActive) {
-      await pythonExtension.activate();
-    }
-    const exports = pythonExtension.exports as { ready?: Promise<void>; environments?: PythonEnvironmentsApi };
-    await exports.ready;
-    return exports.environments;
-  };
-  const getActivePythonPath = async (): Promise<string | undefined> => {
-    const api = await getPythonApi();
-    return api ? getActiveInterpreter(api, workspaceFolder?.uri) : undefined;
-  };
   let refreshViews: () => void = () => undefined;
 
   // Declared before every closure that uses it. It stays undefined until the
@@ -63,129 +35,12 @@ export async function activate(context: vscode.ExtensionContext) {
   let problemsProvider: ProblemsProvider | undefined;
   let documentView: DocumentViewHandle | undefined;
 
-  // Spawns the server process and reports the outcome; split out of
-  // startDoorstopServer so the missing-package install flow below can call it
-  // again once the package has just been installed (FR-006), without
-  // duplicating the spawn/report logic.
-  const spawnServerProcess = async (pythonPath: string, restart: boolean): Promise<void> => {
-    try {
-      await withDelayedProgress(
-        restart ? 'Restarting Doorstop server…' : 'Starting Doorstop server…',
-        () => restart
-          ? doorstopServer.restart(workspaceFolder!.uri.fsPath, pythonPath)
-          : doorstopServer.start(workspaceFolder!.uri.fsPath, pythonPath)
-      );
-      void vscode.window.showInformationMessage('Doorstop server is ready.');
-      // A restart means the tree may have changed underneath us; on the first
-      // start this is a no-op and the initial check runs at registration.
-      problemsProvider?.scheduleRefresh();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error('[Doorstop][server] Failed to start:', message);
-      void vscode.window.showWarningMessage(`Doorstop server unavailable: ${message}`);
-    }
-  };
-
-  // Shown instead of the generic startup failure when the interpreter is
-  // resolved but doesn't have the server package (spec 016). Dismissing (or
-  // not choosing "Install") leaves the server stopped, same as today's
-  // failure state (FR-009) - no install is attempted and no retry loop spams
-  // further prompts.
-  const promptToInstallServerPackage = async (pythonPath: string, restart: boolean): Promise<void> => {
-    const selection = await vscode.window.showWarningMessage(
-      `The ${SERVER_PACKAGE_NAME} Python package is not installed in the selected interpreter. ` +
-      'Doorstop server features will not work until it is installed.',
-      'Install',
-      'Dismiss'
-    );
-    if (selection !== 'Install') {
-      return;
-    }
-
-    // FR-013: the prompt may have been open while the environment changed. Install
-    // nothing into the old one; the environment watcher below restarts the check
-    // for the new one.
-    if (!sameInterpreter(await getActivePythonPath(), pythonPath)) {
-      return;
-    }
-
-    const outcome = await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        cancellable: false,
-        title: `Installing ${SERVER_PACKAGE_NAME}...`
-      },
-      () => installServerPackage(pythonPath)
-    );
-
-    if (outcome.success) {
-      void vscode.window.showInformationMessage(`${SERVER_PACKAGE_NAME} installed successfully.`);
-      await spawnServerProcess(pythonPath, restart);
-    } else {
-      console.error('[Doorstop][server] Package install failed:', outcome.output);
-      // Nothing is recorded here beyond this call returning, so the next
-      // server-start or "Doorstop: Restart Extension" attempt re-checks and
-      // re-prompts rather than remembering this as a permanent failure (FR-007).
-      void vscode.window.showErrorMessage(
-        `Failed to install ${SERVER_PACKAGE_NAME}: ${outcome.output.trim() || 'unknown error'}`
-      );
-    }
-  };
-
-  const startDoorstopServer = async (pythonPath: string, restart = false): Promise<void> => {
-    if (!workspaceFolder) {
-      return;
-    }
-
-    // Re-checked on every attempt (initial activation and manual restart),
-    // never cached, so switching interpreters is always reflected (FR-010).
-    if (!(await isServerPackageInstalled(pythonPath))) {
-      await promptToInstallServerPackage(pythonPath, restart);
-      return;
-    }
-
-    await spawnServerProcess(pythonPath, restart);
-  };
-
-  let waitingNoticeShown = false;
-  const notifyWaitingForPython = (): void => {
-    if (!waitingNoticeShown) {
-      waitingNoticeShown = true;
-      void vscode.window.showInformationMessage(
-        'Doorstop: waiting for the Python environment to be activated. The server starts as soon as it is.'
-      );
-    }
-  };
-
-  // Spec 029 FR-014: re-resolve the environment, re-check the package, restart the
-  // server and refresh the views.
-  const restartExtensionCommand = registerCommand('doorstop.restartExtension', async () => {
-    const pythonPath = await getActivePythonPath();
-    if (pythonPath) {
-      await startDoorstopServer(pythonPath, true);
-    } else {
-      notifyWaitingForPython();
-    }
-    refreshViews();
+  await registerServerStartup(context, doorstopServer, workspaceFolder, {
+    // A restart means the tree may have changed underneath us; on the first
+    // start this is a no-op and the initial check runs at registration.
+    onStarted: () => problemsProvider?.scheduleRefresh(),
+    onRestartCommand: () => refreshViews()
   });
-  context.subscriptions.push(restartExtensionCommand);
-
-  if (workspaceFolder) {
-    // Starts now if an environment is active, otherwise as soon as one becomes
-    // active (FR-011, FR-012); a later switch restarts with the new interpreter.
-    // Only the first start is awaited so activation never blocks on the wait.
-    let started = false;
-    const api = await getPythonApi();
-    if (!api) {
-      void vscode.window.showWarningMessage('Doorstop server unavailable: The Python extension is not installed.');
-    } else {
-      context.subscriptions.push(await watchInterpreter(api, workspaceFolder.uri, async pythonPath => {
-        const restart = started;
-        started = true;
-        await startDoorstopServer(pythonPath, restart);
-      }, notifyWaitingForPython));
-    }
-  }
 
   const treeProvider = new DoorstopTreeProvider(doorstopServer);
   const commandsProvider = new DoorstopCommandsProvider();
@@ -204,7 +59,7 @@ export async function activate(context: vscode.ExtensionContext) {
         problemsProvider?.scheduleRefresh();
       }
     },
-    workspaceFolder: workspaceFolder || vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder,
+    workspaceFolder,
     problems: () => problemsProvider
   }));
   // The tree view's eye button cycles the problem-reporting mode (spec 032
@@ -278,215 +133,14 @@ export async function activate(context: vscode.ExtensionContext) {
       server: doorstopServer
     });
   }
-  const newDiagramCmd = registerCommand('doorstop.newDiagram', async () => {
-    const defaultUri = workspaceFolder
-      ? vscode.Uri.joinPath(workspaceFolder.uri, 'diagram.doorstop.json')
-      : undefined;
-    const target = await vscode.window.showSaveDialog({
-      defaultUri,
-      filters: { 'Doorstop Diagram': ['doorstop.json'] },
-      saveLabel: 'Create Diagram'
-    });
-    if (!target) {
-      return;
-    }
-    // showSaveDialog does not reliably append compound extensions; the CustomEditor
-    // only activates for files matching the "*.doorstop.json" filenamePattern.
-    const uri = target.fsPath.endsWith('.doorstop.json')
-      ? target
-      : vscode.Uri.file(target.fsPath.replace(/\.json$/i, '') + '.doorstop.json');
-    try {
-      await vscode.workspace.fs.writeFile(uri, DoorstopDiagramPanel.serializeDiagram({ nodes: [], edges: [] }));
-      await vscode.commands.executeCommand('vscode.openWith', uri, 'doorstop.diagram');
-    } catch (e) {
-      vscode.window.showErrorMessage(`Failed to create diagram: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  });
-  const documentChangeEvent = new vscode.EventEmitter<vscode.CustomDocumentContentChangeEvent<DoorstopDiagramDocument>>();
-  const diagramEditorProvider: vscode.CustomEditorProvider<DoorstopDiagramDocument> = {
-    onDidChangeCustomDocument: documentChangeEvent.event,
-    async openCustomDocument(uri, openContext) {
-      return {
-        uri,
-        diagram: await DoorstopDiagramPanel.readDiagramOrBackup(uri, openContext.backupId),
-        dispose() { }
-      };
-    },
-    async resolveCustomEditor(document, webviewPanel) {
-      await DoorstopDiagramPanel.createForCustomEditor(
-        webviewPanel,
-        context.extensionUri,
-        // Getter, not a snapshot: the webview reloads whenever its tab is hidden and
-        // shown again, and must be handed the document's content as it is *now*.
-        () => document.diagram,
-        diagram => {
-          document.diagram = diagram;
-          documentChangeEvent.fire({ document });
-        },
-        doorstopServer,
-        treeProvider
-      );
-    },
-    async saveCustomDocument(document) {
-      await vscode.workspace.fs.writeFile(
-        document.uri,
-        DoorstopDiagramPanel.serializeDiagram(document.diagram)
-      );
-    },
-    async saveCustomDocumentAs(document, destination) {
-      await vscode.workspace.fs.writeFile(
-        destination,
-        DoorstopDiagramPanel.serializeDiagram(document.diagram)
-      );
-    },
-    async revertCustomDocument(document) {
-      document.diagram = await DoorstopDiagramPanel.readDiagram(document.uri);
-    },
-    async backupCustomDocument(document, context) {
-      await vscode.workspace.fs.writeFile(
-        context.destination,
-        DoorstopDiagramPanel.serializeDiagram(document.diagram)
-      );
-      return {
-        id: context.destination.toString(),
-        delete: () => vscode.workspace.fs.delete(context.destination)
-      };
-    }
-  };
-  const customEditor = vscode.window.registerCustomEditorProvider(
-    'doorstop.diagram',
-    diagramEditorProvider
-  );
-  // ------------------------------------------------------------------
-  // STELLE A: DragAndDropController definieren & TreeView erstellen
-  // ------------------------------------------------------------------
-  const dndController: vscode.TreeDragAndDropController<RequirementTreeItem> = {
-    dragMimeTypes: [
-      'application/vnd.code.tree.doorstop.treeView',
-      'text/plain',
-      'text/uri-list'
-    ],
-    dropMimeTypes: [],
-    handleDrag(source, dataTransfer) {
-      const item = source[0];
-      if (item && item.resourceUri) {
-        const payload = JSON.stringify({
-          uid: item.itemData?.uid || item.label,
-          fileUri: item.resourceUri.fsPath,
-          title: item.title
-        });
-        dataTransfer.set(
-          'application/vnd.code.tree.doorstop.treeView',
-          new vscode.DataTransferItem(payload)
-        );
-        dataTransfer.set('text/plain', new vscode.DataTransferItem(item.resourceUri.fsPath));
-        dataTransfer.set('text/uri-list', new vscode.DataTransferItem(item.resourceUri.toString()));
-      }
-    }
-  };
 
-  const addToDiagramCmd = registerCommand('doorstop.addToDiagram', (item?: RequirementTreeItem) => {
-    if (!item?.resourceUri) {
-      return;
-    }
-    if (!DoorstopDiagramPanel.currentPanel) {
-      vscode.window.showInformationMessage('Open a diagram file (*.doorstop.json) or create one with "New Diagram" first.');
-      return;
-    }
-    DoorstopDiagramPanel.currentPanel.addRequirementToDiagram(item.resourceUri.fsPath);
-  });
-
-  context.subscriptions.push(newDiagramCmd, customEditor, addToDiagramCmd);
-
-
-  const treeView = vscode.window.createTreeView('doorstop.treeView', {
-    treeDataProvider: treeProvider,
-    showCollapseAll: true,
-    dragAndDropController: dndController
-  });
-  const commandsView = vscode.window.createTreeView('doorstop.commandsView', {
-    treeDataProvider: commandsProvider,
-    showCollapseAll: false
-  });
-
-  /** Selects the tree item of `uri`, retrying once on a freshly loaded tree. */
-  const revealInTree = async (uri: vscode.Uri | undefined, focus: boolean): Promise<void> => {
-    const reveal = async (): Promise<void> => {
-      const item = await treeProvider.setActiveResource(uri);
-      if (item) {
-        await prepareTreeItemForReveal(treeProvider, item);
-        await treeView.reveal(item, { select: true, focus, expand: true });
-      }
-    };
-    try {
-      await reveal();
-    } catch (error) {
-      console.warn('[Doorstop][reveal] Initial reveal failed, retrying:', error);
-      try {
-        await treeProvider.getChildren();
-        await reveal();
-      } catch (retryError) {
-        console.error('[Doorstop][reveal] Retry reveal failed:', retryError);
-      }
-    }
-  };
-
-  const activateRequirementCommand = registerCommand(
-    'doorstop.activateRequirement',
-    async (filePath: string) => {
-      if (autoRevealEnabled) {
-        await revealInTree(vscode.Uri.file(filePath), true);
-      }
-    }
-  );
-
-  const toggleAutoRevealCommand = registerCommand('doorstop.toggleAutoReveal', async () => {
-    autoRevealEnabled = false;
-    await context.globalState.update('doorstop.autoRevealEnabled', false);
-    await vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', false);
-  });
-
-  const enableAutoRevealCommand = registerCommand('doorstop.enableAutoReveal', async () => {
-    autoRevealEnabled = true;
-    await context.globalState.update('doorstop.autoRevealEnabled', true);
-    await vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', true);
-  });
-
-  context.subscriptions.push(
-    treeView,
-    commandsView,
-    activateRequirementCommand,
-    toggleAutoRevealCommand,
-    enableAutoRevealCommand
-  );
-
-  const syncActiveRequirement = async (editor: vscode.TextEditor | undefined) => {
-    recordViewedRequirement(editor?.document.uri);
-    if (autoRevealEnabled) {
-      await revealInTree(editor?.document.uri, false);
-    }
-  };
+  const dragAndDropController = registerDiagramEditor(context, doorstopServer, treeProvider);
+  registerTreeViews(context, treeProvider, commandsProvider, dragAndDropController);
 
   context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => {
-    void syncActiveRequirement(editor).catch(() => undefined);
+    recordViewedRequirement(editor?.document.uri);
   }));
-
-  void syncActiveRequirement(vscode.window.activeTextEditor);
-
-  async function prepareTreeItemForReveal(
-    provider: DoorstopTreeProvider,
-    item: RequirementTreeItem
-  ): Promise<void> {
-    const ancestors: RequirementTreeItem[] = [];
-    let current: RequirementTreeItem | undefined = item;
-    while (current) {
-      ancestors.unshift(current);
-      current = provider.getParent(current) as RequirementTreeItem | undefined;
-    }
-    for (const ancestor of ancestors) {
-      await provider.getChildren(ancestor);
-    }
-  }
+  recordViewedRequirement(vscode.window.activeTextEditor?.document.uri);
 
   registerHoverProvider(context, { server: doorstopServer });
   registerCompletionProvider(context, { server: doorstopServer });
@@ -498,4 +152,3 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {}
-

@@ -6,6 +6,8 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { DoorstopDiagramPanel } from '../diagrammPanel';
+import { DoorstopServer } from '../doorstopServer';
+import { DoorstopTreeProvider } from '../requirementTree';
 
 // Covers the two pieces of feature 015 that are testable without a browser:
 // the pure layout geometry, and diagram-document persistence after a node is
@@ -351,8 +353,8 @@ suite('Diagram document persistence after node removal (feature 015)', () => {
 
     // Positions of the surviving nodes are untouched by the removal (FR-014).
     const survivor = reloaded.nodes.find((n: { id: string }) => n.id === 'REQ003');
-    assert.strictEqual(survivor.x, 200);
-    assert.strictEqual(survivor.y, 0);
+    assert.strictEqual(survivor?.x, 200);
+    assert.strictEqual(survivor?.y, 0);
   });
 
   test('removing the last node leaves a readable, empty diagram', async () => {
@@ -375,5 +377,46 @@ suite('Canvas loads nothing from the network (audit-fixes-2026-10)', () => {
     const vendor = path.join(REPO_ROOT, 'dist', 'webview', 'diagram', 'vendor');
     await fs.access(path.join(vendor, 'vis-network.min.js'));
     await fs.access(path.join(vendor, 'vis-network.min.css'));
+  });
+});
+
+suite('Diagram target (rework-codebase B1)', () => {
+  // Never contacted: getDiagram answers undefined, so a panel never loads metadata.
+  const server = new DoorstopServer();
+  const tree = new DoorstopTreeProvider(server);
+
+  const until = async (condition: () => boolean): Promise<void> => {
+    const deadline = Date.now() + 5000;
+    while (!condition()) {
+      assert.ok(Date.now() < deadline, 'timed out: the revealed diagram never became the target');
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+  };
+
+  const openPanel = (title: string): { webview: vscode.WebviewPanel; diagram: DoorstopDiagramPanel } => {
+    const webview = vscode.window.createWebviewPanel('doorstop.diagramTest', title, vscode.ViewColumn.One, {});
+    const diagram = DoorstopDiagramPanel.createForCustomEditor(
+      webview, vscode.Uri.file(REPO_ROOT), () => undefined, () => undefined, server, tree
+    );
+    return { webview, diagram };
+  };
+
+  test('"Add to Diagram" targets the active diagram, and closing another keeps it', async () => {
+    const a = openPanel('A');
+    const b = openPanel('B');
+    try {
+      assert.strictEqual(DoorstopDiagramPanel.target, b.diagram, 'the diagram opened last is active');
+
+      // Waits for the behaviour, not `webview.active`: A's flag can still read true from before B opened.
+      a.webview.reveal(vscode.ViewColumn.One);
+      await until(() => DoorstopDiagramPanel.target === a.diagram);
+
+      b.webview.dispose();
+      assert.strictEqual(DoorstopDiagramPanel.target, a.diagram, 'closing another diagram must not forget this one');
+    } finally {
+      a.webview.dispose();
+      b.webview.dispose();
+    }
+    assert.strictEqual(DoorstopDiagramPanel.target, undefined, 'no diagram open, no target');
   });
 });

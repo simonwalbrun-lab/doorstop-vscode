@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { DoorstopServer } from './doorstopServer';
+import { LINK_ENTRY_REGEX, metadataRange, uidFromItemPath } from './itemFile';
 import { withDelayedProgress } from './progress';
 import { registerCommand } from './timing';
 
@@ -67,40 +68,18 @@ export interface ReviewCommandOptions {
 // metadata keys, not a same-named line indented inside the `text: |` block.
 const REVIEWED_FIELD_REGEX = /^reviewed\s*:/i;
 const LINKS_FIELD_REGEX = /^links\s*:/i;
-/** A YAML sequence entry, capturing the UID token before an optional `: stamp`. */
-const LINK_ENTRY_REGEX = /^\s*-\s+([^\s:]+)\s*(?::|$)/;
-const FRONTMATTER_FENCE_REGEX = /^---\s*$/;
-
-function getRequirementUid(document: vscode.TextDocument): string | undefined {
-  const extension = path.extname(document.fileName).toLowerCase();
-  if (extension !== '.yml' && extension !== '.md') {
-    return undefined;
-  }
-  return path.basename(document.fileName, extension);
-}
 
 /**
- * The lines that hold the item's metadata. For a YAML item that is the whole
- * file; for a Markdown item it is only the `---` frontmatter block, so a
- * `links:` line written in the prose body cannot sprout lenses.
- * Returns undefined when a `.md` file has no frontmatter at all.
+ * The lines that hold the item's metadata (see metadataRange). Undefined when a
+ * `.md` file has no frontmatter, or its fence is never closed: no lenses or
+ * folds are offered on a half-written header.
  */
 export function getMetadataLineRange(
   document: vscode.TextDocument,
   lines: string[]
 ): { start: number; end: number } | undefined {
-  if (path.extname(document.fileName).toLowerCase() !== '.md') {
-    return { start: 0, end: lines.length };
-  }
-  if (lines.length === 0 || !FRONTMATTER_FENCE_REGEX.test(lines[0])) {
-    return undefined;
-  }
-  for (let line = 1; line < lines.length; line++) {
-    if (FRONTMATTER_FENCE_REGEX.test(lines[line])) {
-      return { start: 1, end: line };
-    }
-  }
-  return undefined;
+  const range = metadataRange(lines, path.extname(document.fileName).toLowerCase() === '.md');
+  return range?.closed ? range : undefined;
 }
 
 /**
@@ -108,7 +87,7 @@ export function getMetadataLineRange(
  * the server is down or still booting (spec SC-005).
  */
 export function scanRequirementDocument(document: vscode.TextDocument): RequirementLensScan | undefined {
-  const uid = getRequirementUid(document);
+  const uid = uidFromItemPath(document.fileName);
   if (!uid) {
     return undefined;
   }

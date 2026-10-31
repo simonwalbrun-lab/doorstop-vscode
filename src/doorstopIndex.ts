@@ -1,7 +1,7 @@
-import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { DoorstopServer } from './doorstopServer';
+import { uidFromItemPath } from './itemFile';
 import { ItemNode, TreeResponse } from './doorstopTypes';
 
 /**
@@ -25,6 +25,8 @@ export interface IndexedItem extends ItemNode {
 export interface IndexedDocument {
   prefix: string;
   parentPrefix?: string;
+  /** The document's `.doorstop.yml`. */
+  markerPath: string;
 }
 
 export class DoorstopIndex {
@@ -40,7 +42,7 @@ export class DoorstopIndex {
     const documents: IndexedDocument[] = [];
 
     for (const document of response.documents) {
-      documents.push({ prefix: document.prefix, parentPrefix: document.parentPrefix });
+      documents.push({ prefix: document.prefix, parentPrefix: document.parentPrefix, markerPath: document.markerPath });
       for (const item of document.items) {
         itemByUid.set(item.uid, { ...item, documentPrefix: document.prefix });
         // Defensive: an older server build may omit `links` entirely.
@@ -55,6 +57,10 @@ export class DoorstopIndex {
       }
     }
     return new DoorstopIndex(itemByUid, linkersByUid, documents);
+  }
+
+  getDocument(prefix: string): IndexedDocument | undefined {
+    return this.documents.find(document => document.prefix === prefix);
   }
 
   getItem(uid: string): IndexedItem | undefined {
@@ -107,12 +113,8 @@ export async function loadDoorstopIndex(server: DoorstopServer): Promise<Doorsto
  * so a stray file that merely looks like an item is not treated as one.
  */
 export function getDocumentUid(document: vscode.TextDocument, index?: DoorstopIndex): string | undefined {
-  const extension = path.extname(document.fileName).toLowerCase();
-  if (extension !== '.yml' && extension !== '.md') {
-    return undefined;
-  }
-  const uid = path.basename(document.fileName, extension);
-  if (index && !index.has(uid)) {
+  const uid = uidFromItemPath(document.fileName);
+  if (!uid || (index && !index.has(uid))) {
     return undefined;
   }
   return uid;

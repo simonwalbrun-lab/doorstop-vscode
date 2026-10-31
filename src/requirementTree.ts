@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 import { DoorstopServer } from './doorstopServer';
-import { measure } from './timing';
+import { measure, registerCommand } from './timing';
 import { ItemNode, TreeResponse } from './doorstopTypes';
 
 /**
@@ -21,7 +21,7 @@ function extractTitle(node: ItemNode): string {
   }
 
   const firstLine = text.split('\n')[0]?.trim();
-  return firstLine || 'Unbenanntes Requirement';
+  return firstLine || 'Unnamed requirement';
 }
 
 /**
@@ -83,40 +83,44 @@ export function sectionUids(items: { uid: string; level: string }[], rootUid: st
   return ordered.filter((_, index) => members.has(index)).map(item => item.uid);
 }
 
-export class RequirementTreeItem extends vscode.TreeItem {
-  private readonly baseLabel: string;
+/**
+ * What a tree row stands for. A document row has `prefix` and `isDoorstopRoot`
+ * (its `uid` is the marker path), an item row `uid`, `level` and `header`, and a
+ * disabled document `prefix`, `markerPath` and `skipped`.
+ */
+export interface TreeItemData {
+  uid?: string;
+  prefix?: string;
+  level?: string;
+  header?: string;
+  isDoorstopRoot?: boolean;
+  markerPath?: string;
+  skipped?: boolean;
+}
 
+export class RequirementTreeItem extends vscode.TreeItem {
   constructor(
     public label: string,
     public collapsibleState: vscode.TreeItemCollapsibleState,
     public readonly resourceUri: vscode.Uri,
-    public readonly itemData: any,
+    public readonly itemData: TreeItemData,
     public readonly title: string
   ) {
     super(label, collapsibleState);
     this.id = resourceUri.toString();
     this.contextValue = itemData.isDoorstopRoot ? 'doorstop.root' : 'doorstop.item';
-
-    // Label und Beschreibung im Tree:
-    this.baseLabel = title;
-    this.label = this.baseLabel;
+    this.label = title;
     this.description = itemData.uid || path.basename(resourceUri.fsPath);
     if (itemData.isDoorstopRoot) {
       this.iconPath = vscode.ThemeIcon.Folder;
     } else {
       this.setTreeIcon('file');
     }
-
-    // Klick öffnet die Datei
     this.command = {
       command: 'vscode.open',
       title: 'Open File',
       arguments: [this.resourceUri]
     };
-  }
-
-  setActive(active: boolean): void {
-    this.label = active ? `${this.baseLabel}` : this.baseLabel;
   }
 
   setTreeIcon(icon: 'folder' | 'file' | 'files'): void {
@@ -127,10 +131,11 @@ export class RequirementTreeItem extends vscode.TreeItem {
 export class DoorstopTreeProvider implements vscode.TreeDataProvider<RequirementTreeItem> {
   private _onDidChangeTreeData = new vscode.EventEmitter<RequirementTreeItem | undefined | null | void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+  /** Item rows by file path. */
   private items = new Map<string, RequirementTreeItem>();
-  private childrenByItem = new Map<RequirementTreeItem, RequirementTreeItem[]>();
+  // Keyed by row id, not by object: after a refresh VS Code may still hand in a
+  // row object from before it, which must resolve to the rebuilt row's relatives.
   private childrenById = new Map<string, RequirementTreeItem[]>();
-  private parentByItem = new Map<RequirementTreeItem, RequirementTreeItem>(); // Neu: Speichert Eltern-Elemente
   private parentById = new Map<string, RequirementTreeItem>();
   private roots: RequirementTreeItem[] = [];
   /** Disabled documents, listed after the enabled ones (spec 031). */
@@ -149,9 +154,7 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     this.loading = undefined;
     this.loaded = false;
     this.items.clear();
-    this.childrenByItem.clear();
     this.childrenById.clear();
-    this.parentByItem.clear(); // Neu: Parent-Lookup leeren
     this.parentById.clear();
     this.roots = [];
     this.skipped = [];
@@ -162,15 +165,9 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     return element;
   }
 
-  /**
-   * ZWINGEND ERFORDERLICH FÜR treeView.reveal():
-   * Gibt das Eltern-Element eines Items zurück.
-   */
+  /** Required for `treeView.reveal()`: the parent row of a row, undefined for a document. */
   getParent(element: RequirementTreeItem): vscode.ProviderResult<RequirementTreeItem> {
-    const parent = this.parentByItem.get(element)
-      || (element.id ? this.parentById.get(element.id) : undefined);
-    console.log('[Doorstop][tree] Parent:', element.id, '->', parent?.id ?? '<root>');
-    return parent;
+    return element.id ? this.parentById.get(element.id) : undefined;
   }
 
   async getChildren(element?: RequirementTreeItem): Promise<RequirementTreeItem[]> {
@@ -178,24 +175,13 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     if (!element) {
       return [...this.roots, ...this.skipped];
     }
-    return this.childrenByItem.get(element)
-      || (element.id ? this.childrenById.get(element.id) : undefined)
-      || [];
+    return (element.id ? this.childrenById.get(element.id) : undefined) || [];
   }
 
+  /** The item row of the file at `resourceUri`, once the tree has loaded. */
   async setActiveResource(resourceUri: vscode.Uri | undefined): Promise<RequirementTreeItem | undefined> {
     await this.loadItems();
-    const activePath = resourceUri?.fsPath;
-    console.log('[Doorstop][tree] Looking up resource:', JSON.stringify(activePath));
-    console.log('[Doorstop][tree] Loaded item count:', this.items.size);
-
-    for (const item of this.items.values()) {
-      item.setActive(item.resourceUri.fsPath === activePath);
-    }
-
-    const item = activePath ? [...this.items.values()].find(item => item.resourceUri.fsPath === activePath) : undefined;
-    console.log('[Doorstop][tree] Lookup result:', item?.resourceUri.fsPath ?? '<not found>');
-    return item;
+    return resourceUri ? this.items.get(resourceUri.fsPath) : undefined;
   }
 
   private loadItems(): Promise<void> {
@@ -236,19 +222,12 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
         { uid: document.markerPath, prefix: document.prefix, isDoorstopRoot: true },
         label
       );
-
-      let existing = false;
-      for (const existingRoot of this.roots) {
-        if (root.resourceUri.path === existingRoot.resourceUri.path) {
-          existing = true;
-        }
-      }
-      if (existing) {
+      if (this.roots.some(existing => existing.resourceUri.path === root.resourceUri.path)) {
         continue;
       }
 
       this.roots.push(root);
-      this.childrenByItem.set(root, []);
+      this.childrenById.set(root.id as string, []);
 
       const items = document.items.map(node => {
         const item = new RequirementTreeItem(
@@ -283,12 +262,13 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     }
 
     for (const item of this.items.values()) {
-      item.collapsibleState =this.childrenByItem.has(item)
+      const hasChildren = this.childrenById.has(item.id as string);
+      item.collapsibleState = hasChildren
         ? vscode.TreeItemCollapsibleState.Collapsed
         : vscode.TreeItemCollapsibleState.None;
-      item.setTreeIcon(this.childrenByItem.has(item) ? 'files' : 'file');
+      item.setTreeIcon(hasChildren ? 'files' : 'file');
       // Only nodes with sub-elements offer "Open as document" for their section (spec 030 FR-001).
-      item.contextValue = this.childrenByItem.has(item) ? 'doorstop.item.parent' : 'doorstop.item';
+      item.contextValue = hasChildren ? 'doorstop.item.parent' : 'doorstop.item';
     }
 
     for (const root of this.roots) {
@@ -312,21 +292,107 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     const parents = outlineParents(items.map(item => item.itemData));
     for (const [index, item] of items.entries()) {
       const parent = parents[index] >= 0 ? items[parents[index]] : root;
-
-      const children = this.childrenByItem.get(parent) || [];
+      const parentId = parent.id as string;
+      const children = this.childrenById.get(parentId) || [];
       children.push(item);
-      this.childrenByItem.set(parent, children);
-      this.childrenById.set(parent.id || parent.resourceUri.toString(), children);
-      this.parentByItem.set(item, parent);
-      this.parentById.set(item.id || item.resourceUri.toString(), parent);
+      this.childrenById.set(parentId, children);
+      this.parentById.set(item.id as string, parent);
     }
 
-    for (const children of this.childrenByItem.values()) {
+    for (const children of this.childrenById.values()) {
       this.sortItems(children);
     }
   }
 
   private sortItems(items: RequirementTreeItem[]): void {
     items.sort((a, b) => compareItemLevels(a.itemData, b.itemData));
+  }
+}
+
+/**
+ * The Doorstop explorer and commands views, and auto-reveal: the tree follows the
+ * active editor unless the user switched that off. The preference is per user
+ * (globalState, not workspace config), defaults to on, and is mirrored into a
+ * when-clause context key for the two view/title toggle buttons.
+ */
+export function registerTreeViews(
+  context: vscode.ExtensionContext,
+  treeProvider: DoorstopTreeProvider,
+  commandsProvider: vscode.TreeDataProvider<vscode.TreeItem>,
+  dragAndDropController: vscode.TreeDragAndDropController<RequirementTreeItem>
+): void {
+  let autoRevealEnabled = context.globalState.get<boolean>('doorstop.autoRevealEnabled', true);
+  void vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', autoRevealEnabled);
+
+  const treeView = vscode.window.createTreeView('doorstop.treeView', {
+    treeDataProvider: treeProvider,
+    showCollapseAll: true,
+    dragAndDropController
+  });
+  const commandsView = vscode.window.createTreeView('doorstop.commandsView', {
+    treeDataProvider: commandsProvider,
+    showCollapseAll: false
+  });
+
+  /** Loads every ancestor's children first, so VS Code can expand down to `item`. */
+  const prepareTreeItemForReveal = async (item: RequirementTreeItem): Promise<void> => {
+    const ancestors: RequirementTreeItem[] = [];
+    let current: RequirementTreeItem | undefined = item;
+    while (current) {
+      ancestors.unshift(current);
+      current = treeProvider.getParent(current) as RequirementTreeItem | undefined;
+    }
+    for (const ancestor of ancestors) {
+      await treeProvider.getChildren(ancestor);
+    }
+  };
+
+  /** Selects the tree item of `uri`, retrying once on a freshly loaded tree. */
+  const revealInTree = async (uri: vscode.Uri | undefined, focus: boolean): Promise<void> => {
+    const reveal = async (): Promise<void> => {
+      const item = await treeProvider.setActiveResource(uri);
+      if (item) {
+        await prepareTreeItemForReveal(item);
+        await treeView.reveal(item, { select: true, focus, expand: true });
+      }
+    };
+    try {
+      await reveal();
+    } catch (error) {
+      console.warn('[Doorstop][reveal] Initial reveal failed, retrying:', error);
+      try {
+        await treeProvider.getChildren();
+        await reveal();
+      } catch (retryError) {
+        console.error('[Doorstop][reveal] Retry reveal failed:', retryError);
+      }
+    }
+  };
+
+  const setAutoReveal = async (enabled: boolean): Promise<void> => {
+    autoRevealEnabled = enabled;
+    await context.globalState.update('doorstop.autoRevealEnabled', enabled);
+    await vscode.commands.executeCommand('setContext', 'doorstop.autoRevealEnabled', enabled);
+  };
+
+  context.subscriptions.push(
+    treeView,
+    commandsView,
+    registerCommand('doorstop.activateRequirement', async (filePath: string) => {
+      if (autoRevealEnabled) {
+        await revealInTree(vscode.Uri.file(filePath), true);
+      }
+    }),
+    registerCommand('doorstop.toggleAutoReveal', () => setAutoReveal(false)),
+    registerCommand('doorstop.enableAutoReveal', () => setAutoReveal(true)),
+    vscode.window.onDidChangeActiveTextEditor(editor => {
+      if (autoRevealEnabled) {
+        void revealInTree(editor?.document.uri, false).catch(() => undefined);
+      }
+    })
+  );
+
+  if (autoRevealEnabled) {
+    void revealInTree(vscode.window.activeTextEditor?.document.uri, false).catch(() => undefined);
   }
 }
