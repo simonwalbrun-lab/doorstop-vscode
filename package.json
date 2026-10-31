@@ -12,7 +12,7 @@
     "url": "https://github.com/simonwalbrun-lab/doorstop-vscode.git"
   },
   "engines": {
-    "vscode": "^1.75.0"
+    "vscode": "^1.97.0"
   },
   "categories": [
     "Other"
@@ -255,11 +255,70 @@
             "markdownDescription": "Fold the YAML header of Markdown requirement items when they are opened, also in the peek editor of references and call hierarchy."
           }
         }
+      },
+      {
+        "title": "Attachments",
+        "properties": {
+          "doorstop.attachments.storage": {
+            "type": "string",
+            "enum": ["assets", "objectStorage"],
+            "enumDescriptions": [
+              "Copy pasted or dropped files into the document's `assets` folder, which `doorstop publish` includes.",
+              "Upload files larger than the threshold to an S3-compatible object storage (e.g. MinIO); smaller files still go to `assets`."
+            ],
+            "default": "assets",
+            "scope": "resource",
+            "markdownDescription": "Where files pasted or dropped into an item's text are stored."
+          },
+          "doorstop.attachments.objectStorage.thresholdMB": {
+            "type": "number",
+            "minimum": 0,
+            "default": 10,
+            "scope": "resource",
+            "markdownDescription": "Files larger than this many MB are uploaded to the object storage; `0` uploads every file. Used only when `#doorstop.attachments.storage#` is `objectStorage`."
+          },
+          "doorstop.attachments.objectStorage.endpoint": {
+            "type": "string",
+            "default": "",
+            "scope": "resource",
+            "markdownDescription": "Object storage URL, e.g. `https://minio.example.com:9000`. Links point to `{endpoint}/{bucket}/{key}`, so the bucket must be readable by everyone who reads the reports."
+          },
+          "doorstop.attachments.objectStorage.bucket": {
+            "type": "string",
+            "default": "",
+            "scope": "resource",
+            "markdownDescription": "Bucket that uploaded files go to."
+          },
+          "doorstop.attachments.objectStorage.prefix": {
+            "type": "string",
+            "default": "",
+            "scope": "resource",
+            "markdownDescription": "Prepended to every object key, e.g. `reports/`. Keys are `{prefix}{UID}/{timestamp}-{file name}`."
+          },
+          "doorstop.attachments.objectStorage.publicUrl": {
+            "type": "string",
+            "default": "",
+            "scope": "resource",
+            "markdownDescription": "Base address readers open uploaded files from, e.g. a Garage bucket's website endpoint `http://reports.web.garage.localhost:3902`. Links become `{publicUrl}/{key}`; empty uses `{endpoint}/{bucket}/{key}`. Uploads always go to the endpoint."
+          },
+          "doorstop.attachments.objectStorage.region": {
+            "type": "string",
+            "default": "us-east-1",
+            "scope": "resource",
+            "markdownDescription": "Signing region. MinIO accepts the default unless it was configured with another one. Credentials are set with **Doorstop: Set Object Storage Credentials** and kept in VS Code's secret storage."
+          }
+        }
       }
     ],
     "configurationDefaults": {
       "[markdown]": {
-        "editor.foldingImportsByDefault": true
+        "editor.foldingImportsByDefault": true,
+        "editor.pasteAs.preferences": ["markdown.link.doorstop"],
+        "editor.dropIntoEditor.preferences": ["markdown.link.doorstop"]
+      },
+      "[yaml]": {
+        "editor.pasteAs.preferences": ["markdown.link.doorstop"],
+        "editor.dropIntoEditor.preferences": ["markdown.link.doorstop"]
       }
     },
     "viewsContainers": {
@@ -297,6 +356,10 @@
     {
       "command": "doorstop.timing.export",
       "title": "Doorstop: Export Timing Data…"
+    },
+    {
+      "command": "doorstop.setObjectStorageCredentials",
+      "title": "Doorstop: Set Object Storage Credentials"
     },
     {
       "command": "doorstop.newDiagram",
@@ -740,7 +803,7 @@
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
-    "@types/vscode": "^1.75.0",
+    "@types/vscode": "^1.97.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.0.0",
     "esbuild": "^0.28.1",

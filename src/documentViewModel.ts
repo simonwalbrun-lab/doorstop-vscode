@@ -418,6 +418,23 @@ export function parse(text: string): ParsedBlock[] {
 }
 
 /**
+ * The item whose body (below its header line and fields block) holds `line`;
+ * undefined on managed, header and fields lines and outside item blocks.
+ */
+export function itemBodyAt(blocks: ParsedBlock[], line: number): { uid: string } | undefined {
+  const managed = blocks.filter(block => block.kind !== 'orphan');
+  const index = managed.findIndex((block, i) =>
+    block.separatorLine < line && (i + 1 === managed.length || line < managed[i + 1].separatorLine));
+  const block = managed[index];
+  if (block?.kind !== 'item' || !block.uid) {
+    return undefined;
+  }
+  // An unclosed fields block swallows the rest of its block.
+  const bodyStart = block.fields ? (block.fields.closeLine ?? Infinity) + 1 : block.separatorLine + 2;
+  return line >= bodyStart ? { uid: block.uid } : undefined;
+}
+
+/**
  * Warnings and errors about the block structure of the text as typed
  * (contract: "Structural diagnostics while typing"). Needs no snapshot beyond
  * the UIDs of the last accepted render.

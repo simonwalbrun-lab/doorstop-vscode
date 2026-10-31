@@ -7,6 +7,13 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Autocomplete in filter notebook cells: keys, attribute names, operators and methods, document prefixes, UIDs and the values custom attributes already have
+- Test reports: tick task-list checkboxes in item text with one click
+- Paste or Shift+drop files and screenshots into item text; they are stored in the document's `assets` folder and linked
+- Optional upload of large attachments to MinIO / S3-compatible storage (settings `doorstop.attachments.*`, command *Doorstop: Set Object Storage Credentials*)
+
+### Changed
+
+- Requires VS Code 1.97 or newer
 
 ### Fixed
 

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 import { DoorstopTreeProvider, registerTreeViews } from './requirementTree';
+import { registerAttachments } from './attachments';
 import { registerDiagramEditor } from './diagrammPanel';
 import { registerHoverProvider } from './hoverProvider';
 import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
@@ -19,6 +20,7 @@ import { registerDocumentViewLanguage } from './documentViewLanguage';
 import { registerFilterNotebook } from './filterNotebook';
 import { registerHeaderFolding } from './headerFolding';
 import { registerServerStartup } from './serverStartup';
+import { registerTaskToggle } from './taskToggle';
 
 export async function activate(context: vscode.ExtensionContext) {
   initTiming(context);
@@ -72,6 +74,7 @@ export async function activate(context: vscode.ExtensionContext) {
   }
   context.subscriptions.push(watchProblemReportingMode(() => problemsProvider));
   registerHeaderFolding(context);
+  registerTaskToggle(context);
   // Filter notebooks (spec 022). Registered even without a server: a run then
   // reports "server not available" in the cell instead of the notebook failing to open.
   registerFilterNotebook(context, doorstopServer);
@@ -144,6 +147,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   registerHoverProvider(context, { server: doorstopServer });
   registerCompletionProvider(context, { server: doorstopServer });
+  registerAttachments(context, { server: doorstopServer });
 
   // Exported purely for extension-host tests (src/test/extension.test.ts) to
   // observe internal state that has no other public surface; not used by the

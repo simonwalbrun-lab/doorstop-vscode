@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 /**
@@ -12,6 +13,10 @@ export const DERIVED_LINE_REGEX = /^\s*derived\s*:/i;
 /** A YAML sequence entry, capturing the UID token before an optional `: stamp`. */
 export const LINK_ENTRY_REGEX = /^\s*-\s+([^\s:]+)\s*(?::|$)/;
 const FRONTMATTER_FENCE_REGEX = /^---\s*$/;
+/** `text:` opening a YAML block scalar (`|`, `>-`, `|2+`, ...). */
+const TEXT_BLOCK_KEY_REGEX = /^text:\s*[|>][-+0-9]*\s*$/;
+/** A line at column 0 ends a block scalar. */
+const TOP_LEVEL_LINE_REGEX = /^\S/;
 
 /** The UID an item file stands for (Doorstop names the file after it); undefined unless `.yml`/`.md`. */
 export function uidFromItemPath(fsPath: string): string | undefined {
@@ -43,4 +48,47 @@ export function metadataRange(
     }
   }
   return { start: 1, end: lines.length, closed: false };
+}
+
+/**
+ * The lines holding an item's own text, where task toggles and attachment links
+ * go: a YAML item's `text:` block scalar, or everything below a markdown item's
+ * frontmatter. `end` is exclusive; `indent` is what a new line in it starts with.
+ * Undefined when the text is no block (`text: ''`) or the frontmatter is missing
+ * or unclosed.
+ */
+export function textRange(
+  lines: string[],
+  isMarkdown: boolean
+): { start: number; end: number; indent: string } | undefined {
+  if (isMarkdown) {
+    const metadata = metadataRange(lines, true);
+    return metadata?.closed ? { start: metadata.end + 1, end: lines.length, indent: '' } : undefined;
+  }
+  const key = lines.findIndex(line => TEXT_BLOCK_KEY_REGEX.test(line));
+  if (key < 0) {
+    return undefined;
+  }
+  let end = key + 1;
+  while (end < lines.length && !TOP_LEVEL_LINE_REGEX.test(lines[end])) {
+    end++;
+  }
+  const first = lines.slice(key + 1, end).find(line => line.trim() !== '');
+  return { start: key + 1, end, indent: first ? first.slice(0, first.length - first.trimStart().length) : '  ' };
+}
+
+/**
+ * Whether `fsPath` lies in a Doorstop document: its folder or an ancestor holds
+ * `.doorstop.yml`. Keeps item-text features out of ordinary markdown and YAML
+ * files that merely look like items.
+ */
+export function inDoorstopDocument(fsPath: string): boolean {
+  for (let folder = path.dirname(fsPath); ; folder = path.dirname(folder)) {
+    if (fs.existsSync(path.join(folder, '.doorstop.yml'))) {
+      return true;
+    }
+    if (path.dirname(folder) === folder) {
+      return false;
+    }
+  }
 }
