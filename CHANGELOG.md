@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Autocomplete in filter notebook cells: keys, attribute names, operators and methods, document prefixes, UIDs and the values custom attributes already have
+
 ### Fixed
 
 - The tree view reloads after a file is saved in the editor; expanded documents stay open

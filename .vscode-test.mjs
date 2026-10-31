@@ -92,6 +92,12 @@ export default defineConfig([
 		workspaceFolder: 'testdata/regression',
 	},
 	{
+		// Server startup against a fake /health (audit-fixes-2026-10). No workspace,
+		// no Python.
+		label: 'doorstopServer',
+		files: 'out/test/doorstopServer.test.js',
+	},
+	{
 		// Spec 034: folding provider and button, temp fixture, no workspace, no server.
 		label: 'headerFolding',
 		files: 'out/test/headerFolding.test.js',

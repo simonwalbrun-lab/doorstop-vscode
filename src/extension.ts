@@ -25,8 +25,6 @@ interface DoorstopDiagramDocument extends vscode.CustomDocument {
 }
 export async function activate(context: vscode.ExtensionContext) {
   initTiming(context);
-  console.log('[Doorstop][activate] Extension activation started');
-  vscode.window.showInformationMessage('Doorstop VS Code Extension is active!');
 
   const doorstopServer = new DoorstopServer();
   context.subscriptions.push(doorstopServer);
@@ -77,7 +75,6 @@ export async function activate(context: vscode.ExtensionContext) {
           ? doorstopServer.restart(workspaceFolder!.uri.fsPath, pythonPath)
           : doorstopServer.start(workspaceFolder!.uri.fsPath, pythonPath)
       );
-      console.log('[Doorstop][server] Server is ready at 127.0.0.1:7867');
       void vscode.window.showInformationMessage('Doorstop server is ready.');
       // A restart means the tree may have changed underneath us; on the first
       // start this is a no-op and the initial check runs at registration.
@@ -372,9 +369,7 @@ export async function activate(context: vscode.ExtensionContext) {
     dropMimeTypes: [],
     handleDrag(source, dataTransfer) {
       const item = source[0];
-      console.log('[Doorstop][drag] Started:', item?.label ?? '<no item>');
       if (item && item.resourceUri) {
-        console.log('[Doorstop][drag] File URI:', item.resourceUri.toString());
         const payload = JSON.stringify({
           uid: item.itemData?.uid || item.label,
           fileUri: item.resourceUri.fsPath,
@@ -414,40 +409,33 @@ export async function activate(context: vscode.ExtensionContext) {
     showCollapseAll: false
   });
 
+  /** Selects the tree item of `uri`, retrying once on a freshly loaded tree. */
+  const revealInTree = async (uri: vscode.Uri | undefined, focus: boolean): Promise<void> => {
+    const reveal = async (): Promise<void> => {
+      const item = await treeProvider.setActiveResource(uri);
+      if (item) {
+        await prepareTreeItemForReveal(treeProvider, item);
+        await treeView.reveal(item, { select: true, focus, expand: true });
+      }
+    };
+    try {
+      await reveal();
+    } catch (error) {
+      console.warn('[Doorstop][reveal] Initial reveal failed, retrying:', error);
+      try {
+        await treeProvider.getChildren();
+        await reveal();
+      } catch (retryError) {
+        console.error('[Doorstop][reveal] Retry reveal failed:', retryError);
+      }
+    }
+  };
+
   const activateRequirementCommand = registerCommand(
     'doorstop.activateRequirement',
     async (filePath: string) => {
-      console.log('[Doorstop][activateRequirement] Command received:', JSON.stringify(filePath));
-      if (!autoRevealEnabled) {
-        console.log('[Doorstop][activateRequirement] Auto-reveal disabled, skipping');
-        return;
-      }
-      const item = await treeProvider.setActiveResource(vscode.Uri.file(filePath));
-      console.log('[Doorstop][activateRequirement] Tree item:', item?.label ?? '<not found>');
-      if (item) {
-        try {
-          await prepareTreeItemForReveal(treeProvider, item);
-          console.log('[Doorstop][activateRequirement] Revealing tree item');
-          await treeView.reveal(item, { select: true, focus: true, expand: true });
-          console.log('[Doorstop][activateRequirement] Reveal completed');
-        } catch (error) {
-          console.warn('[Doorstop][activateRequirement] Initial reveal failed, retrying:', error);
-          try {
-            await treeProvider.getChildren();
-            const refreshedItem = await treeProvider.setActiveResource(vscode.Uri.file(filePath));
-            if (refreshedItem) {
-              await prepareTreeItemForReveal(treeProvider, refreshedItem);
-              console.log('[Doorstop][activateRequirement] Revealing refreshed tree item');
-              await treeView.reveal(refreshedItem, { select: true, focus: true, expand: true });
-              console.log('[Doorstop][activateRequirement] Retry reveal completed');
-            }
-          } catch (retryError) {
-            console.error('[Doorstop][activateRequirement] Retry reveal failed:', retryError);
-            return;
-          }
-        }
-      } else {
-        console.warn('[Doorstop][activateRequirement] No tree item matched path');
+      if (autoRevealEnabled) {
+        await revealInTree(vscode.Uri.file(filePath), true);
       }
     }
   );
@@ -473,44 +461,13 @@ export async function activate(context: vscode.ExtensionContext) {
   );
 
   const syncActiveRequirement = async (editor: vscode.TextEditor | undefined) => {
-    console.log('[Doorstop][syncActiveRequirement] Editor:', editor?.document.uri.toString() ?? '<none>');
     recordViewedRequirement(editor?.document.uri);
-    if (!autoRevealEnabled) {
-      console.log('[Doorstop][syncActiveRequirement] Auto-reveal disabled, skipping');
-      return;
-    }
-    const item = await treeProvider.setActiveResource(editor?.document.uri);
-    console.log('[Doorstop][syncActiveRequirement] Tree item:', item?.label ?? '<not found>');
-    if (item) {
-      try {
-        await prepareTreeItemForReveal(treeProvider, item);
-        console.log('[Doorstop][syncActiveRequirement] Revealing tree item');
-        await treeView.reveal(item, { select: true, focus: false, expand: true });
-        console.log('[Doorstop][syncActiveRequirement] Reveal completed');
-      } catch (error) {
-        console.warn('[Doorstop][syncActiveRequirement] Initial reveal failed, retrying:', error);
-        try {
-          await treeProvider.getChildren();
-          const refreshedItem = await treeProvider.setActiveResource(editor?.document.uri);
-          if (refreshedItem) {
-            await prepareTreeItemForReveal(treeProvider, refreshedItem);
-            console.log('[Doorstop][syncActiveRequirement] Revealing refreshed tree item');
-            await treeView.reveal(refreshedItem, { select: true, focus: false, expand: true });
-            console.log('[Doorstop][syncActiveRequirement] Retry reveal completed');
-          }
-        } catch (retryError) {
-          console.error('[Doorstop][syncActiveRequirement] Retry reveal failed:', retryError);
-          return;
-        }
-      }
-    } else {
-      console.log('[Doorstop][syncActiveRequirement] No tree item matched editor');
+    if (autoRevealEnabled) {
+      await revealInTree(editor?.document.uri, false);
     }
   };
 
-  context.subscriptions.push(treeView);
   context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => {
-    console.log('[Doorstop][event] Active editor changed');
     void syncActiveRequirement(editor).catch(() => undefined);
   }));
 
@@ -526,8 +483,6 @@ export async function activate(context: vscode.ExtensionContext) {
       ancestors.unshift(current);
       current = provider.getParent(current) as RequirementTreeItem | undefined;
     }
-
-    console.log('[Doorstop][tree] Reveal path:', ancestors.map(element => element.id));
     for (const ancestor of ancestors) {
       await provider.getChildren(ancestor);
     }

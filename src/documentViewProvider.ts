@@ -613,18 +613,23 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
             failed.push({ uid: update.uid, line: update.line, message: errorMessage(error) });
           }
         }
+        // New blocks in a row share the anchor of the item above them; each one
+        // goes after the item created just before it, or they land reversed.
+        let previous: { anchor: string | undefined; uid: string; prefix: string } | undefined;
         for (const creation of plan.creations) {
           try {
+            const chained = previous && previous.anchor === creation.afterUid ? previous : undefined;
+            const afterUid = chained?.uid ?? creation.afterUid;
             // No block above means "before the current first item"; only an
             // empty document falls through to Doorstop's plain append.
-            const position = creation.afterUid
-              ? { after: creation.afterUid }
+            const position = afterUid
+              ? { after: afterUid }
               : snapshot.items.some(item => item.active) ? { first: true } : {};
             // The document of the block above (or of the first block): a section
             // or filter view can span several documents (spec 030, research §7).
             const neighbour = snapshot.items.find(item => item.uid === creation.afterUid)
               ?? snapshot.items.find(item => item.active);
-            const prefix = neighbour?.documentPrefix ?? state.scope.prefix;
+            const prefix = chained?.prefix ?? neighbour?.documentPrefix ?? state.scope.prefix;
             if (!prefix) {
               throw new Error('no document to create the item in');
             }
@@ -633,6 +638,7 @@ export function registerDocumentView(context: vscode.ExtensionContext, options: 
               header: creation.header,
               text: creation.text
             });
+            previous = { anchor: creation.afterUid, uid: added.uid, prefix };
             // A filter view lists fixed UIDs and a section the subtree at open time:
             // the new item must stay in the view either way.
             if (state.scope.kind !== 'document') {

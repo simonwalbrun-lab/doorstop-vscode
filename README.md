@@ -90,6 +90,7 @@ Query items with YAML filters, like Obsidian Bases. Run a cell, get a table.
 - Operators: `==` `!=` `<` `<=` `>` `>=`, `.contains()`, `.startsWith()`, `.isEmpty()`, `.isNotEmpty()`
 - Works on built-in and custom attributes; levels as strings
 - `order: [status, owner]` picks the table columns
+- Autocomplete for keys, attribute names, operators, document prefixes, UIDs and existing custom values
 - **Open as document** edits the matched items
 - *Doorstop: New Filter Notebook* starts with a cheat sheet
 

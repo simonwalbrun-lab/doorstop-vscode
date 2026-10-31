@@ -740,6 +740,8 @@ export class DoorstopDiagramPanel {
             cspSource: webview.cspSource,
             nonce: getNonce(),
             styleUri: assetUri('diagram.css'),
+            visCssUri: assetUri('vendor/vis-network.min.css'),
+            visJsUri: assetUri('vendor/vis-network.min.js'),
             stateJsUri: assetUri('state.js'),
             layoutJsUri: assetUri('layout.js'),
             renderJsUri: assetUri('render.js'),

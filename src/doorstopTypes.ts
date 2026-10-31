@@ -95,3 +95,8 @@ export interface FilterResponse {
   columns: string[];
   items: FilterItem[];
 }
+
+export interface FilterVocabulary {
+  /** Custom attribute name -> its distinct scalar values (filter autocomplete, spec 022 FR-016). */
+  attributes: Record<string, string[]>;
+}

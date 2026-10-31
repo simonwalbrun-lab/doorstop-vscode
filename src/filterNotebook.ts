@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 import { DoorstopApiError, DoorstopServer } from './doorstopServer';
+import { registerFilterCompletion } from './filterCompletion';
 import { measure, registerCommand } from './timing';
 import { FilterResponse } from './doorstopTypes';
 
@@ -41,6 +42,9 @@ const HELP = [
   '',
   '**Columns**: wrap the filter in `filters:` and list the columns under `order:`',
   '(UID always comes first). Without `order:` the table shows document, level and header.',
+  '',
+  '**Autocomplete**: press Ctrl+Space for keys, attribute names, operators and values',
+  '(document prefixes, UIDs, existing values of custom attributes).',
   '',
   'The two cells below are a **simple** and a **complex** example - run them, then edit',
   'them or add your own cells. `#` starts a comment.',
@@ -139,6 +143,31 @@ export function resultOutput(response: FilterResponse): vscode.NotebookCellOutpu
   ]);
 }
 
+/** One cell's run: its output and whether it succeeded. Cells never share state. */
+export async function runFilter(
+  server: Pick<DoorstopServer, 'request'>,
+  query: string
+): Promise<{ success: boolean; output: vscode.NotebookCellOutput }> {
+  if (!query.trim()) {
+    return { success: true, output: markdownOutput(EMPTY_CELL_HINT) };
+  }
+  try {
+    const response = await measure('filter.execute', () => server.request<FilterResponse>('POST', '/filter', { query }));
+    return { success: true, output: resultOutput(response) };
+  } catch (error) {
+    // Never a table on failure - an empty or stale table would read as "no matches".
+    const message = error instanceof DoorstopApiError
+      ? error.message
+      : `Doorstop server is not available: ${error instanceof Error ? error.message : String(error)}`;
+    return {
+      success: false,
+      output: new vscode.NotebookCellOutput([vscode.NotebookCellOutputItem.error(
+        Object.assign(new Error(message), { name: 'Filter failed', stack: undefined })
+      )]),
+    };
+  }
+}
+
 export async function openFilterItem(path: string): Promise<void> {
   const uri = vscode.Uri.file(path);
   try {
@@ -164,27 +193,11 @@ export function registerFilterNotebook(context: vscode.ExtensionContext, server:
     const execution = controller.createNotebookCellExecution(cell);
     execution.executionOrder = ++executionOrder;
     execution.start(Date.now());
-    const query = cell.document.getText();
-    if (!query.trim()) {
-      await execution.replaceOutput(markdownOutput(EMPTY_CELL_HINT));
-      execution.end(true, Date.now());
-      return;
-    }
-    try {
-      const response = await measure('filter.execute', () => server.request<FilterResponse>('POST', '/filter', { query }));
-      await execution.replaceOutput(resultOutput(response));
-      execution.end(true, Date.now());
-    } catch (error) {
-      // Never a table on failure - an empty or stale table would read as "no matches".
-      const message = error instanceof DoorstopApiError
-        ? error.message
-        : `Doorstop server is not available: ${error instanceof Error ? error.message : String(error)}`;
-      await execution.replaceOutput(new vscode.NotebookCellOutput([vscode.NotebookCellOutputItem.error(
-        Object.assign(new Error(message), { name: 'Filter failed', stack: undefined })
-      )]));
-      execution.end(false, Date.now());
-    }
+    const { success, output } = await runFilter(server, cell.document.getText());
+    await execution.replaceOutput(output);
+    execution.end(success, Date.now());
   };
+  registerFilterCompletion(context, server);
   controller.executeHandler = async cells => {
     for (const cell of cells) {
       await runCell(cell);

@@ -2069,6 +2069,42 @@ suite('Regression Fixture Integration Suite', () => {
       });
     });
 
+    // audit-fixes-2026-10, finding 3
+    test('new blocks in a row are created in the order they were typed', async function () {
+      this.timeout(60000);
+      await withRestoredFixture(async () => {
+        const document = await openView('REQ');
+        // Two placeholders below REQ-003 and two above the first block; the
+        // second command each time lands directly above the first placeholder.
+        for (const line of [lineOf(document, REQ_SEPARATOR('REQ-003', '1.2')), lineOf(document, REQ_SEPARATOR('REQ-003', '1.2')), 0, 0]) {
+          await vscode.commands.executeCommand('doorstop.documentView.newItemBelow', { uri: document.uri.toString(), line });
+        }
+        const markers = document.getText().split('\n')
+          .map((text, index) => text === '<!-- new item -->' ? index : -1)
+          .filter(index => index >= 0);
+        assert.strictEqual(markers.length, 4);
+        const headers = ['Top A', 'Top B', 'Mid A', 'Mid B'];
+        const edit = new vscode.WorkspaceEdit();
+        markers.forEach((marker, index) => {
+          const heading = document.lineAt(marker + 1);
+          edit.replace(document.uri, heading.range, `${heading.text}${headers[index]}`);
+        });
+        await vscode.workspace.applyEdit(edit);
+        assert.strictEqual(await document.save(), true);
+
+        const items = await reqItems();
+        assert.strictEqual(items.size, 14);
+        const levelOf = (header: string): number[] =>
+          [...items.values()].find(value => value.header === header)!.level.split('.').map(Number);
+        const before = (a: number[], b: number[]): boolean => {
+          const index = a.findIndex((part, i) => part !== b[i]);
+          return index >= 0 && a[index] < (b[index] ?? -1);
+        };
+        assert.ok(before(levelOf('Top A'), levelOf('Top B')), 'Top A before Top B');
+        assert.ok(before(levelOf('Mid A'), levelOf('Mid B')), 'Mid A before Mid B');
+      });
+    });
+
     // Spec 019 FR-021a
     test('a failed write is reported and keeps that block dirty (US2, FR-021a)', async function () {
       this.timeout(60000);

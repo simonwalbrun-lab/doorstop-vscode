@@ -366,3 +366,14 @@ suite('Diagram document persistence after node removal (feature 015)', () => {
     assert.deepStrictEqual(reloaded.edges, []);
   });
 });
+
+suite('Canvas loads nothing from the network (audit-fixes-2026-10)', () => {
+  test('diagram.html references no remote URL; vis-network is vendored into dist', async () => {
+    const html = await fs.readFile(path.join(REPO_ROOT, 'src', 'webview', 'diagram', 'diagram.html'), 'utf8');
+    assert.ok(!/https?:\/\//.test(html), 'diagram.html must not load from a CDN');
+    // `npm test` builds dist first (pretest), so the vendored copy must be there.
+    const vendor = path.join(REPO_ROOT, 'dist', 'webview', 'diagram', 'vendor');
+    await fs.access(path.join(vendor, 'vis-network.min.js'));
+    await fs.access(path.join(vendor, 'vis-network.min.css'));
+  });
+});

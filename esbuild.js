@@ -10,6 +10,12 @@ function copyWebviewAssets() {
 	const dest = path.join(__dirname, 'dist', 'webview');
 	fs.rmSync(dest, { recursive: true, force: true });
 	fs.cpSync(src, dest, { recursive: true });
+	// The canvas library ships inside the extension: no CDN, works offline.
+	const vis = path.join(__dirname, 'node_modules', 'vis-network');
+	const vendor = path.join(dest, 'diagram', 'vendor');
+	fs.mkdirSync(vendor, { recursive: true });
+	fs.copyFileSync(path.join(vis, 'standalone', 'umd', 'vis-network.min.js'), path.join(vendor, 'vis-network.min.js'));
+	fs.copyFileSync(path.join(vis, 'styles', 'vis-network.min.css'), path.join(vendor, 'vis-network.min.css'));
 }
 
 /**

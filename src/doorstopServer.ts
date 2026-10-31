@@ -50,6 +50,7 @@ export class DoorstopServer {
   private startPromise: Promise<void> | undefined;
   private disposed = false;
   private recentStderr = '';
+  private projectRoot = '';
   private readonly inflightGets = new Map<string, Promise<string | undefined>>();
 
   constructor(options: DoorstopServerOptions = {}) {
@@ -72,11 +73,12 @@ export class DoorstopServer {
     }
 
     this.recentStderr = '';
+    this.projectRoot = path.resolve(projectPath);
 
     this.startPromise = new Promise<void>((resolve, reject) => {
       const child = spawn(pythonPath, [
         '-m', 'doorstop_server',
-        '--project', path.resolve(projectPath),
+        '--project', this.projectRoot,
         '--host', this.host,
         '--port', String(this.port)
       ], {
@@ -266,10 +268,19 @@ export class DoorstopServer {
     return `\n${detail}${hint}`;
   }
 
+  /**
+   * Healthy only if the server serves our project: on the fixed port, another
+   * window's server answers long before our own child has failed to bind.
+   */
   private async isHealthy(): Promise<boolean> {
     try {
       const response = await fetch(`http://${this.host}:${this.port}/health`);
-      return response.ok;
+      if (!response.ok) {
+        return false;
+      }
+      const { projectRoot } = await response.json() as { projectRoot?: string };
+      const same = (a: string, b: string): boolean => process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+      return typeof projectRoot === 'string' && same(path.resolve(projectRoot), this.projectRoot);
     } catch {
       return false;
     }
