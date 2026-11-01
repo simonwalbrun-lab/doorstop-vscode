@@ -119,6 +119,12 @@ export default defineConfig([
 		files: 'out/test/taskToggle.test.js',
 	},
 	{
+		// Spec 037: quick-entry settings, suggestions and providers on a temp Doorstop
+		// folder and untitled documents, stub server. No workspace, no Python.
+		label: 'quickEntry',
+		files: 'out/test/quickEntry.test.js',
+	},
+	{
 		// Spec 035: paste/drop attachments into a temp document and a fake S3
 		// server on port 0. No workspace, no Doorstop server, no network.
 		label: 'attachments',

@@ -309,8 +309,8 @@
           "doorstop.attachments.objectStorage.endpoint": {
             "type": "string",
             "default": "",
-            "scope": "resource",
-            "markdownDescription": "Object storage URL, e.g. `https://minio.example.com:9000`. Links point to `{endpoint}/{bucket}/{key}`, so the bucket must be readable by everyone who reads the reports."
+            "scope": "machine",
+            "markdownDescription": "Object storage URL, e.g. `https://minio.example.com:9000`. A User (or Remote) setting only: uploads are signed with your credentials, so a workspace cannot choose where they go. Links point to `{endpoint}/{bucket}/{key}`, so the bucket must be readable by everyone who reads the reports."
           },
           "doorstop.attachments.objectStorage.bucket": {
             "type": "string",
@@ -333,8 +333,8 @@
           "doorstop.attachments.objectStorage.region": {
             "type": "string",
             "default": "us-east-1",
-            "scope": "resource",
-            "markdownDescription": "Signing region. MinIO accepts the default unless it was configured with another one. Credentials are set with **Doorstop: Set Object Storage Credentials** and kept in VS Code's secret storage."
+            "scope": "machine",
+            "markdownDescription": "Signing region; a User (or Remote) setting like the endpoint. MinIO accepts the default unless it was configured with another one. Credentials are set with **Doorstop: Set Object Storage Credentials** and kept in VS Code's secret storage."
           }
         }
       }

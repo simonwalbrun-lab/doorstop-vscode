@@ -4,7 +4,16 @@ import * as path from 'node:path';
 import { recordServer, timingActive } from './timing';
 
 export const DOORSTOP_SERVER_HOST = '127.0.0.1';
-export const DOORSTOP_SERVER_PORT = 7867;
+
+/** The line the server prints on stdout once bound (`--port 0` picks a free port). */
+export function parsePortLine(stdout: string): number | undefined {
+  const match = /^DOORSTOP_PORT=(\d+)\s*$/m.exec(stdout);
+  return match ? Number(match[1]) : undefined;
+}
+
+/** Shown when the installed server predates `--port 0` reporting and `--exit-on-stdin-eof`. */
+export const OUTDATED_SERVER_HINT = '\n\nThe installed doorstop-vscode-server is too old for this extension. '
+  + 'Upgrade it (pip install --upgrade doorstop-vscode-server), then run "Doorstop: Restart Extension".';
 
 interface DoorstopServerOptions {
   host?: string;
@@ -43,19 +52,24 @@ function parseBody<T>(text: string | undefined): T {
 
 export class DoorstopServer {
   private readonly host: string;
-  private readonly port: number;
+  /** 0 until a started server reports the port it bound; requests go here. */
+  port: number;
+  private readonly requestedPort: number;
   private readonly startupTimeoutMs: number;
   private readonly retryIntervalMs: number;
   private process: ChildProcess | undefined;
   private startPromise: Promise<void> | undefined;
   private disposed = false;
   private recentStderr = '';
+  private recentStdout = '';
   private projectRoot = '';
   private readonly inflightGets = new Map<string, Promise<string | undefined>>();
 
   constructor(options: DoorstopServerOptions = {}) {
     this.host = options.host || DOORSTOP_SERVER_HOST;
-    this.port = options.port || DOORSTOP_SERVER_PORT;
+    // No port given: the server picks a free one, so two windows never collide.
+    this.requestedPort = options.port || 0;
+    this.port = this.requestedPort;
     this.startupTimeoutMs = options.startupTimeoutMs || 15000;
     this.retryIntervalMs = options.retryIntervalMs || 100;
   }
@@ -73,6 +87,8 @@ export class DoorstopServer {
     }
 
     this.recentStderr = '';
+    this.recentStdout = '';
+    this.port = this.requestedPort;
     this.projectRoot = path.resolve(projectPath);
 
     this.startPromise = new Promise<void>((resolve, reject) => {
@@ -80,17 +96,24 @@ export class DoorstopServer {
         '-m', 'doorstop_server',
         '--project', this.projectRoot,
         '--host', this.host,
-        '--port', String(this.port)
+        '--port', String(this.requestedPort),
+        '--exit-on-stdin-eof'
       ], {
         cwd: projectPath,
         shell: false,
         windowsHide: true,
-        stdio: ['ignore', 'pipe', 'pipe']
+        // Never written: the server exits when this pipe closes, i.e. when we die.
+        stdio: ['pipe', 'pipe', 'pipe']
       });
       this.process = child;
 
       child.stdout?.on('data', data => {
-        console.log(`[Doorstop][server] ${String(data).trimEnd()}`);
+        const text = String(data);
+        console.log(`[Doorstop][server] ${text.trimEnd()}`);
+        if (!this.port) {
+          this.recentStdout = (this.recentStdout + text).slice(-2000);
+          this.port = parsePortLine(this.recentStdout) ?? 0;
+        }
       });
       child.stderr?.on('data', data => {
         const text = String(data);
@@ -242,13 +265,17 @@ export class DoorstopServer {
       if (this.disposed) {
         throw new Error('Doorstop server startup was cancelled.');
       }
-      if (await this.isHealthy()) {
+      // Port 0: nothing to poll until the server has said where it listens.
+      if (this.port && await this.isHealthy()) {
         return;
       }
       await new Promise(resolve => setTimeout(resolve, this.retryIntervalMs));
     }
     // FR-006 applies to every startup failure, not just a process exit: without the
     // captured stderr a timeout gave the user a bare message and nothing to act on.
+    if (!this.port) {
+      throw new Error(`Doorstop server never reported its port.${this.outputSuffix()}${OUTDATED_SERVER_HINT}`);
+    }
     throw new Error(
       `Timed out waiting for Doorstop server at ${this.host}:${this.port}.${this.outputSuffix()}`
     );
@@ -264,12 +291,14 @@ export class DoorstopServer {
     if (!detail) {
       return '';
     }
-    const hint = PORT_IN_USE_REGEX.test(detail) ? portInUseHint(this.port) : '';
+    const hint = /unrecognized arguments: --exit-on-stdin-eof/.test(detail)
+      ? OUTDATED_SERVER_HINT
+      : PORT_IN_USE_REGEX.test(detail) ? portInUseHint(this.requestedPort) : '';
     return `\n${detail}${hint}`;
   }
 
   /**
-   * Healthy only if the server serves our project: on the fixed port, another
+   * Healthy only if the server serves our project: on a fixed port, another
    * window's server answers long before our own child has failed to bind.
    */
   private async isHealthy(): Promise<boolean> {

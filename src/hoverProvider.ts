@@ -17,6 +17,8 @@ import { DOCUMENT_VIEW_SCHEME } from './documentViewModel';
 
 const LINK_ENTRY_LINE_REGEX = /^\s*(-|\s)\s*[A-Z0-9_-]+-\d+/i;
 const LINKS_FIELD_LINE_REGEX = /^\s*links\s*:/i;
+// Item text comes from the repository: only our own vscode.open links may run.
+const HOVER_TRUST = { enabledCommands: ['vscode.open'] };
 
 export interface HoverProviderOptions {
   server: DoorstopServer;
@@ -37,9 +39,9 @@ function formatLinksClickable(uids: string[], index: DoorstopIndex): string {
 }
 
 /** The markdown shown when hovering a `derived:` line: what links *to* this item. */
-function renderReverseLinks(currentUid: string, index: DoorstopIndex): vscode.MarkdownString {
+export function renderReverseLinks(currentUid: string, index: DoorstopIndex): vscode.MarkdownString {
   const markdown = new vscode.MarkdownString();
-  markdown.isTrusted = true;
+  markdown.isTrusted = HOVER_TRUST;
   markdown.appendMarkdown(`### 🔗 **Downstream (Reverse) Links for ${currentUid}**\n\n---\n\n`);
   const linkers = index.getLinkers(currentUid);
   markdown.appendMarkdown(linkers.length > 0
@@ -48,7 +50,7 @@ function renderReverseLinks(currentUid: string, index: DoorstopIndex): vscode.Ma
   return markdown;
 }
 
-function renderItemPreview(
+export function renderItemPreview(
   hoveredUid: string,
   index: DoorstopIndex,
   showUpstreamLinks: boolean
@@ -59,7 +61,7 @@ function renderItemPreview(
   }
 
   const markdown = new vscode.MarkdownString();
-  markdown.isTrusted = true;
+  markdown.isTrusted = HOVER_TRUST;
   markdown.appendMarkdown(`### 📋 **Target Item:** ${makeClickableLink(hoveredUid, index)}\n\n`);
   if (item.header) {
     markdown.appendMarkdown(`**Header:** ${item.header}\n\n`);

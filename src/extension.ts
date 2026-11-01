@@ -15,7 +15,7 @@ import { registerDefinitionProvider } from './definitionProvider';
 import { registerCallHierarchyProvider } from './callHierarchyProvider';
 import { DoorstopCommandsProvider } from './commandsProvider';
 import { registerDoorstopCommands } from './doorstopCommands';
-import { isRequirementFile, ProblemsProvider, problemReportingMode, registerProblemsProvider, watchProblemReportingMode } from './problemsProvider';
+import { isRequirementFile, ProblemsProvider, registerProblemsProvider, watchProblemReportingMode } from './problemsProvider';
 import { DocumentViewHandle, registerDocumentView } from './documentViewProvider';
 import { registerDocumentViewLanguage } from './documentViewLanguage';
 import { registerFilterNotebook } from './filterNotebook';
@@ -32,18 +32,9 @@ export async function activate(context: vscode.ExtensionContext) {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   let refreshViews: () => void = () => undefined;
 
-  // Declared before every closure that uses it. It stays undefined until the
-  // workspaceFolder block below assigns it, so the optional calls on it are
-  // genuine no-ops during the first server start rather than a dead-zone error.
+  // Stays undefined without a workspace folder, so the optional calls on it are no-ops.
   let problemsProvider: ProblemsProvider | undefined;
   let documentView: DocumentViewHandle | undefined;
-
-  await registerServerStartup(context, doorstopServer, workspaceFolder, {
-    // A restart means the tree may have changed underneath us; on the first
-    // start this is a no-op and the initial check runs at registration.
-    onStarted: () => problemsProvider?.scheduleRefresh(),
-    onRestartCommand: () => refreshViews()
-  });
 
   const treeProvider = new DoorstopTreeProvider(doorstopServer);
   const commandsProvider = new DoorstopCommandsProvider();
@@ -88,13 +79,6 @@ export async function activate(context: vscode.ExtensionContext) {
       server: doorstopServer,
       workspaceFolder
     });
-    // Only worth a first pass if a server actually came up; when it did not,
-    // startDoorstopServer has already told the user why, and a second warning
-    // about problems would just be noise.
-    // Only in Automatic mode: On demand and Off never check at startup (spec 032 FR-011).
-    if (doorstopServer.isRunning && problemReportingMode() === 'automatic') {
-      void problemsProvider.refreshNow();
-    }
     // A problem kind switched on or off in the settings shows at once (spec 020
     // FR-004), re-filtering the last result rather than checking again (spec 032 FR-015).
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
@@ -154,10 +138,19 @@ export async function activate(context: vscode.ExtensionContext) {
   registerQuickEntry(context, doorstopServer);
   registerAttachments(context, { server: doorstopServer });
 
+  // Last, so every command and view above exists while the server is still
+  // starting or the install prompt is open (bug activation-blocks-server-start).
+  // Each successful start refreshes the views; the problems check that brings
+  // runs in Automatic mode only, and only once a server came up (spec 032 FR-011).
+  await registerServerStartup(context, doorstopServer, workspaceFolder, {
+    onStarted: () => refreshViews(),
+    onRestartCommand: () => refreshViews()
+  });
+
   // Exported purely for extension-host tests (src/test/extension.test.ts) to
   // observe internal state that has no other public surface; not used by the
   // extension itself or intended for other extensions to depend on.
-  return { treeProvider, problemsProvider, documentView };
+  return { treeProvider, problemsProvider, documentView, server: doorstopServer };
 }
 
 export function deactivate() {}

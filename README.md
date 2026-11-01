@@ -85,7 +85,7 @@ Doorstop's own validation, inline at the affected field.
 
 - **Checkboxes:** click inside `[ ]` of a task in an item's text to tick it; click again to untick. Undo works; save as usual. Also in document views
 - **Attachments:** paste files copied in the file manager, a screenshot, or drag files in while holding **Shift** (without Shift VS Code opens the file). Each file lands in the document's `assets` folder, which `doorstop publish` includes, and a link is inserted at the cursor
-- **Object storage:** set `doorstop.attachments.storage` to `objectStorage` to upload files above `doorstop.attachments.objectStorage.thresholdMB` to MinIO, Garage or another S3-compatible store. Run *Doorstop: Set Object Storage Credentials* once; keys stay in VS Code's secret storage. Links are `{endpoint}/{bucket}/{key}`, so the bucket must be readable by everyone who reads the reports, or set `doorstop.attachments.objectStorage.publicUrl` to the address readers use
+- **Object storage:** set `doorstop.attachments.storage` to `objectStorage` to upload files above `doorstop.attachments.objectStorage.thresholdMB` to MinIO, Garage or another S3-compatible store. Run *Doorstop: Set Object Storage Credentials* once; keys stay in VS Code's secret storage. Set `doorstop.attachments.objectStorage.endpoint` (and `.region`) in your User settings: a workspace cannot choose where your credentials are sent. Links are `{endpoint}/{bucket}/{key}`, so the bucket must be readable by everyone who reads the reports, or set `doorstop.attachments.objectStorage.publicUrl` to the address readers use
 - **Garage:** endpoint is the S3 API port (default `http://localhost:3900`), `region` must equal Garage's `s3_region` (commonly `garage`), and `publicUrl` is the bucket's website endpoint, e.g. `http://reports.web.garage.localhost:3902`, after `garage bucket website --allow reports`
 
 ### Filter Notebooks
@@ -127,7 +127,7 @@ Query items with YAML filters, like Obsidian Bases. Run a cell, get a table.
 | `doorstop.quickEntry.suggestUsedValues` | on | Offer values used in other items for fields without a value list |
 | `doorstop.attachments.storage` | `assets` | `assets` or `objectStorage` for pasted/dropped files |
 | `doorstop.attachments.objectStorage.thresholdMB` | `10` | Larger files go to object storage; `0` = all |
-| `doorstop.attachments.objectStorage.endpoint` / `.bucket` / `.prefix` / `.region` | none / none / none / `us-east-1` | Where uploads go |
+| `doorstop.attachments.objectStorage.endpoint` / `.bucket` / `.prefix` / `.region` | none / none / none / `us-east-1` | Where uploads go; `endpoint` and `region` are User settings only, workspace values are ignored |
 | `doorstop.attachments.objectStorage.publicUrl` | none | Address links point to, e.g. Garage's website endpoint |
 | `doorstop.timing.enabled` | off | Timing log, for extension developers |
 

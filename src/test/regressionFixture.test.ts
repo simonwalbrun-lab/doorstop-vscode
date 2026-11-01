@@ -12,7 +12,7 @@ import { getDeriveTargets } from '../deriveProvider';
 import { DoorstopDiagramPanel } from '../diagrammPanel';
 import { loadDoorstopIndex } from '../doorstopIndex';
 import { ProblemsProvider, registerProblemsProvider } from '../problemsProvider';
-import { DoorstopServer, DOORSTOP_SERVER_HOST, DOORSTOP_SERVER_PORT } from '../doorstopServer';
+import { DoorstopServer } from '../doorstopServer';
 import { DocumentViewHandle, Prompts } from '../documentViewProvider';
 import { DocumentNode, TreeResponse } from '../doorstopTypes';
 import { DoorstopTreeProvider, RequirementTreeItem } from '../requirementTree';
@@ -54,34 +54,6 @@ function resolvePythonCommand(): string {
     'python3/python on PATH). Run "pip install -e .[dev]" from server/ into a .venv at the repo root, ' +
     'or ensure a PATH python has doorstop_server installed (as CI does).'
   );
-}
-
-/** Fetches /tree from whatever is currently listening on the default Doorstop
- * server port, or undefined if nothing responds there. */
-async function fetchTreeIfListening(): Promise<TreeResponse | undefined> {
-  try {
-    const health = await fetch(`http://${DOORSTOP_SERVER_HOST}:${DOORSTOP_SERVER_PORT}/health`);
-    if (!health.ok) {
-      return undefined;
-    }
-    const tree = await fetch(`http://${DOORSTOP_SERVER_HOST}:${DOORSTOP_SERVER_PORT}/tree`);
-    return tree.ok ? await tree.json() as TreeResponse : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** The extension's own DOORSTOP_SERVER_PORT default is shared machine-wide, so a
- * developer's own separate, already-running VS Code/Doorstop instance (for an
- * unrelated project) can already be bound to it locally - this happened during
- * this suite's own development. Verifying the fixture's exact shape before
- * trusting an already-healthy server turns that into a clear setup error
- * instead of silently asserting against the wrong project's data. */
-function isRegressionFixtureTree(tree: TreeResponse): boolean {
-  const byPrefix = new Map(tree.documents.map(doc => [doc.prefix, doc]));
-  return byPrefix.get('REQ')?.items.length === 10
-    && byPrefix.get('ARCH')?.items.length === 1
-    && byPrefix.get('EMPTY')?.items.length === 0;
 }
 
 /** Restores a fixture file's exact original bytes after `fn` runs, even if `fn` throws - per
@@ -127,7 +99,7 @@ async function waitFor(predicate: () => boolean | Promise<boolean>, what: string
 
 suite('Regression Fixture Integration Suite', () => {
   let server: DoorstopServer;
-  let startedOwnServer = false;
+  let extensionServer: DoorstopServer;
   let treeProvider: DoorstopTreeProvider;
   let problems: ProblemsProvider;
   let documentView: DocumentViewHandle;
@@ -145,24 +117,12 @@ suite('Regression Fixture Integration Suite', () => {
     documentView = exports.documentView;
     assert.ok(documentView, 'activate() should export documentView for tests');
 
+    // Our own server on a free port; the extension's client (which may also have
+    // started one of its own) is pointed at it so its views see this fixture.
+    extensionServer = exports.server;
     server = new DoorstopServer();
-    // If the extension's own activation already started a server against this
-    // workspace (e.g. a local run with ms-python.python installed and configured),
-    // reuse it instead of racing a second process for the same port - but verify
-    // it's actually serving this fixture first (see isRegressionFixtureTree).
-    const existingTree = await fetchTreeIfListening();
-    if (existingTree) {
-      assert.ok(
-        isRegressionFixtureTree(existingTree),
-        'Port ' + DOORSTOP_SERVER_PORT + ' is already serving a different Doorstop project. ' +
-        'Close whatever other VS Code window or process is running a Doorstop server ' +
-        '(e.g. another instance of this extension) before running this suite locally.'
-      );
-    } else {
-      const pythonPath = resolvePythonCommand();
-      await server.start(FIXTURE_ROOT, pythonPath);
-      startedOwnServer = true;
-    }
+    await server.start(FIXTURE_ROOT, resolvePythonCommand());
+    extensionServer.port = server.port;
 
     // The tree provider's own loadItems() may have already run once, early during
     // activation, before any server was confirmed reachable - it caches that
@@ -171,11 +131,7 @@ suite('Regression Fixture Integration Suite', () => {
     treeProvider.refresh();
   });
 
-  suiteTeardown(() => {
-    if (startedOwnServer) {
-      server.dispose();
-    }
-  });
+  suiteTeardown(() => server.dispose());
 
   test('Explorer tree loads all three fixture documents', async () => {
     const tree = await server.request<TreeResponse>('GET', '/tree');
@@ -1103,7 +1059,7 @@ suite('Regression Fixture Integration Suite', () => {
     // A provider pointed at a dead port: the request fails the way it would if
     // the server had crashed.
     const failures: string[] = [];
-    const deadServer = new DoorstopServer({ port: DOORSTOP_SERVER_PORT + 7 });
+    const deadServer = new DoorstopServer({ port: 7874 });
     const subscriptions: vscode.Disposable[] = [];
     const failing = registerProblemsProvider(
       { subscriptions } as unknown as vscode.ExtensionContext,
@@ -1140,7 +1096,7 @@ suite('Regression Fixture Integration Suite', () => {
     // A debounced pass overtaking an awaited refreshNow() made the awaiting
     // caller read an empty collection (CI flake on the dangling-link test).
     // A fresh provider, so getLastRefresh() starts out undefined.
-    const client = new DoorstopServer({ port: DOORSTOP_SERVER_PORT });
+    const client = new DoorstopServer({ port: server.port });
     const subscriptions: vscode.Disposable[] = [];
     const fresh = registerProblemsProvider(
       { subscriptions } as unknown as vscode.ExtensionContext,
@@ -1477,7 +1433,7 @@ suite('Regression Fixture Integration Suite', () => {
   // Spec 019 - Document View: one Doorstop document as a single editable
   // markdown text. Every save-path test runs inside withRestoredFixture:
   // Doorstop's reorder can rewrite several fixture files, and
-  // isRegressionFixtureTree requires exactly 10 REQ items afterwards.
+  // later tests expect exactly 10 REQ items afterwards.
   // ===========================================================================
   suite('Document View (019)', () => {
     const VIEW_SCHEME = 'doorstop-document';
@@ -1682,9 +1638,6 @@ suite('Regression Fixture Integration Suite', () => {
     // Spec 019 FR-021
     test('a save with the server unreachable fails and keeps the edits (US2)', async function () {
       this.timeout(60000);
-      if (!startedOwnServer) {
-        this.skip();
-      }
       const document = await openView('REQ');
       await replaceInView(document, 'The system shall have minimal text.', 'Never written.');
       const errors: string[] = [];
@@ -1696,6 +1649,7 @@ suite('Regression Fixture Integration Suite', () => {
         assert.ok(document.getText().includes('Never written.'));
       } finally {
         await server.restart(FIXTURE_ROOT, resolvePythonCommand());
+        extensionServer.port = server.port;
       }
       const original = await fs.readFile(path.join(FIXTURE_ROOT, 'REQ-002.yml'), 'utf8');
       assert.ok(!original.includes('Never written.'));

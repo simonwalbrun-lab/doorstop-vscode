@@ -5,7 +5,7 @@ import { AddressInfo } from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { DoorstopServer } from '../doorstopServer';
+import { DoorstopServer, parsePortLine } from '../doorstopServer';
 
 // The fixed port may already be held by another window's server. start() must
 // only report ready when /health names our project (audit-fixes-2026-10, finding 1).
@@ -65,5 +65,19 @@ suite('Doorstop server startup', () => {
       await server.dispose();
       await own.close();
     }
+  });
+});
+
+// bug server-fixed-port-orphan: with --port 0 the server names its port on stdout.
+suite('Doorstop server port line', () => {
+  test('reads the port from the line the server prints', () => {
+    assert.strictEqual(parsePortLine('DOORSTOP_PORT=54321\n'), 54321);
+    assert.strictEqual(parsePortLine('noise\r\nDOORSTOP_PORT=8\r\nmore'), 8);
+  });
+
+  test('no port line yet, or a partial one, is no port', () => {
+    assert.strictEqual(parsePortLine(''), undefined);
+    assert.strictEqual(parsePortLine('INFO: Uvicorn running on http://127.0.0.1:0'), undefined);
+    assert.strictEqual(parsePortLine('DOORSTOP_PORT='), undefined);
   });
 });

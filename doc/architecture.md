@@ -88,7 +88,7 @@ flowchart TB
     host -->|"asks for the active interpreter"| pyext
     host -->|"spawns python -m doorstop_server, runs pip install"| python
     python -->|"runs"| server
-    host -->|"HTTP/JSON on 127.0.0.1:7867"| server
+    host -->|"HTTP/JSON on 127.0.0.1, free port"| server
     host <-->|"postMessage JSON"| diagram
     host -->|"notebook output application/vnd.doorstop.filter-results+json"| renderer
     server -->|"reads/writes via Doorstop API"| repo
@@ -106,7 +106,7 @@ flowchart TB
 
 | From | To | What flows |
 |------|----|------------|
-| Extension host | Requirements server | Spawns it as a child process; HTTP/JSON requests on `127.0.0.1:7867` (`src/doorstopServer.ts`). |
+| Extension host | Requirements server | Spawns it as a child process; HTTP/JSON requests on `127.0.0.1` at a free port the server reports on stdout (`--port 0`); it exits when the extension host does (`--exit-on-stdin-eof`) (`src/doorstopServer.ts`). |
 | Extension host | Diagram webview | `postMessage` JSON both ways (`src/diagrammPanel.ts`, `src/webview/diagram/messaging.js`). |
 | Extension host | Filter-results renderer | Notebook cell output with MIME type `application/vnd.doorstop.filter-results+json` (`src/filterNotebook.ts`, `package.json`). |
 | Requirements server | Requirements repository | Reads and writes Doorstop documents and items through the Doorstop API. |

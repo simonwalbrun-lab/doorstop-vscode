@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Requires VS Code 1.97 or newer
+- **Breaking:** `doorstop.attachments.objectStorage.endpoint` and `.region` are User (machine) settings; values in workspace or folder settings are ignored, so move them to User settings. A repository can no longer send uploads, signed with your credentials, to a server it chooses
 
 ### Fixed
 

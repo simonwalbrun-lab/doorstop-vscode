@@ -5,7 +5,7 @@ import * as path from 'node:path';
 
 import * as vscode from 'vscode';
 
-import { DoorstopDiagramPanel } from '../diagrammPanel';
+import { DoorstopDiagramPanel, droppedTextToUid } from '../diagrammPanel';
 import { DoorstopServer } from '../doorstopServer';
 import { DoorstopTreeProvider } from '../requirementTree';
 
@@ -418,5 +418,17 @@ suite('Diagram target (rework-codebase B1)', () => {
       b.webview.dispose();
     }
     assert.strictEqual(DoorstopDiagramPanel.target, undefined, 'no diagram open, no target');
+  });
+});
+
+suite('Dropped text to UID (bug diagram-dnd-percent-silent)', () => {
+  test('a plain path with a literal "%" resolves by basename instead of throwing', () => {
+    assert.strictEqual(droppedTextToUid('C:\\x\\reqs 100%\\REQ-001.md'), 'REQ-001');
+  });
+
+  test('a normal path, a file: URI and a bare UID still resolve', () => {
+    assert.strictEqual(droppedTextToUid('C:\\x\\reqs\\REQ-002.yml'), 'REQ-002');
+    assert.strictEqual(droppedTextToUid('file:///c%3A/x/reqs%20100%25/REQ-003.md'), 'REQ-003');
+    assert.strictEqual(droppedTextToUid('  REQ-004\nignored'), 'REQ-004');
   });
 });

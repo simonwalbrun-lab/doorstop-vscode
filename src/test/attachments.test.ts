@@ -413,6 +413,33 @@ suite('Attachments: object storage (035)', function () {
     assert.deepStrictEqual(messages.errors, [], 'a cancel is no failure');
   });
 
+  // Bug endpoint-setting-scope: a workspace must not choose where the user's credentials are sent.
+  test('endpoint and region are machine-scoped; the other attachment settings stay resource', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'package.json'), 'utf8'));
+    const properties = manifest.contributes.configuration
+      .map((section: { properties?: Record<string, { scope?: string }> }) => section.properties ?? {})
+      .reduce((all: Record<string, { scope?: string }>, next: Record<string, { scope?: string }>) => ({ ...all, ...next }), {});
+    const scopes = Object.fromEntries(Object.keys(properties)
+      .filter(key => key.startsWith('doorstop.attachments.'))
+      .map(key => [key.slice('doorstop.attachments.'.length), properties[key].scope]));
+    assert.deepStrictEqual(scopes, {
+      storage: 'resource',
+      'objectStorage.thresholdMB': 'resource',
+      'objectStorage.endpoint': 'machine',
+      'objectStorage.bucket': 'resource',
+      'objectStorage.prefix': 'resource',
+      'objectStorage.publicUrl': 'resource',
+      'objectStorage.region': 'machine'
+    });
+  });
+
+  test('a missing endpoint points the user to User settings', async () => {
+    await configure({ storage: 'objectStorage', 'objectStorage.thresholdMB': 0, 'objectStorage.bucket': 'reports' });
+    const f = await fixture();
+    await drop(f, uriList(f.source('big.bin', 'x')));
+    assert.deepStrictEqual(messages.errors, ['Could not attach: "big.bin" (set doorstop.attachments.objectStorage.endpoint in User settings first)']);
+  });
+
   // Spec 035 FR-020
   test('missing storage settings or credentials fail only the files bound for the bucket', async () => {
     await configure({ storage: 'objectStorage', 'objectStorage.thresholdMB': 1, 'objectStorage.endpoint': 'http://127.0.0.1:9' });

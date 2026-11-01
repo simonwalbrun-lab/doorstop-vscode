@@ -189,7 +189,8 @@ async function upload(
   const bucket = settings.get<string>('objectStorage.bucket', '');
   const missing = !endpoint ? 'endpoint' : !bucket ? 'bucket' : undefined;
   if (missing) {
-    throw new Error(`set doorstop.attachments.objectStorage.${missing} first`);
+    // The endpoint is machine-scoped: a workspace value is ignored, so point at User settings.
+    throw new Error(`set doorstop.attachments.objectStorage.${missing}${missing === 'endpoint' ? ' in User settings' : ''} first`);
   }
   // Read per upload, never kept: credentials live only in secret storage (FR-017).
   const [accessKey, secretKey] = await Promise.all([secrets.get(ACCESS_KEY_SECRET), secrets.get(SECRET_KEY_SECRET)]);

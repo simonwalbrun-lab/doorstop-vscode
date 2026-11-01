@@ -153,7 +153,8 @@ export async function registerServerStartup(
   }
   // Starts now if an environment is active, otherwise as soon as one becomes
   // active (FR-011, FR-012); a later switch restarts with the new interpreter.
-  // Only the first start is awaited so activation never blocks on the wait.
+  // The first start (and any install prompt) is awaited, so activate() registers
+  // this last; later switches are not awaited by anyone.
   let started = false;
   const api = await getPythonApi();
   if (!api) {

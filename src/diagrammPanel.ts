@@ -93,6 +93,23 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Turns dropped text (a file: URI, a plain path or a bare UID; first line only) into an item UID.
+ */
+export function droppedTextToUid(droppedText: string): string {
+  const cleanText = droppedText.trim().split(/\r?\n/)[0];
+  const parsedUri = cleanText.startsWith('file:') ? vscode.Uri.parse(cleanText) : undefined;
+  let localPath = cleanText;
+  if (parsedUri) {
+    localPath = parsedUri.fsPath;
+  } else {
+    // Plain paths are usually not URI-encoded; a literal '%' (e.g. "reqs 100%") would throw URIError.
+    try { localPath = decodeURIComponent(cleanText); } catch { /* keep the raw text */ }
+  }
+  const isPath = fs.existsSync(localPath) || localPath.includes('/') || localPath.includes('\\');
+  return isPath ? path.basename(path.normalize(localPath)).replace(/\.(yml|md)$/, '') : cleanText;
+}
+
 export class DoorstopDiagramPanel {
   /** Every diagram editor currently open; any number of them can be. */
   private static readonly open = new Set<DoorstopDiagramPanel>();
@@ -675,11 +692,7 @@ export class DoorstopDiagramPanel {
       return;
     }
 
-    const cleanText = droppedText.trim().split(/\r?\n/)[0];
-    const parsedUri = cleanText.startsWith('file:') ? vscode.Uri.parse(cleanText) : undefined;
-    const localPath = parsedUri ? parsedUri.fsPath : decodeURIComponent(cleanText);
-    const isPath = fs.existsSync(localPath) || localPath.includes('/') || localPath.includes('\\');
-    const uid = isPath ? path.basename(path.normalize(localPath)).replace(/\.(yml|md)$/, '') : cleanText;
+    const uid = droppedTextToUid(droppedText);
 
     const knownMeta = this._itemMeta[uid];
     if (!knownMeta) {
