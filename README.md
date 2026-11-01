@@ -76,6 +76,7 @@ Doorstop's own validation, inline at the affected field.
 
 - **CodeLens:** derive a downstream requirement in one click
 - **IntelliSense:** autocomplete links, recent items first
+- **Quick entry:** field values from team value lists, the current date and time, or values other items already use; also in document views, and filter notebooks respect the lists
 - **Hover:** preview any linked item
 
 <img src="media/promotion/05_autocomplete.gif" alt="Autocompletion of links" width=600>
@@ -121,6 +122,9 @@ Query items with YAML filters, like Obsidian Bases. Run a cell, get a table.
 | `doorstop.documentView.fields` | none | Header fields editable in document views |
 | `doorstop.problemReporting` | Automatic | `Automatic`, `On demand` or `Off` |
 | `doorstop.foldYamlHeaderOnOpen` | off | Fold the YAML header of Markdown items on open |
+| `doorstop.quickEntry.valueLists` | none | Values offered for a field, e.g. `{"status": ["Draft", "Approved"]}`; best in `.vscode/settings.json` |
+| `doorstop.quickEntry.dateTimeFields` | none | Fields offered the current date and time (`YYYY-MM-DDThh:mm`) |
+| `doorstop.quickEntry.suggestUsedValues` | on | Offer values used in other items for fields without a value list |
 | `doorstop.attachments.storage` | `assets` | `assets` or `objectStorage` for pasted/dropped files |
 | `doorstop.attachments.objectStorage.thresholdMB` | `10` | Larger files go to object storage; `0` = all |
 | `doorstop.attachments.objectStorage.endpoint` / `.bucket` / `.prefix` / `.region` | none / none / none / `us-east-1` | Where uploads go |

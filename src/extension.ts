@@ -5,6 +5,7 @@ import { registerAttachments } from './attachments';
 import { registerDiagramEditor } from './diagrammPanel';
 import { registerHoverProvider } from './hoverProvider';
 import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
+import { registerQuickEntry } from './quickEntry';
 import { DoorstopServer } from './doorstopServer';
 import { initTiming, registerCommand } from './timing';
 import { registerDeriveProvider } from './deriveProvider';
@@ -150,6 +151,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   registerHoverProvider(context, { server: doorstopServer });
   registerCompletionProvider(context, { server: doorstopServer });
+  registerQuickEntry(context, doorstopServer);
   registerAttachments(context, { server: doorstopServer });
 
   // Exported purely for extension-host tests (src/test/extension.test.ts) to

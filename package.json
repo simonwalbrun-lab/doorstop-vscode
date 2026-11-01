@@ -257,6 +257,35 @@
         }
       },
       {
+        "title": "Quick Entry",
+        "properties": {
+          "doorstop.quickEntry.valueLists": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "default": {},
+            "markdownDescription": "Values offered as suggestions when entering a header field, per field, e.g. `{\"status\": [\"Draft\", \"Approved\", \"Obsolete\"]}`. A field with a list is offered only these values. Set it in the Workspace tab (`.vscode/settings.json`) so the whole team shares the lists."
+          },
+          "doorstop.quickEntry.dateTimeFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "markdownDescription": "Header fields whose first suggestion is the current date and time, written as `YYYY-MM-DDThh:mm`, e.g. `[\"tested_on\"]`. Set it in the Workspace tab (`.vscode/settings.json`) so the whole team shares it."
+          },
+          "doorstop.quickEntry.suggestUsedValues": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "Offer the values a field already has in other items. Fields with a value list or listed as date/time fields never get these. Set it in the Workspace tab (`.vscode/settings.json`) so the whole team shares it."
+          }
+        }
+      },
+      {
         "title": "Attachments",
         "properties": {
           "doorstop.attachments.storage": {

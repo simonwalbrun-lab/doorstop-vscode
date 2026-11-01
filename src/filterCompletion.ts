@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { DoorstopIndex, getItemTitle, loadDoorstopIndex } from './doorstopIndex';
 import { DoorstopServer } from './doorstopServer';
 import { FilterVocabulary } from './doorstopTypes';
+import { filterValues, readQuickEntrySettings } from './quickEntry';
 import { measure } from './timing';
 
 /**
@@ -66,6 +67,29 @@ interface Vocabulary {
   attributes: FilterVocabulary['attributes'];
 }
 
+const usedValues = new WeakMap<DoorstopServer, Promise<FilterVocabulary['attributes'] | undefined>>();
+
+/** Each custom field's values across all items, cached per server until an item file changes (shared with spec 037). */
+export function loadUsedValues(server: DoorstopServer): Promise<FilterVocabulary['attributes'] | undefined> {
+  let loading = usedValues.get(server);
+  if (!loading) {
+    const request = server.request<FilterVocabulary>('GET', '/filter/vocabulary').then(r => r.attributes, () => undefined);
+    // A failed load is not kept: the next completion retries.
+    void request.then(attributes => {
+      if (!attributes && usedValues.get(server) === request) {
+        usedValues.delete(server);
+      }
+    });
+    usedValues.set(server, request);
+    loading = request;
+  }
+  return loading;
+}
+
+export function invalidateUsedValues(server: DoorstopServer): void {
+  usedValues.delete(server);
+}
+
 export class FilterCompletionProvider implements vscode.CompletionItemProvider {
   private vocabulary?: Promise<Vocabulary>;
 
@@ -74,13 +98,14 @@ export class FilterCompletionProvider implements vscode.CompletionItemProvider {
   /** Drops the cached item data; the next completion reloads it. */
   invalidate(): void {
     this.vocabulary = undefined;
+    invalidateUsedValues(this.server);
   }
 
   private load(): Promise<Vocabulary> {
     if (!this.vocabulary) {
       const loading = Promise.all([
         loadDoorstopIndex(this.server),
-        this.server.request<FilterVocabulary>('GET', '/filter/vocabulary').then(r => r.attributes, () => undefined),
+        loadUsedValues(this.server),
       ]).then(([index, attributes]) => {
         // A failed load is not kept: the next completion retries.
         if (!index || !attributes) {
@@ -117,7 +142,7 @@ export class FilterCompletionProvider implements vscode.CompletionItemProvider {
       if (name === 'uid' || name === 'links') {
         return (index?.items ?? []).map(i => Object.assign(item(i.uid, vscode.CompletionItemKind.Reference, range), { detail: getItemTitle(i) }));
       }
-      return (attributes[name] ?? []).map(v => item(v, vscode.CompletionItemKind.Value, range));
+      return valueItems(name, 'find', attributes, (label, kind) => item(label, kind, range));
     }
 
     const method = METHOD.exec(before);
@@ -190,7 +215,7 @@ export class FilterCompletionProvider implements vscode.CompletionItemProvider {
           ? text((index?.documents ?? []).map(d => d.prefix), vscode.CompletionItemKind.Folder)
           : ['true', 'false'].map(v => item(v, vscode.CompletionItemKind.Value, range));
       }
-      return text(attributes[name] ?? [], vscode.CompletionItemKind.Value, true);
+      return valueItems(name, operation === 'removeEntry' ? 'find' : 'write', attributes, (label, kind) => text([label], kind, true)[0]);
     }
     return EDIT_FIELD.test(before) && operation ? fields(operation) : [];
   }
@@ -209,6 +234,31 @@ function item(label: string, kind: vscode.CompletionItemKind, range: vscode.Rang
     completion.insertText = new vscode.SnippetString(snippet);
   }
   return completion;
+}
+
+/**
+ * A field's value suggestions with the quick-entry value lists applied (spec 037
+ * FR-021 to FR-023): listed values in their order; used values not in the list
+ * only when searching, marked so they can be found and fixed.
+ */
+function valueItems(
+  name: string,
+  mode: 'write' | 'find',
+  attributes: FilterVocabulary['attributes'],
+  make: (label: string, kind: vscode.CompletionItemKind) => vscode.CompletionItem
+): vscode.CompletionItem[] {
+  const settings = readQuickEntrySettings();
+  const hasList = settings.valueLists.has(name);
+  return filterValues(name, mode, settings, attributes).map((suggestion, index) => {
+    const completion = make(suggestion.value, suggestion.source === 'listed' ? vscode.CompletionItemKind.EnumMember : vscode.CompletionItemKind.Value);
+    if (hasList) {
+      completion.sortText = String(index).padStart(5, '0');
+      if (suggestion.source === 'used') {
+        completion.detail = 'not in value list';
+      }
+    }
+    return completion;
+  });
 }
 
 /** True when the cursor is inside the cell's top-level `edit:` section. */

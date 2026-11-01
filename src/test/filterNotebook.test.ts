@@ -662,3 +662,53 @@ suite('Edit section autocomplete (036)', () => {
     assert.deepStrictEqual(requests.sort(), ['/filter/vocabulary', '/tree']);
   });
 });
+
+suite('Value lists in filter cells (037)', () => {
+  const STATUS = ['Draft', 'Approved', 'Obsolete'];
+  let provider: FilterCompletionProvider;
+
+  setup(async () => {
+    await vscode.workspace.getConfiguration('doorstop.quickEntry').update('valueLists', { status: STATUS }, vscode.ConfigurationTarget.Global);
+    provider = new FilterCompletionProvider({
+      request: async (_method: string, pathName: string) =>
+        pathName === '/tree' ? { documents: [] } : { attributes: { status: ['Aproved', 'Draft'], component: ['UI'] } },
+    } as unknown as DoorstopServer);
+  });
+
+  teardown(async () => {
+    await vscode.workspace.getConfiguration('doorstop.quickEntry').update('valueLists', undefined, vscode.ConfigurationTarget.Global);
+  });
+
+  /** Items offered at the end of the last line of `content`, in the order VS Code shows them. */
+  async function offered(content: string): Promise<vscode.CompletionItem[]> {
+    const document = await vscode.workspace.openTextDocument({ language: 'yaml', content });
+    const last = document.lineCount - 1;
+    const items = await provider.provideCompletionItems(document, new vscode.Position(last, document.lineAt(last).text.length)) ?? [];
+    return items.sort((a, b) => (a.sortText ?? String(a.label)).localeCompare(b.sortText ?? String(b.label)));
+  }
+  const labelsOf = (items: vscode.CompletionItem[]) => items.map(i => String(i.label));
+  const EDIT = 'filters: document == "TST"\nedit:\n';
+
+  // Spec 037 FR-021
+  test('edit operations that write a value offer only the listed values', async () => {
+    for (const operation of ['set', 'add', 'appendEntry']) {
+      assert.deepStrictEqual(labelsOf(await offered(`${EDIT}  - ${operation}: {status: "`)), STATUS, operation);
+    }
+  });
+
+  // Spec 037 FR-023
+  test('conditions and removeEntry offer listed values, then unlisted used values marked', async () => {
+    for (const content of ['filters: status == "', 'filters: status.contains("', `${EDIT}  - removeEntry: {status: "`]) {
+      const items = await offered(content);
+      assert.deepStrictEqual(labelsOf(items), [...STATUS, 'Aproved'], content);
+      assert.strictEqual(items[3].detail, 'not in value list');
+      assert.ok(items.slice(0, 3).every(i => i.kind === vscode.CompletionItemKind.EnumMember && !i.detail));
+    }
+  });
+
+  // Spec 037 FR-022
+  test('a field without a value list offers its used values as before', async () => {
+    assert.deepStrictEqual(labelsOf(await offered('filters: component == "')), ['UI']);
+    assert.deepStrictEqual(labelsOf(await offered(`${EDIT}  - set: {component: "`)), ['UI']);
+  });
+});
