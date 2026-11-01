@@ -2,8 +2,9 @@ import * as vscode from 'vscode';
 
 import { DoorstopApiError, DoorstopServer } from './doorstopServer';
 import { registerFilterCompletion } from './filterCompletion';
+import { withDelayedProgress } from './progress';
 import { measure, registerCommand } from './timing';
-import { FilterResponse } from './doorstopTypes';
+import { BatchItemResult, BatchResponse, FilterResponse } from './doorstopTypes';
 
 /**
  * Filter notebooks (spec 022): every code cell is one YAML filter shaped like
@@ -45,6 +46,11 @@ const HELP = [
   '',
   '**Autocomplete**: press Ctrl+Space for keys, attribute names, operators and values',
   '(document prefixes, UIDs, existing values of custom attributes).',
+  '',
+  '**Batch edit**: next to `filters:` add an `edit:` list of `set`, `add`, `remove`,',
+  '`appendEntry`, `removeEntry` or `generateChildren`, e.g. `edit: [{set: {testrun: "TR-1"}}]`.',
+  'Text values go in double quotes like in filters; numbers, `true`/`false` and dates do not.',
+  'The result then has a checkbox per row; tick the items and press **Apply to selected**.',
   '',
   'The two cells below are a **simple** and a **complex** example - run them, then edit',
   'them or add your own cells. `#` starts a comment.',
@@ -134,13 +140,13 @@ function markdownOutput(markdown: string): vscode.NotebookCellOutput {
  * Matches go to the results renderer: VS Code ignores `file:` links in
  * notebook outputs, so a UID click is posted back and handled by openFilterItem.
  */
-export function resultOutput(response: FilterResponse): vscode.NotebookCellOutput {
+export function resultOutput(response: FilterResponse, query?: string): vscode.NotebookCellOutput {
   if (response.items.length === 0) {
     return markdownOutput('No items matched.');
   }
-  return new vscode.NotebookCellOutput([
-    vscode.NotebookCellOutputItem.json({ columns: response.columns, items: response.items }, RESULTS_MIME)
-  ]);
+  // `query` goes along so "Apply to selected" runs the edit as it was when the table was made (spec 036).
+  const payload = { columns: response.columns, items: response.items, editable: response.editable, query: response.editable ? query : undefined };
+  return new vscode.NotebookCellOutput([vscode.NotebookCellOutputItem.json(payload, RESULTS_MIME)]);
 }
 
 /** One cell's run: its output and whether it succeeded. Cells never share state. */
@@ -153,7 +159,7 @@ export async function runFilter(
   }
   try {
     const response = await measure('filter.execute', () => server.request<FilterResponse>('POST', '/filter', { query }));
-    return { success: true, output: resultOutput(response) };
+    return { success: true, output: resultOutput(response, query) };
   } catch (error) {
     // Never a table on failure - an empty or stale table would read as "no matches".
     const message = error instanceof DoorstopApiError
@@ -179,7 +185,129 @@ export async function openFilterItem(path: string): Promise<void> {
   await vscode.window.showTextDocument(uri, { preview: false });
 }
 
-export function registerFilterNotebook(context: vscode.ExtensionContext, server: DoorstopServer): void {
+/** What applyBatch shows and asks; tests pass their own (spec 036). */
+export interface BatchUi {
+  documents(): readonly vscode.TextDocument[];
+  info(message: string, ...actions: string[]): Thenable<string | undefined>;
+  warning(message: string, ...actions: string[]): Thenable<string | undefined>;
+  error(message: string): Thenable<unknown>;
+  /** A modal question; true when `action` was chosen. */
+  confirm(message: string, action: string): Thenable<boolean>;
+  progress<T>(title: string, work: () => Promise<T>): Promise<T>;
+  showDetails(markdown: string): Thenable<unknown>;
+}
+
+const vscodeBatchUi: BatchUi = {
+  documents: () => vscode.workspace.textDocuments,
+  info: (message, ...actions) => vscode.window.showInformationMessage(message, ...actions),
+  warning: (message, ...actions) => vscode.window.showWarningMessage(message, ...actions),
+  error: message => vscode.window.showErrorMessage(message),
+  confirm: async (message, action) => await vscode.window.showWarningMessage(message, { modal: true }, action) === action,
+  progress: (title, work) => withDelayedProgress(title, () => work()),
+  showDetails: async markdown => vscode.window.showTextDocument(await vscode.workspace.openTextDocument({ language: 'markdown', content: markdown })),
+};
+
+/**
+ * An open item file or Document View with unsaved changes (spec 036 FR-020).
+ * Notebook cells - the filter cell itself is usually unsaved - and untitled
+ * documents, such as an earlier batch's details, do not count.
+ */
+function blocksBatch(document: vscode.TextDocument): boolean {
+  return document.isDirty && !document.isUntitled && document.uri.scheme !== 'vscode-notebook-cell'
+    && (document.languageId === 'markdown' || document.languageId === 'yaml');
+}
+
+const WILL_CHANGE = new Set<BatchItemResult['status']>(['changed', 'created', 'overwritten']);
+
+function detailsMarkdown(results: BatchItemResult[]): string {
+  const cell = (text?: string | null) => (text ?? '').replace(/\|/g, '\\|');
+  return ['# Batch edit', '', '| UID | Status | Reason | Created |', '| --- | --- | --- | --- |',
+    ...results.map(r => `| ${r.uid} | ${r.status} | ${cell(r.reason)} | ${cell(r.created)} |`), ''].join('\n');
+}
+
+/**
+ * "Apply to selected" (spec 036): unsaved-files check, dry run, confirmation,
+ * the real run, summary. The server parses and applies the edit (constitution I).
+ */
+export async function applyBatch(
+  server: Pick<DoorstopServer, 'request'>,
+  query: string,
+  uids: string[],
+  onChanged?: () => void,
+  ui: BatchUi = vscodeBatchUi
+): Promise<void> {
+  // A second click while the first batch waits for its confirmation would run
+  // it twice; with `blank` that creates every child item twice.
+  if (batchRunning) {
+    void ui.info('A batch edit is already running.');
+    return;
+  }
+  batchRunning = true;
+  try {
+    await runBatch(server, query, uids, onChanged, ui);
+  } finally {
+    batchRunning = false;
+  }
+}
+
+let batchRunning = false;
+
+async function runBatch(
+  server: Pick<DoorstopServer, 'request'>,
+  query: string,
+  uids: string[],
+  onChanged: (() => void) | undefined,
+  ui: BatchUi
+): Promise<void> {
+  if (uids.length === 0) {
+    void ui.info('Nothing selected.');
+    return;
+  }
+  const unsaved = ui.documents().filter(blocksBatch).map(d => d.uri.path.slice(d.uri.path.lastIndexOf('/') + 1));
+  if (unsaved.length > 0) {
+    void ui.error(`Save or discard unsaved changes first: ${unsaved.slice(0, 3).join(', ')}${unsaved.length > 3 ? ', …' : ''}`);
+    return;
+  }
+  const send = (dryRun: boolean) => ui.progress('Doorstop: Batch edit…',
+    () => server.request<BatchResponse>('POST', '/batch', { query, uids, dryRun }));
+  const failed = (error: unknown) => void ui.error(`Batch edit failed: ${error instanceof Error ? error.message : String(error)}`);
+
+  let planned: BatchResponse;
+  try {
+    planned = await send(true);
+  } catch (error) {
+    failed(error);
+    return;
+  }
+  const changing = planned.results.filter(r => WILL_CHANGE.has(r.status)).length;
+  const overwriting = planned.results.filter(r => r.status === 'overwritten').length;
+  const question = `Apply ${planned.operations.join('; ')} to ${uids.length} ${uids.length === 1 ? 'item' : 'items'}? `
+    + `${changing} will change, ${uids.length - changing} will be skipped`
+    + (overwriting > 0 ? `, ${overwriting} existing ${overwriting === 1 ? 'item' : 'items'} will be overwritten.` : '.');
+  if (!await ui.confirm(question, 'Apply')) {
+    return;
+  }
+
+  let done: BatchResponse;
+  try {
+    done = await send(false);
+  } catch (error) {
+    failed(error);
+    return;
+  } finally {
+    // A rejected real run may still have written some items.
+    onChanged?.();
+  }
+  const changed = done.results.filter(r => WILL_CHANGE.has(r.status)).length;
+  const failures = done.results.filter(r => r.status === 'failed').length;
+  const summary = `Batch edit: ${changed} changed, ${done.results.length - changed - failures} skipped, ${failures} failed.`;
+  const show = await (failures > 0 ? ui.warning(summary, 'Show details') : ui.info(summary, 'Show details'));
+  if (show === 'Show details') {
+    await ui.showDetails(detailsMarkdown(done.results));
+  }
+}
+
+export function registerFilterNotebook(context: vscode.ExtensionContext, server: DoorstopServer, onChanged?: () => void): void {
   const controller = vscode.notebooks.createNotebookController(
     'doorstop-filter-controller',
     NOTEBOOK_TYPE,
@@ -212,6 +340,8 @@ export function registerFilterNotebook(context: vscode.ExtensionContext, server:
         void openFilterItem(event.message.path);
       } else if (event.message?.type === 'openDocument') {
         void vscode.commands.executeCommand('doorstop.openFilterAsDocument', event.message.uids);
+      } else if (event.message?.type === 'apply' && typeof event.message.query === 'string' && Array.isArray(event.message.uids)) {
+        void applyBatch(server, event.message.query, event.message.uids.map(String), onChanged);
       }
     }),
     registerCommand('doorstop.newFilterNotebook', async () => {

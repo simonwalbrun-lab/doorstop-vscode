@@ -77,7 +77,9 @@ export async function activate(context: vscode.ExtensionContext) {
   registerTaskToggle(context);
   // Filter notebooks (spec 022). Registered even without a server: a run then
   // reports "server not available" in the cell instead of the notebook failing to open.
-  registerFilterNotebook(context, doorstopServer);
+  // A batch edit (spec 036) refreshes like the other mutations once onChanged exists below.
+  let refreshAfterBatch: (() => void) | undefined;
+  registerFilterNotebook(context, doorstopServer, () => refreshAfterBatch?.());
   if (workspaceFolder) {
     // Registered first so the providers below can ask it to re-check after a
     // mutation they caused.
@@ -103,6 +105,7 @@ export async function activate(context: vscode.ExtensionContext) {
       treeProvider.refresh();
       problemsProvider?.scheduleRefresh();
     };
+    refreshAfterBatch = onChanged;
     // A `.doorstop.skip` added or removed outside the extension (spec 031 FR-007).
     const skipWatcher = vscode.workspace.createFileSystemWatcher('**/.doorstop.skip');
     skipWatcher.onDidCreate(onChanged);

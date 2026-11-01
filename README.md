@@ -99,6 +99,7 @@ Query items with YAML filters, like Obsidian Bases. Run a cell, get a table.
 - `order: [status, owner]` picks the table columns
 - Autocomplete for keys, attribute names, operators, document prefixes, UIDs and existing custom values
 - **Open as document** edits the matched items
+- **Batch edit**: add `edit:` next to `filters:` (`set`, `add`, `remove`, `appendEntry`, `removeEntry`, `generateChildren`) with text values in double quotes like in filters (`set: {testrun: "TR-1"}`), tick rows, press **Apply to selected**; you confirm the counts first
 - *Doorstop: New Filter Notebook* starts with a cheat sheet
 
 ### Publish
