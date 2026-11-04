@@ -55,7 +55,7 @@ suite('Toggle Document Skip (031)', () => {
     const marker = path.join(REPO_ROOT, 'reqs', 'REQ', '.doorstop.yml');
     const document = { prefix: 'REQ', markerPath: marker, items: [] };
     let response: TreeResponse = { documents: [], skippedDocuments: [{ prefix: 'REQ', markerPath: marker }] };
-    const tree = new DoorstopTreeProvider({ request: async () => response } as unknown as DoorstopServer);
+    const tree = new DoorstopTreeProvider({ port: 1, request: async () => response } as unknown as DoorstopServer);
 
     const [disabled] = await tree.getChildren();
     assert.strictEqual(disabled.contextValue, 'doorstop.root.skipped');
@@ -67,5 +67,48 @@ suite('Toggle Document Skip (031)', () => {
     const [enabled] = await tree.getChildren();
     assert.strictEqual(enabled.contextValue, 'doorstop.root');
     assert.strictEqual(enabled.itemData.isDoorstopRoot, true);
+  });
+
+  // Bug tree-fetch-error-at-startup: activation no longer waits for the server.
+  test('a tree asked before the server runs stays empty without a request, then loads after refresh', async () => {
+    const marker = path.join(REPO_ROOT, 'reqs', 'REQ', '.doorstop.yml');
+    const server = {
+      port: 0,
+      requests: 0,
+      request: async () => { server.requests++; return { documents: [{ prefix: 'REQ', markerPath: marker, items: [] }] }; }
+    };
+    const tree = new DoorstopTreeProvider(server as unknown as DoorstopServer);
+
+    assert.deepStrictEqual(await tree.getChildren(), []);
+    assert.strictEqual(server.requests, 0, 'nothing is requested from a server that is not up');
+
+    server.port = 1;
+    tree.refresh();
+    assert.strictEqual((await tree.getChildren()).length, 1);
+  });
+
+  // Bug tree-load-slow-at-startup: extension.ts schedules the first problems check in
+  // loadItems().then(...), so it must settle only after the load and share it with the view.
+  test('loadItems resolves only after the load and shares it with getChildren', async () => {
+    const marker = path.join(REPO_ROOT, 'reqs', 'REQ', '.doorstop.yml');
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const server = {
+      port: 1,
+      requests: 0,
+      request: async () => { server.requests++; await gate; return { documents: [{ prefix: 'REQ', markerPath: marker, items: [] }] }; }
+    };
+    const tree = new DoorstopTreeProvider(server as unknown as DoorstopServer);
+
+    let settled = false;
+    const loaded = tree.loadItems().then(() => { settled = true; });
+    const children = tree.getChildren();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.strictEqual(settled, false, 'not settled while the server has not answered');
+
+    release();
+    await loaded;
+    assert.strictEqual((await children).length, 1);
+    assert.strictEqual(server.requests, 1, 'one request serves both callers');
   });
 });

@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { DoorstopServer, installServerPackage, isServerPackageInstalled, SERVER_PACKAGE_NAME } from './doorstopServer';
 import { withDelayedProgress } from './progress';
 import { getActiveInterpreter, PythonEnvironmentsApi, sameInterpreter, watchInterpreter } from './pythonEnvironment';
-import { registerCommand } from './timing';
+import { measure, registerCommand } from './timing';
 
 export interface ServerStartupHooks {
   /** After every successful start or restart. */
@@ -33,15 +33,15 @@ export async function registerServerStartup(
       return undefined;
     }
     if (!pythonExtension.isActive) {
-      await pythonExtension.activate();
+      await measure('startup.pythonExtension.activate', () => pythonExtension.activate());
     }
     const exports = pythonExtension.exports as { ready?: Promise<void>; environments?: PythonEnvironmentsApi };
-    await exports.ready;
+    await measure('startup.pythonExtension.ready', () => exports.ready);
     return exports.environments;
   };
   const getActivePythonPath = async (): Promise<string | undefined> => {
     const api = await getPythonApi();
-    return api ? getActiveInterpreter(api, workspaceFolder?.uri) : undefined;
+    return api ? measure('startup.activeInterpreter', () => getActiveInterpreter(api, workspaceFolder?.uri)) : undefined;
   };
 
   // Spawns the server process and reports the outcome; split out of
@@ -52,9 +52,9 @@ export async function registerServerStartup(
     try {
       await withDelayedProgress(
         restart ? 'Restarting Doorstop server…' : 'Starting Doorstop server…',
-        () => restart
+        () => measure('startup.serverStart', () => restart
           ? server.restart(folder.uri.fsPath, pythonPath)
-          : server.start(folder.uri.fsPath, pythonPath)
+          : server.start(folder.uri.fsPath, pythonPath))
       );
       void vscode.window.showInformationMessage('Doorstop server is ready.');
       hooks.onStarted();
@@ -115,17 +115,17 @@ export async function registerServerStartup(
     if (!workspaceFolder) {
       return;
     }
-
+ 
     // Re-checked on every attempt (initial activation and manual restart),
     // never cached, so switching interpreters is always reflected (FR-010).
-    if (!(await isServerPackageInstalled(pythonPath))) {
+    if (!(await measure('startup.packageCheck', () => isServerPackageInstalled(pythonPath)))) {
       await promptToInstallServerPackage(workspaceFolder, pythonPath, restart);
       return;
     }
 
     await spawnServerProcess(workspaceFolder, pythonPath, restart);
-  };
-
+  }; 
+ 
   let waitingNoticeShown = false;
   const notifyWaitingForPython = (): void => {
     if (!waitingNoticeShown) {

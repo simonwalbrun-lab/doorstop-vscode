@@ -7,7 +7,7 @@ import { registerHoverProvider } from './hoverProvider';
 import { recordViewedRequirement, registerCompletionProvider } from './completionProvider';
 import { registerQuickEntry } from './quickEntry';
 import { DoorstopServer } from './doorstopServer';
-import { initTiming, registerCommand } from './timing';
+import { initTiming, measure, registerCommand } from './timing';
 import { registerDeriveProvider } from './deriveProvider';
 import { registerReviewCodeActionProvider } from './reviewCodeActionProvider';
 import { registerReviewCommands } from './reviewLensProvider';
@@ -41,7 +41,10 @@ export async function activate(context: vscode.ExtensionContext) {
   refreshViews = () => {
     treeProvider.refresh();
     commandsProvider.refresh();
-    problemsProvider?.scheduleRefresh();
+    // After the tree: the check runs in its own process and reads the whole project as
+    // well, and on a cold start the two reads slowed each other from ~6 s to ~26 s
+    // (bug tree-load-slow-at-startup).
+    void treeProvider.loadItems().then(() => problemsProvider?.scheduleRefresh());
   };
   context.subscriptions.push(...registerDoorstopCommands({
     context,
@@ -137,15 +140,15 @@ export async function activate(context: vscode.ExtensionContext) {
   registerCompletionProvider(context, { server: doorstopServer });
   registerQuickEntry(context, doorstopServer);
   registerAttachments(context, { server: doorstopServer });
-
+ 
   // Last, so every command and view above exists while the server is still
   // starting or the install prompt is open (bug activation-blocks-server-start).
   // Each successful start refreshes the views; the problems check that brings
   // runs in Automatic mode only, and only once a server came up (spec 032 FR-011).
-  await registerServerStartup(context, doorstopServer, workspaceFolder, {
+  await measure('startup', () => registerServerStartup(context, doorstopServer, workspaceFolder, {
     onStarted: () => refreshViews(),
     onRestartCommand: () => refreshViews()
-  });
+  })); 
 
   // Exported purely for extension-host tests (src/test/extension.test.ts) to
   // observe internal state that has no other public surface; not used by the

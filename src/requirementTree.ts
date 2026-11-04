@@ -184,7 +184,8 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
     return resourceUri ? this.items.get(resourceUri.fsPath) : undefined;
   }
 
-  private loadItems(): Promise<void> {
+  /** Starts (or joins) the load of the tree; resolves when it is over, whether or not it worked. */
+  loadItems(): Promise<void> {
     if (this.loaded) {return Promise.resolve();}
     return this.loading ??= this.fetchItems();
   }
@@ -194,6 +195,11 @@ export class DoorstopTreeProvider implements vscode.TreeDataProvider<Requirement
       this.loaded = true;
       return;
     }
+
+    // No port yet = still starting (activation no longer waits for it): nothing to ask and
+    // nothing to report. Stays unloaded; the refresh after a successful start loads for
+    // real, and a failed start already shows its own warning.
+    if (!this.server.port) {return;}
 
     const generation = this.generation;
     let response: TreeResponse;
