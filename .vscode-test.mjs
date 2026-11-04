@@ -92,8 +92,42 @@ export default defineConfig([
 		workspaceFolder: 'testdata/regression',
 	},
 	{
+		// Server startup against a fake /health (audit-fixes-2026-10). No workspace,
+		// no Python.
+		label: 'doorstopServer',
+		files: 'out/test/doorstopServer.test.js',
+	},
+	{
+		// Spec 016: package check and install with an injected spawn. No workspace,
+		// no Python, no network.
+		label: 'serverPackageInstall',
+		files: 'out/test/serverPackageInstall.test.js',
+	},
+	{
+		// rework-codebase: shared item-file text helpers. Pure, no workspace, no server.
+		label: 'itemFile',
+		files: 'out/test/itemFile.test.js',
+	},
+	{
 		// Spec 034: folding provider and button, temp fixture, no workspace, no server.
 		label: 'headerFolding',
 		files: 'out/test/headerFolding.test.js',
+	},
+	{
+		// Spec 035: checkbox toggle on in-memory documents, no workspace, no server.
+		label: 'taskToggle',
+		files: 'out/test/taskToggle.test.js',
+	},
+	{
+		// Spec 037: quick-entry settings, suggestions and providers on a temp Doorstop
+		// folder and untitled documents, stub server. No workspace, no Python.
+		label: 'quickEntry',
+		files: 'out/test/quickEntry.test.js',
+	},
+	{
+		// Spec 035: paste/drop attachments into a temp document and a fake S3
+		// server on port 0. No workspace, no Doorstop server, no network.
+		label: 'attachments',
+		files: 'out/test/attachments.test.js',
 	},
 ]);

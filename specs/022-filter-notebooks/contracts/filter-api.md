@@ -58,3 +58,20 @@ All errors use the existing envelope `{"error": {"code": …, "message": …}}`.
 | 400 | `INVALID_FILTER` | Blank query, YAML syntax error, wrong structure (unknown key, several keys, empty group, `order:` not a list of names), or a rejected expression | The problem; the line number for YAML errors; the offending expression text for expression errors |
 | 400 | `DOORSTOP_ERROR` | Doorstop fails to load the tree | Doorstop's message (existing handler) |
 | 500 | `INTERNAL_ERROR` | Unexpected | Existing handler |
+
+# Contract: `GET /filter/vocabulary`
+
+Data for autocomplete in filter cells (FR-016). No request body.
+
+## Response 200
+
+```json
+{ "attributes": { "status": ["approved", "draft"], "tags": [] } }
+```
+
+`attributes` maps every custom attribute name found on any item to its
+distinct non-empty scalar values as strings, sorted, at most 50 per name.
+Standard attributes and Doorstop's own fields are left out; a list- or
+dict-valued attribute appears with `[]`. The answer is cached until the tree
+changes (`tree_version`), like `GET /tree`. Document prefixes and UIDs come
+from `GET /tree`.

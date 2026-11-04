@@ -77,3 +77,19 @@ jobs:
           cache: pip
       - run: pip install -e "./server[dev]"
       - run: pytest server/tests
+
+  # Same lint as the server repo's own CI, so a server change made here
+  # cannot merge with lint red. Run from server/ so pyproject.toml applies.
+  server-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e "./server[dev]"
+      - run: pylint src/doorstop_server tests tools
+        working-directory: server

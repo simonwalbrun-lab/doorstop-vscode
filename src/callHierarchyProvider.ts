@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 
-import { findHeaderLocation, findReferenceLocation, UID_REGEX } from './definitionProvider';
+import { findHeaderLocation, findReferenceLocation } from './definitionProvider';
 import { DoorstopIndex, getDocumentUid, IndexedItem, loadDoorstopIndex } from './doorstopIndex';
 import { DoorstopServer } from './doorstopServer';
+import { UID_REGEX } from './itemFile';
 import { registerCommand } from './timing';
 
 /**

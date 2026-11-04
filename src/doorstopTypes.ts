@@ -94,4 +94,26 @@ export interface FilterResponse {
   /** Table columns after UID: the cell's `order:` or the defaults (document, level, header). */
   columns: string[];
   items: FilterItem[];
+  /** The cell has a valid `edit:` section (spec 036): the table offers "Apply to selected". */
+  editable?: boolean;
+}
+
+/** One ticked item's outcome of `POST /batch` (spec 036); for generateChildren `uid` is the parent. */
+export interface BatchItemResult {
+  uid: string;
+  status: 'changed' | 'created' | 'overwritten' | 'skipped' | 'failed';
+  reason?: string | null;
+  /** generateChildren: the child's UID. */
+  created?: string | null;
+}
+
+export interface BatchResponse {
+  results: BatchItemResult[];
+  /** The edit's operations in words ("set testrun"), for the confirmation. */
+  operations: string[];
+}
+
+export interface FilterVocabulary {
+  /** Custom attribute name -> its distinct scalar values (filter autocomplete, spec 022 FR-016). */
+  attributes: Record<string, string[]>;
 }

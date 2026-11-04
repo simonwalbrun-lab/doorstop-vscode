@@ -14,6 +14,8 @@ import { DoorstopCommandsProvider } from '../commandsProvider';
 import { DoorstopDiagramPanel } from '../diagrammPanel';
 import { DoorstopServer } from '../doorstopServer';
 import { TreeResponse } from '../doorstopTypes';
+import { DoorstopIndex } from '../doorstopIndex';
+import { renderItemPreview, renderReverseLinks } from '../hoverProvider';
 
 suite('Extension Test Suite', () => {
 	vscode.window.showInformationMessage('Start all tests.');
@@ -491,5 +493,28 @@ suite('Diagram entry point (spec 025)', () => {
 	test('the Commands panel lists New Diagram', () => {
 		const items = new DoorstopCommandsProvider().getChildren();
 		assert.ok(items.some(item => item.command?.command === 'doorstop.newDiagram'));
+	});
+});
+
+suite('Hover trust (bug hover-istrusted)', () => {
+	const evil = '[details](command:workbench.action.terminal.sendSequence?%7B%22text%22%3A%22x%22%7D)';
+	const node = (uid: string, links: string[]) => ({
+		uid, path: path.join(os.tmpdir(), `${uid}.yml`), level: '1', header: evil, text: evil, ref: evil,
+		active: true, normative: true, derived: false, reviewed: true, cleared: true,
+		links: links.map(link => ({ uid: link, suspect: false }))
+	});
+	const index = DoorstopIndex.fromTree({
+		documents: [{ prefix: 'REQ', markerPath: path.join(os.tmpdir(), '.doorstop.yml'), items: [node('REQ-001', []), node('REQ-002', ['REQ-001'])] }]
+	} as TreeResponse);
+
+	test('item preview only enables vscode.open, so command links in item text stay inert', () => {
+		const markdown = renderItemPreview('REQ-002', index, true)!;
+		assert.ok(markdown.value.includes('command:workbench.action.terminal.sendSequence'));
+		assert.ok(markdown.value.includes('command:vscode.open?'), 'UID links must still be generated');
+		assert.deepStrictEqual(markdown.isTrusted, { enabledCommands: ['vscode.open'] });
+	});
+
+	test('reverse-link hover only enables vscode.open', () => {
+		assert.deepStrictEqual(renderReverseLinks('REQ-001', index).isTrusted, { enabledCommands: ['vscode.open'] });
 	});
 });

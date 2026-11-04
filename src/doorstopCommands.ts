@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { DoorstopServer } from './doorstopServer';
+import { uidFromItemPath } from './itemFile';
 import { ensurePdfTooling, offerBrowserInstall, runExportScript } from './pdfExport';
 import { ProgressReport, withDelayedProgress } from './progress';
 import { registerCommand } from './timing';
@@ -24,7 +25,8 @@ interface CommandOptions {
   server: DoorstopServer;
   tree: DoorstopTreeProvider;
   utilities: { refresh(): void };
-  workspaceFolder: vscode.WorkspaceFolder;
+  /** Undefined without an open folder; the commands that need one say so. */
+  workspaceFolder: vscode.WorkspaceFolder | undefined;
   /** A getter: the problems provider is created after these commands (extension.ts). */
   problems: () => ProblemsProvider | undefined;
 }
@@ -55,11 +57,7 @@ function itemArgument(value: unknown): RequirementTreeItem | undefined {
 
 function editorUid(): string | undefined {
   const fileName = vscode.window.activeTextEditor?.document.fileName;
-  if (!fileName) {return undefined;}
-  const extension = path.extname(fileName).toLowerCase();
-  return extension === '.md' || extension === '.yml'
-    ? path.basename(fileName, extension)
-    : undefined;
+  return fileName ? uidFromItemPath(fileName) : undefined;
 }
 
 async function documentRoots(tree: DoorstopTreeProvider): Promise<RequirementTreeItem[]> {
@@ -76,14 +74,15 @@ async function rootForItem(tree: DoorstopTreeProvider, item: RequirementTreeItem
   return undefined;
 }
 
+/** One quick-pick entry per enabled document: its prefix, and where it lives. */
+async function documentPicks(tree: DoorstopTreeProvider): Promise<{ label: string; description: string }[]> {
+  return (await documentRoots(tree))
+    .filter(root => typeof root.itemData.prefix === 'string' && root.itemData.prefix.trim())
+    .map(root => ({ label: root.itemData.prefix as string, description: root.resourceUri.fsPath }));
+}
+
 export async function choosePrefix(tree: DoorstopTreeProvider): Promise<string | undefined> {
-  const roots = await documentRoots(tree);
-  const choice = await vscode.window.showQuickPick(
-    roots
-      .filter(root => typeof root.itemData.prefix === 'string' && root.itemData.prefix.trim())
-      .map(root => ({ label: root.itemData.prefix as string, description: root.resourceUri.fsPath })),
-    { placeHolder: 'Select a Doorstop document' }
-  );
+  const choice = await vscode.window.showQuickPick(await documentPicks(tree), { placeHolder: 'Select a Doorstop document' });
   return choice?.label;
 }
 
@@ -96,14 +95,8 @@ export async function choosePrefix(tree: DoorstopTreeProvider): Promise<string |
 export async function chooseParentPrefix(
   tree: DoorstopTreeProvider
 ): Promise<string | null | undefined> {
-  const roots = await documentRoots(tree);
   const noParent = { label: 'None (create as root document)', description: 'No parent document' };
-  const choices = [
-    noParent,
-    ...roots
-      .filter(root => typeof root.itemData.prefix === 'string' && root.itemData.prefix.trim())
-      .map(root => ({ label: root.itemData.prefix as string, description: root.resourceUri.fsPath }))
-  ];
+  const choices = [noParent, ...await documentPicks(tree)];
   const choice = await vscode.window.showQuickPick(choices, {
     placeHolder: 'Select the parent document for the new document'
   });
@@ -120,14 +113,8 @@ type PublishTarget =
 
 /** Publish picker: every document, then the two "all" modes (spec 024). */
 async function choosePublishTarget(tree: DoorstopTreeProvider): Promise<PublishTarget | undefined> {
-  const roots = await documentRoots(tree);
-  const choices: Array<vscode.QuickPickItem & { target: PublishTarget }> = roots
-    .filter(root => typeof root.itemData.prefix === 'string' && root.itemData.prefix.trim())
-    .map(root => ({
-      label: root.itemData.prefix as string,
-      description: root.resourceUri.fsPath,
-      target: { kind: 'document', prefix: root.itemData.prefix as string }
-    }));
+  const choices: Array<vscode.QuickPickItem & { target: PublishTarget }> = (await documentPicks(tree))
+    .map(pick => ({ ...pick, target: { kind: 'document', prefix: pick.label } }));
   choices.push(
     {
       label: 'All documents - one file each',
@@ -147,13 +134,7 @@ async function choosePublishTarget(tree: DoorstopTreeProvider): Promise<PublishT
 }
 
 async function chooseDocumentOrAll(tree: DoorstopTreeProvider): Promise<string | undefined> {
-  const roots = await documentRoots(tree);
-  const choices = roots
-    .filter(root => typeof root.itemData.prefix === 'string' && root.itemData.prefix.trim())
-    .map(root => ({
-      label: root.itemData.prefix as string,
-      description: root.resourceUri.fsPath
-    }));
+  const choices = await documentPicks(tree);
   choices.push({ label: 'all', description: 'All Doorstop documents' });
   const choice = await vscode.window.showQuickPick(choices, {
     placeHolder: 'Select a Doorstop document or all documents'
@@ -218,8 +199,13 @@ function reviewClearTarget(item: RequirementTreeItem | undefined, choice: string
 }
 
 export function registerDoorstopCommands(options: CommandOptions): vscode.Disposable[] {
-  const register = (id: string, handler: (...args: any[]) => Promise<void> | void): vscode.Disposable =>
-    registerCommand(id, handler);
+  /** The workspace folder, or undefined after telling the user to open one. */
+  const requireFolder = (): vscode.WorkspaceFolder | undefined => {
+    if (!options.workspaceFolder) {
+      void vscode.window.showInformationMessage('Doorstop: open a folder first.');
+    }
+    return options.workspaceFolder;
+  };
 
   // Progress and the duplicate-run guard wrap only the server work, never the
   // prompts (spec 021 FR-008). Guarding the whole handler instead would block
@@ -246,8 +232,9 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     }
   };
 
-  const createDoc = register('doorstop.createDoc', async () => {
-    if (!requireGit(options.workspaceFolder.uri.fsPath)) {return;}
+  const createDoc = registerCommand('doorstop.createDoc', async () => {
+    const workspaceFolder = requireFolder();
+    if (!workspaceFolder || !requireGit(workspaceFolder.uri.fsPath)) {return;}
     const prefix = await vscode.window.showInputBox({ prompt: 'Enter the new document prefix' });
     if (!prefix) {return;}
     const folders = await vscode.window.showOpenDialog({
@@ -255,7 +242,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
       canSelectFolders: true,
       canSelectMany: false,
       openLabel: 'Select Document Folder',
-      defaultUri: options.workspaceFolder.uri
+      defaultUri: workspaceFolder.uri
     });
     if (!folders?.[0]) {return;}
     // `undefined` means the pick was dismissed - cancel and create nothing (FR-011);
@@ -281,21 +268,21 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
       'POST', '/documents/skip', { markerPath: item.resourceUri.fsPath, skip }
     ));
   };
-  const skipDocument = register('doorstop.skipDocument', setSkipped(true));
-  const enableDocument = register('doorstop.enableDocument', setSkipped(false));
+  const skipDocument = registerCommand('doorstop.skipDocument', setSkipped(true));
+  const enableDocument = registerCommand('doorstop.enableDocument', setSkipped(false));
 
   // Awaiting getChildren shares the load VS Code starts for the view, so the
   // notification covers the real reload (spec 026).
   // Refresh is also the explicit problem check (spec 032 FR-014), in its own
   // cancellable notification so it never holds up the tree.
-  const refresh = register('doorstop.refresh', () => withDelayedProgress('Doorstop: Refresh…', async () => {
+  const refresh = registerCommand('doorstop.refresh', () => withDelayedProgress('Doorstop: Refresh…', async () => {
     options.tree.refresh();
     options.utilities.refresh();
     void options.problems()?.checkExplicitly();
     await options.tree.getChildren();
   }));
 
-  const add = register('doorstop.add', async (value?: unknown) => {
+  const add = registerCommand('doorstop.add', async (value?: unknown) => {
     const item = itemArgument(value);
     const root = item?.itemData.isDoorstopRoot ? item : item ? await rootForItem(options.tree, item) : undefined;
     const prefix = root?.itemData.prefix || await choosePrefix(options.tree);
@@ -313,21 +300,21 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     }
   });
 
-  const review = register('doorstop.review', async (value?: unknown) => {
+  const review = registerCommand('doorstop.review', async (value?: unknown) => {
     const item = itemArgument(value);
     const choice = item ? undefined : await chooseDocumentOrAll(options.tree);
     const body = reviewClearTarget(item, choice);
     if (body) {await run('Review', () => options.server.request('POST', '/review', body));}
   });
 
-  const clear = register('doorstop.clear', async (value?: unknown) => {
+  const clear = registerCommand('doorstop.clear', async (value?: unknown) => {
     const item = itemArgument(value);
     const choice = item ? undefined : await chooseDocumentOrAll(options.tree);
     const body = reviewClearTarget(item, choice);
     if (body) {await run('Clear Suspect', () => options.server.request('POST', '/clear', body));}
   });
 
-  const link = register('doorstop.link', async (value?: unknown) => {
+  const link = registerCommand('doorstop.link', async (value?: unknown) => {
     const item = itemArgument(value);
     // The Document View's "Link..." action names the child (spec 019); the
     // tree row names the parent, and the palette asks for both.
@@ -341,7 +328,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     }
   });
 
-  const reorder = register('doorstop.reorder', async () => {
+  const reorder = registerCommand('doorstop.reorder', async () => {
     const prefix = await choosePrefix(options.tree);
     if (!prefix) {return;}
     const mode = await vscode.window.showQuickPick([
@@ -426,7 +413,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     }
   });
 
-  const importCommand = register('doorstop.import', async () => {
+  const importCommand = registerCommand('doorstop.import', async () => {
     const target = await choosePrefix(options.tree);
     if (!target) {return;}
     const files = await vscode.window.showOpenDialog({
@@ -441,7 +428,9 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     }
   });
 
-  const exportCommand = register('doorstop.export', async () => {
+  const exportCommand = registerCommand('doorstop.export', async () => {
+    const workspaceFolder = requireFolder();
+    if (!workspaceFolder) {return;}
     const prefix = await choosePrefix(options.tree);
     if (!prefix) {return;}
     const format = await vscode.window.showQuickPick([
@@ -453,7 +442,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     if (!format) {return;}
     const destination = await vscode.window.showSaveDialog({
       saveLabel: 'Export Document',
-      defaultUri: vscode.Uri.file(path.join(options.workspaceFolder.uri.fsPath, `${prefix}.${format.extension}`)),
+      defaultUri: vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, `${prefix}.${format.extension}`)),
       filters: {
         [`${format.label} Documents`]: [format.extension]
       }
@@ -471,7 +460,9 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     }
   });
 
-  const publish = register('doorstop.publish', async () => {
+  const publish = registerCommand('doorstop.publish', async () => {
+    const workspaceFolder = requireFolder();
+    if (!workspaceFolder) {return;}
     const target = await choosePublishTarget(options.tree);
     if (!target) {return;}
     const format = await vscode.window.showQuickPick([
@@ -511,7 +502,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     // PDF (spec 027): Doorstop HTML into a temp folder, then the workspace's own
     // export script - the same two steps a CI pipeline runs. Set up before any
     // destination dialog, so declining it asks nothing further.
-    const workspace = options.workspaceFolder.uri.fsPath;
+    const workspace = workspaceFolder.uri.fsPath;
     const toolingDir = format.value === 'pdf' ? await ensurePdfTooling(options.context.extensionPath, workspace) : undefined;
     if (format.value === 'pdf' && !toolingDir) {return;}
     const exportPdf = async (report: ProgressReport, publishHtml: (tmp: string) => Promise<string>, output: string): Promise<string[]> => {
@@ -598,9 +589,7 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
       }
       return;
     }
-    const prefixes = (await documentRoots(options.tree))
-      .map(root => root.itemData.prefix)
-      .filter((value): value is string => typeof value === 'string' && value.trim() !== '');
+    const prefixes = (await documentPicks(options.tree)).map(pick => pick.label);
     if (prefixes.length === 0) {
       void vscode.window.showInformationMessage('No documents to publish.');
       return;
@@ -621,7 +610,9 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
     }
   });
 
-  const statusReport = register('doorstop.statusReport', async () => {
+  const statusReport = registerCommand('doorstop.statusReport', async () => {
+    const workspaceFolder = requireFolder();
+    if (!workspaceFolder) {return;}
     const uri = await run('Generate Status Report', async () => {
       // Tree and problems come first: if either fails, nothing is written (FR-019).
       // Problems go through the provider, so the reporting mode applies (spec 032 FR-016).
@@ -635,20 +626,20 @@ export function registerDoorstopCommands(options: CommandOptions): vscode.Dispos
         }
         issues = last.unfiltered.issues;
       }
-      const root = options.workspaceFolder.uri.fsPath;
+      const root = workspaceFolder.uri.fsPath;
       // Missing git or history only blanks its own section (FR-017).
       const volatility = await readGitLog(root).then(
         output => weeklyVolatility(parseGitLog(output), tree.documents, root, new Date()),
         (error: unknown) => ({ unavailable: error instanceof Error ? error.message : String(error) })
       );
       const markdown = buildStatusReport({
-        projectName: options.workspaceFolder.name,
+        projectName: workspaceFolder.name,
         generatedAt: new Date(),
         documents: tree.documents,
         issues,
         volatility
       });
-      const target = vscode.Uri.joinPath(options.workspaceFolder.uri, 'doorstop-status.md');
+      const target = vscode.Uri.joinPath(workspaceFolder.uri, 'doorstop-status.md');
       await vscode.workspace.fs.writeFile(target, Buffer.from(markdown, 'utf8'));
       return target;
     });

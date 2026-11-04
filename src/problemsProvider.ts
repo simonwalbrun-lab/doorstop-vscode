@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 
+import { DoorstopIndex } from './doorstopIndex';
 import { DoorstopApiError, DoorstopServer } from './doorstopServer';
+import { LINK_ENTRY_REGEX, metadataRange } from './itemFile';
 import { withDelayedProgress } from './progress';
 import { measure } from './timing';
-import { DocumentNode, FieldAnchor, TreeResponse, ValidationIssue, ValidationResponse } from './doorstopTypes';
+import { FieldAnchor, TreeResponse, ValidationIssue, ValidationResponse } from './doorstopTypes';
 
 /**
  * Renders Doorstop's own validation output as editor diagnostics.
@@ -51,10 +53,7 @@ const FIELD_KEYS: Partial<Record<FieldAnchor, string[]>> = {
   ref: ['ref', 'references']
 };
 
-/** A YAML sequence entry, capturing the UID token before an optional `: stamp`. */
-const LINK_ENTRY_REGEX = /^\s*-\s+([^\s:]+)\s*(?::|$)/;
 const LINKS_KEY_REGEX = /^\s*links\s*:/i;
-const FRONTMATTER_FENCE_REGEX = /^---\s*$/;
 
 function keyRegex(key: string): RegExp {
   return new RegExp(`^\\s*${key}\\s*:`, 'i');
@@ -92,26 +91,6 @@ class FileTextCache {
       return undefined;
     }
   }
-}
-
-/**
- * The metadata region of an item file: the whole file for an attribute-format
- * item, and only the `---` frontmatter for a markdown one - so a `links:` line
- * written in the prose body cannot capture an anchor.
- */
-function getMetadataRange(lines: string[], isMarkdown: boolean): { start: number; end: number } {
-  if (!isMarkdown) {
-    return { start: 0, end: lines.length };
-  }
-  if (lines.length === 0 || !FRONTMATTER_FENCE_REGEX.test(lines[0])) {
-    return { start: 0, end: 0 };
-  }
-  for (let line = 1; line < lines.length; line++) {
-    if (FRONTMATTER_FENCE_REGEX.test(lines[line])) {
-      return { start: 1, end: line };
-    }
-  }
-  return { start: 1, end: lines.length };
 }
 
 function findKeyLine(
@@ -162,26 +141,6 @@ function lastContentLine(lines: string[]): number {
   return 0;
 }
 
-interface TreeIndex {
-  pathByUid: Map<string, string>;
-  documentByUid: Map<string, DocumentNode>;
-  documentByPrefix: Map<string, DocumentNode>;
-}
-
-function indexTree(tree: TreeResponse): TreeIndex {
-  const pathByUid = new Map<string, string>();
-  const documentByUid = new Map<string, DocumentNode>();
-  const documentByPrefix = new Map<string, DocumentNode>();
-  for (const document of tree.documents) {
-    documentByPrefix.set(document.prefix, document);
-    for (const item of document.items) {
-      pathByUid.set(item.uid, item.path);
-      documentByUid.set(item.uid, document);
-    }
-  }
-  return { pathByUid, documentByUid, documentByPrefix };
-}
-
 /**
  * Resolves one issue, for one of the items it names, to a place in a file.
  * Never fails: every step falls through to the item's first line, so no problem
@@ -190,15 +149,16 @@ function indexTree(tree: TreeResponse): TreeIndex {
 export async function resolveAnchor(
   issue: ValidationIssue,
   uid: string | undefined,
-  index: TreeIndex,
+  index: DoorstopIndex,
   cache: FileTextCache
 ): Promise<AnchorResolution | undefined> {
-  const document = uid ? index.documentByUid.get(uid) : index.documentByPrefix.get(issue.documentPrefix);
-  const documentMarker = document ?? index.documentByPrefix.get(issue.documentPrefix);
+  const ownerPrefix = uid ? index.getItem(uid)?.documentPrefix : undefined;
+  const documentMarker = (ownerPrefix ? index.getDocument(ownerPrefix) : undefined)
+    ?? index.getDocument(issue.documentPrefix);
 
   // Document-level issue, or an item the server named but the tree does not
   // place: annotate the document's config file rather than dropping the problem.
-  const itemPath = uid ? index.pathByUid.get(uid) : undefined;
+  const itemPath = uid ? index.getPath(uid) : undefined;
   if (!itemPath) {
     if (!documentMarker) {
       return undefined;
@@ -217,7 +177,8 @@ export async function resolveAnchor(
   }
 
   const isMarkdown = itemPath.toLowerCase().endsWith('.md');
-  const range = getMetadataRange(lines, isMarkdown);
+  // No frontmatter: no metadata lines, so every field falls back to line 0.
+  const range = metadataRange(lines, isMarkdown) ?? { start: 0, end: 0 };
 
   let line: number | undefined;
   if (issue.field === 'link_entry' && issue.relatedUid) {
@@ -258,7 +219,7 @@ export async function buildDiagnostics(
   validation: ValidationResponse,
   tree: TreeResponse
 ): Promise<Map<string, { uri: vscode.Uri; diagnostics: vscode.Diagnostic[] }>> {
-  const index = indexTree(tree);
+  const index = DoorstopIndex.fromTree(tree);
   const cache = new FileTextCache();
   const byFile = new Map<string, { uri: vscode.Uri; diagnostics: vscode.Diagnostic[] }>();
 

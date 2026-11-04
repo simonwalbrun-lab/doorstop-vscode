@@ -1,208 +1,58 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.6.0 → 1.7.0
-Rationale for 1.7.0: MINOR. Principle V was materially expanded: linting is
-mandatory for all code (TypeScript and Python), a linter MUST be established
-per language and configured in the repo, and lint MUST pass in CI. Before
-this, only TypeScript lint was named; Python had pylint configured in
-server/pyproject.toml but no rule requiring it and no CI step.
+Version change: 1.7.0 → 2.0.0
+Rationale for 2.0.0: MAJOR. Rules were removed or redefined, not only added:
+Principle I loses the 20% response-time rule and the CPython advice (both now
+live only in spec 032); Principle VIII gains an exemption for
+documentation-only specs; the diagram-persistence and vis-network constraints
+leave the constitution. Four principles (IX–XII) are also added.
 
 Modified principles:
-  - V. Typed, Linted, and Tested Before It Ships (linting made mandatory and
-    extended to Python; CI enforcement added)
-
-Modified sections:
-  - Development Workflow (lint is part of "done" and of the CI gate)
-
-Added sections: none
-Removed sections: none
-Deferred / TODO placeholders: none.
-
-Follow-up (non-governance): no CI job runs lint yet and no pylint run is
-wired in; add both (e.g. `npm run lint` and `pylint` in ci.yml). Existing
-pylint findings are not fixed by this amendment.
-
----
-Prior report (1.6.0, superseded by the above):
-Version change: 1.5.0 → 1.6.0
-Rationale for 1.6.0: MINOR. Principle I gained a "Background validation"
-exception to one-at-a-time processing. Background Doorstop validation must run
-in a separate thread or process with no influence on interactive response
-times, read-only, on its own copy of the project state. This is motivated by
-the user's tests on huge datasets: yielding the request lock between documents
-(spec 032) still blocks the user while one large document is checked. No
-principle was removed. One-at-a-time processing still applies to every request.
-
-Modified principles:
-  - I. Server Is the Single Source of Truth (added "Background validation";
-    rationale extended)
-
-Added sections: none
-Removed sections: none
-Deferred / TODO placeholders: none.
-
-Follow-up (non-governance): spec 032 FR-001 ("one document at a time, serve
-waiting requests between documents") and its plan/tasks (research R2, the lock
-yielding in routers/validation.py) no longer satisfy Principle I and must be
-reworked to a separate validation process.
-
----
-Prior report (1.5.0, superseded by the above):
-Version change: 1.4.0 → 1.5.0
-Rationale for 1.5.0: MINOR — Principle I was materially expanded: a request
-already running on the server may now be cancelled, but only for one of a
-closed list of reasons, and only without leaving the repository in a partial
-state. Motivated by spec 032 (background problem checking), where a long
-whole-tree validation must give way to interactive requests. No principle was
-removed; the one-request-at-a-time rule is unchanged.
-
-Modified principles:
-  - I. Server Is the Single Source of Truth (added "Cancelling a running
-    request" rules)
-
-Added sections: none
-Removed sections: none
-Deferred / TODO placeholders: none.
-
-Follow-up (non-governance): spec 032 plan must name each cancellation point
-and its reason; no existing endpoint supports cancellation yet.
-
----
-Prior report (1.4.0, superseded by the above):
-Version change: 1.3.0 → 1.4.0
-Rationale for 1.4.0: MINOR — a new principle (VIII. Every Functional
-Requirement Has a Traceable Automated Test) was added, raising the test floor
-from one test per feature to one test per functional requirement, with a
-mandatory trace comment linking each test to its spec and requirement ID.
-No principle was removed.
+  - I. Server Is the Single Source of Truth (background work and cancellation
+    cut to three rules; 20% figure, measurement and GIL advice moved to spec 032)
+  - III. All Features Must Include Error Handling (rationale cut to one sentence)
+  - V. Typed, Linted, and Tested Before It Ships (typed ESLint config,
+    no-floating-promises, --max-warnings 0, windows-latest, minimum VS Code
+    version, audit gate; rationale trimmed)
+  - VI. Every Feature Ships With a CI-Runnable Test (tests check runtime
+    behaviour, not source text)
+  - VIII. Every Functional Requirement Has a Traceable Automated Test
+    (documentation-only exemption, CI FR-coverage check, older providers)
 
 Added principles:
-  - VIII. Every Functional Requirement Has a Traceable Automated Test (NON-NEGOTIABLE)
-
-Modified principles:
-  - VI. Every Feature Ships With a CI-Runnable Test: the "Basic is the floor"
-    bullet now points to Principle VIII for the per-requirement floor.
-
-Modified sections:
-  - Development Workflow: feature completeness now also requires every FR ID
-    in the spec to appear in at least one test trace comment.
-
-Added sections: none
-Removed sections: none
-Deferred / TODO placeholders: none.
-
-Follow-up (non-governance): existing tests are not retrofitted by this
-amendment; specs 001–026 predate Principle VIII.
-
----
-Prior report (1.3.0, superseded by the above):
-Version change: 1.2.0 → 1.3.0
-Rationale for 1.3.0: MINOR — Principle VII's trigger was redefined from
-"expected to take longer than one second" (toast shown at start) to "still
-running after one second" (toast shown by the 1 s mark at the latest), decided
-at spec 026 clarification. Added explicit rules for user-input wait time and
-exempt background/editor-native work. No principle was removed.
-
-Modified principles:
-  - VII. Long-Running Operations Are Always Visible (trigger redefined)
-
-Added sections: none
-Removed sections: none
-Deferred / TODO placeholders: none.
-
----
-Prior report (1.2.0, superseded by the above):
-Version change: 1.1.0 → 1.2.0
-Rationale for 1.2.0: MINOR — a new principle (VII. Long-Running Operations Are
-Always Visible) was added. No existing principle was removed or redefined.
-
-Added principles:
-  - VII. Long-Running Operations Are Always Visible
-
-Modified principles: none
-Added sections: none
-Removed sections: none
-
-Deferred / TODO placeholders: none.
-
-Templates requiring follow-up: none updated by this command per the Scope Guard —
-downstream templates (plan/spec/tasks) read this file at runtime.
-
-Follow-up (non-governance): existing commands have not been audited for
-compliance with Principle VII; some already use vscode.window.withProgress
-(src/extension.ts, src/doorstopCommands.ts), others may not.
-
----
-Prior report (1.1.0, superseded by the above):
-Version change: 1.0.1 → 1.1.0
-Rationale for 1.1.0: MINOR — a new principle (VI. Every Feature Ships With a
-CI-Runnable Test) was added and the Development Workflow section was materially
-expanded with a CI gate. No existing principle was removed or redefined in a
-backward-incompatible way.
-
-Added principles:
-  - VI. Every Feature Ships With a CI-Runnable Test (NON-NEGOTIABLE)
+  - IX. Repository Content and Local Callers Are Untrusted
+  - X. Activation Never Blocks, and Nothing Outlives the Extension
+  - XI. Fast on Large Projects
+  - XII. Native, Accessible UX Following the VS Code UX Guidelines
 
 Modified sections:
-  - Development Workflow: added the requirement that the per-feature test from
-    Principle VI runs in the GitHub Actions CI workflow, and that a change is
-    not merged while any CI job is failing.
-  - Principle V: unchanged in substance; a cross-reference to Principle VI was
-    appended to its rationale so the two testing rules read as one policy —
-    per-change quality gates in V, per-feature coverage floor in VI.
+  - Additional Constraints (*.doorstop.json and vis-network bullets moved to
+    doc/architecture.md, which already describes them)
+  - Development Workflow (spec status lifecycle, superseded FRs, README and
+    CHANGELOG in done, [manual] tasks)
+  - Governance (per-principle Constitution Check table in plan.md is a MUST)
 
-Added sections: none
-Removed sections: none
-
-Deferred / TODO placeholders: none — the CI jobs referenced (server-tests,
-extension-build, extension-integration-tests) already exist in
-.github/workflows/ci.yml, and both suites referenced (server/tests via pytest,
-src/test via vscode-test) already exist in the repository.
-
-Templates requiring follow-up: none checked/updated by this command per the Scope Guard —
-downstream templates (plan/spec/tasks) read this file at runtime and are not modified here.
-
----
-Prior report (1.0.1, superseded by the above):
-Version change: 1.0.0 → 1.0.1
-Rationale for 1.0.1: PATCH — trimmed the Development Workflow section; no
-principle was added, removed, or redefined.
-
-Modified sections:
-  - Development Workflow: removed the CHANGELOG.md entry-format requirement
-    (too implementation-detail-level for a constitution; belongs in
-    CONTRIBUTING-style docs, not a MUST a PR can be blocked on here).
-
-Modified principles: none
-Added sections: none
-Removed sections: none (Development Workflow retained, just narrowed)
-
+Removed sections: all prior Sync Impact Reports (kept in git history).
 Deferred / TODO placeholders: none.
 
----
-Prior report (1.0.0, superseded by the above):
-Version change: (unratified template) → 1.0.0
-Rationale for 1.0.0: initial ratification — the file previously held only unfilled
-[PLACEHOLDER] tokens from the template, so this is the project's first concrete
-constitution rather than an amendment.
+Follow-up (non-governance): see "Known violations" at the end of each new
+principle's rationale; spec 032 plan.md still cites "the constitution's 20%
+tolerance" and should cite its own SC-001 instead.
 
-Added principles (five, per user-supplied input):
-  - I. Server Is the Single Source of Truth
-  - II. No Reinvention of Doorstop Functionality
-  - III. All Features Must Include Error Handling
-  - IV. No External Dependencies Without Justification
-  - V. Typed, Linted, and Tested Before It Ships
-
-Added sections:
-  - Additional Constraints
-  - Development Workflow
-  - Governance (procedure + versioning policy)
-
-Deferred / TODO placeholders: none — principle wording came directly from the
-user, and supporting detail/rationale was derivable from repo context
-(README.md, doc/arc42/2000_introduction_and_goals.md, doc/arc42/01_arc42-in-a-nutshell-help.md,
-CHANGELOG.md, package.json scripts, git history).
+History (details in git):
+| Version | Date       | Change                                                  |
+|---------|------------|---------------------------------------------------------|
+| 1.0.0   | 2026-09-09 | Initial ratification, principles I–V                    |
+| 1.0.1   | —          | Dropped CHANGELOG entry-format rule                     |
+| 1.1.0   | —          | Added VI (CI-runnable test per feature)                 |
+| 1.2.0   | —          | Added VII (long-running operations visible)             |
+| 1.3.0   | —          | VII trigger changed to "still running after 1 s"        |
+| 1.4.0   | —          | Added VIII (traceable test per FR)                      |
+| 1.5.0   | —          | I: cancellation for a closed list of reasons            |
+| 1.6.0   | —          | I: background validation in a separate process          |
+| 1.7.0   | 2026-10-18 | V: linting mandatory for TypeScript and Python          |
+| 2.0.0   | 2026-11-01 | Trimmed I/III/V; added IX–XII; workflow and governance  |
 -->
 
 # Doorstop Requirements for VS Code Constitution
@@ -215,66 +65,30 @@ All requirement discovery, parsing, hierarchy computation, and mutation (create,
 link, derive, review, clear-suspect, reorder, import, export, publish) MUST go
 through the Python server wrapping the Doorstop API. The TypeScript extension
 MUST NOT re-implement Doorstop file parsing or duplicate business logic on the
-client side; UI surfaces (TreeView, hover provider, diagram canvas, CodeLens)
-read and write exclusively through the server's API. Concurrent requests
-reaching the server MUST be processed one at a time so no two mutations race
-against the same Doorstop repository.
+client side; UI surfaces read and write exclusively through the server's API.
+Requests reaching the server MUST be processed one at a time so no two
+mutations race against the same Doorstop repository. Three rules govern work
+that runs beside or interrupts that queue:
 
-Background validation: Doorstop validation that runs as background work (not
-a request the user is waiting on) is the one exception to one-at-a-time
-processing. It MUST run in a separate thread or process, alongside request
-handling and not inside it, so that it has no influence on how fast the
-server answers the user. Concretely:
+- Background work (e.g. validation the user is not waiting on) MUST NOT hold
+  the request lock or any other lock that requests need.
+- Background work MUST be read-only and MUST work on its own copy of the
+  project (e.g. its own Doorstop tree loaded from disk), never on objects that
+  requests read or mutate.
+- A running request MAY be cancelled only for one of these reasons: the user
+  cancelled it; its result became obsolete (superseded, or its feature was
+  switched off); it is untriggered read-only background work giving way to an
+  interactive request; the server is shutting down. A mutation MUST NOT be
+  cancelled once it has started writing. A cancelled request ends with a
+  structured "cancelled" response (Principle III) that the extension treats as
+  a cancellation, not an error. The plan MUST name each cancellation point and
+  its reason.
 
-- No interactive request may wait for background validation at any point:
-  validation MUST NOT hold the request lock or any other lock that requests
-  need, and MUST NOT run on the thread or event loop that serves requests.
-- Interactive response times MUST stay close to the same (20% deviation 
-  allowed) whether or not a validation
-  is running. The plan of the feature MUST state how this is achieved and
-  measured. In CPython a thread shares the interpreter lock with request
-  handling, so a CPU-bound validation thread on its own does not satisfy
-  this rule; a separate process is the expected way to meet it.
-- Validation MUST be strictly read-only and MUST work on its own copy of the
-  project state (for example its own Doorstop tree loaded from disk), never on
-  objects that requests read or mutate.
-- A result computed from a state that changed while it ran MUST NOT be shown
-  as current; the cancellation rules below apply to it.
-
-Cancelling a running request: a request the server has already started MAY be
-cancelled before it finishes, but only for one of these reasons:
-
-- the user explicitly cancelled it (e.g. from its progress toast, Principle VII);
-- its result became obsolete: a newer request for the same result superseded
-  it, or the feature that asked for it was switched off;
-- it is read-only background work the user did not explicitly trigger, and it
-  gives way so an interactive request can be served promptly;
-- the server is shutting down or restarting.
-
-Any other cancellation (e.g. a timeout chosen only to hide slowness) is not
-allowed. Cancellation MUST leave the Doorstop repository exactly as if the
-request had either never run or fully completed: a mutation MUST NOT be
-cancelled once it has started writing to disk. A cancelled request MUST end
-with a structured "cancelled" response (Principle III), which the extension
-MUST treat as a cancellation, not as a failure, so no error message is shown.
-Each feature that cancels requests MUST name every cancellation point and its
-reason in its plan.
-
-Rationale: an earlier design had the extension re-parse files itself, which
-could disagree with Doorstop's own generated index; consolidating on one
-server implementation keeps behavior consistent, confines the blast radius of
-a Doorstop API change to one adapter layer, and the single-writer discipline
-prevents concurrent mutations from corrupting the underlying repository.
-Cancellation exists because one-at-a-time processing lets a single long,
-read-only request (such as a whole-tree validation on a large project) hold up
-every interactive request behind it. The closed list of reasons keeps
-cancellation from becoming a way to hide slow or failing work, and the
-no-partial-writes rule keeps the single-writer guarantee intact. Tests on very
-large projects showed that letting waiting requests go between documents is
-not enough: checking a single huge document still blocks the user. Validation
-therefore runs beside request handling. Because it is read-only and works on
-its own copy, it cannot race with mutations, so the single-writer guarantee
-still holds.
+Rationale: one server implementation keeps behaviour consistent with Doorstop's
+own state and confines a Doorstop API change to one adapter; the single-writer
+rule and the three rules above keep the repository from being corrupted while
+long read-only work stays out of the user's way. How a feature meets these
+rules (process vs. thread, response-time targets) belongs in its spec.
 
 ### II. No Reinvention of Doorstop Functionality
 
@@ -298,11 +112,8 @@ failures (for example, a metadata fetch against a stale or unrestarted server)
 MUST fall back to an explicit, safe state — such as rendering exactly what is
 already on disk — instead of silently discarding user data or state.
 
-Rationale: two real incidents motivate this — a request-serialization
-middleware that let an unexpected exception bypass the structured error path,
-and a diagram loader whose metadata-fetch failure looked indistinguishable
-from data loss. Both were fixed by treating failure paths as first-class, not
-by hardening only the happy path after the fact.
+Rationale: past failures that bypassed the structured error path looked like
+data loss to the user, and were only fixed by treating failure as first-class.
 
 ### IV. No External Dependencies Without Justification
 
@@ -321,35 +132,38 @@ correctness or supply-chain problem behind a version bump nobody reviewed.
 
 Linting is mandatory for all code in this repository. Every language in use
 MUST have an established linter, configured in a committed file, and all code
-MUST pass it with no errors before it is merged:
+MUST pass it before it is merged:
 
-- TypeScript: ESLint (`eslint.config.mjs`, run as `npm run lint`).
+- TypeScript: ESLint (`eslint.config.mjs`, run as `npm run lint`) using the
+  recommended type-checked config plus `@typescript-eslint/no-floating-promises`,
+  run with `--max-warnings 0`.
 - Python (`server/`): pylint (configured in `server/pyproject.toml`, installed
   via the `dev` extra).
 - A new language or file type added to the repository MUST come with a linter
   in the same change.
 - Lint MUST run in CI (`.github/workflows/ci.yml`) and a failing lint job
-  blocks merge. A lint rule MAY be disabled or suppressed only in the linter
-  configuration or on the affected line, with a comment giving the reason;
-  blanket suppression of a whole file or rule set to get green is prohibited.
+  blocks merge. A rule MAY be disabled only in the linter configuration or on
+  the affected line, with a comment giving the reason; blanket suppression of a
+  whole file or rule set is prohibited.
 
-TypeScript changes MUST also pass type-checking (`check-types`) before being
-packaged — type-checking and `lint` already gate `npm run package` and
-`pretest` and MUST NOT be bypassed. Server (Python) changes affecting
-requirement CRUD, linking, review/clear, reorder, import/export/publish,
-error-response shape, or concurrency behavior MUST be covered by the
-`server/tests` pytest suite, which exercises the FastAPI app against a real
-temporary Doorstop project; mocking Doorstop itself in these tests is
-prohibited, since it can hide exactly the kind of divergence Principles I and
-II exist to prevent.
+TypeScript changes MUST also pass type-checking (`check-types`); type-checking
+and `lint` gate `npm run package` and `pretest` and MUST NOT be bypassed.
+Server changes affecting requirement CRUD, linking, review/clear, reorder,
+import/export/publish, error-response shape, or concurrency MUST be covered by
+the `server/tests` pytest suite against a real temporary Doorstop project;
+mocking Doorstop itself is prohibited.
 
-Rationale: unlinted code drifts in style and hides defects (unused names,
-unsafe patterns) that review misses; a linter makes that check automatic and
-uniform. This codifies practice the project already follows — the build
-scripts already enforce type/lint gates for TypeScript, and the existing server suite
-already validates against real Doorstop projects instead of mocks. This
-principle sets the per-change quality gate; Principle VI sets the per-feature
-coverage floor.
+CI MUST run on `ubuntu-latest` and `windows-latest`, and the extension tests
+MUST run against both the minimum `engines.vscode` version and stable VS Code.
+A high or critical finding from `npm audit` or `pip-audit` in a shipped
+(non-dev) dependency blocks a release until it is fixed or explicitly
+justified per Principle IV.
+
+Rationale: a linter catches defects review misses (unawaited promises above
+all in an async extension); the server suite runs against real Doorstop so it
+catches the divergence Principles I and II exist to prevent; process-spawn and
+path code behaves differently on Windows; `engines.vscode` is a promise only a
+test against that version keeps.
 
 ### VI. Every Feature Ships With a CI-Runnable Test (NON-NEGOTIABLE)
 
@@ -361,28 +175,26 @@ unattended in CI on every pull request. Concretely:
   for server-side behavior, `src/test` (vscode-test) for extension-side
   behavior — or in a new suite wired into `.github/workflows/ci.yml` as part
   of the same change.
+- The test MUST check runtime behaviour. A test that only inspects source text
+  (e.g. greps a file for a call or a string) does not count.
 - The test MUST be non-interactive, headless-safe, and independent of
   developer-machine state: no reliance on a pre-existing Doorstop project on
   disk, a manually started server, network access, or a fixed port being free.
-  Fixtures MUST create the state they need — as `server/tests` already does
-  with temporary Doorstop projects — and clean it up.
+  Fixtures MUST create the state they need and clean it up.
 - The test MUST be deterministic. A flaky test MUST be fixed or removed, never
   left red or retried until green, and MUST NOT be silenced with a skip marker
   to unblock a merge.
-- "Basic" is the floor, not the ceiling: one test proving the feature actually
-  works is required, and Principle VIII additionally requires a test per
-  functional requirement. Broader edge-case coverage is encouraged where the
-  feature's failure modes warrant it, and Principle III's error paths SHOULD
-  be covered whenever the failure behavior is user-visible.
+- "Basic" is the floor, not the ceiling: Principle VIII additionally requires a
+  test per functional requirement. Principle III's error paths SHOULD be
+  covered whenever the failure behavior is user-visible.
 - A feature MAY ship without a new test only when an existing CI test already
   covers its behavior; the PR/commit MUST name that test explicitly.
 
 Rationale: this project's regressions have consistently been integration-level
 disagreements between the extension, the server, and Doorstop's own state —
-exactly the class of bug only a test running the real stack catches. A test
-that runs solely on the author's machine does not prevent the next regression,
-so the CI-runnable property is part of the requirement rather than a separate
-concern.
+the class of bug only a test running the real stack catches. A source-text
+check passes while the behaviour is broken (spec 031 T024 had to be reworked
+for exactly this reason).
 
 ### VII. Long-Running Operations Are Always Visible
 
@@ -424,42 +236,127 @@ Every functional requirement (`FR-NNN`) in a feature spec MUST be covered by at
 least one automated test, and every such test MUST state in a comment which
 spec and requirement ID(s) it is derived from. Concretely:
 
-- The test MUST meet all rules of Principle VI (lives in a CI-run suite,
-  headless, deterministic, self-contained fixtures).
+- The test MUST meet all rules of Principle VI.
 - The trace comment MUST sit directly above or at the start of the test
   function and use the form `Spec <NNN> FR-<NNN>`, where `<NNN>` is the
   numeric prefix of the `specs/<NNN>-<name>/` directory, e.g.
   `# Spec 026 FR-001` (Python) or `// Spec 026 FR-001, FR-003` (TypeScript).
-  The form is fixed so coverage can be checked by plain text search.
 - One test MAY cover several requirements and one requirement MAY be covered
   by several tests; each such test lists every FR ID it verifies.
+- A CI step MUST compare the FR IDs in each in-scope `spec.md` with the trace
+  comments and fail on any uncovered FR or any trace comment naming an FR that
+  no longer exists.
 - When a requirement is changed, renumbered, or removed, the trace comments
-  that reference it MUST be updated in the same change. A trace comment MUST
-  NOT reference an FR ID that no longer exists in its spec.
+  that reference it MUST be updated in the same change.
 - A requirement that cannot be checked by an automated test is a defect in
   the spec: it MUST be reworded until it is testable, not left uncovered.
+- Exemption: a spec whose deliverable is documentation only (e.g. spec 033)
+  MUST state "Test exemption: documentation-only" in its `spec.md` with a
+  one-line reason, and its FRs are verified by a review checklist in the spec
+  folder instead. No other exemption exists.
 - This applies to every spec whose implementation starts on or after
-  2026-10-10. Tests for older specs are not retrofitted, but a test added or
-  changed for an older spec's requirement MUST carry a trace comment.
+  2026-10-10. Tests for older specs are not retrofitted, but changing the
+  behaviour of an older, untested provider or module MUST add a test with a
+  trace comment for the behaviour that changed.
 
 Rationale: a single happy-path test per feature (Principle VI) leaves most
-requirements unverified, so a regression in any of them goes unnoticed. A
-test per requirement, with a searchable trace back to the spec, shows at a
-glance which requirements are covered and which tests must change when a
-requirement does.
+requirements unverified. The fixed trace form makes coverage checkable by a
+script, and a written, checklist-backed exemption keeps "NON-NEGOTIABLE"
+meaningful instead of quietly ignored.
+
+### IX. Repository Content and Local Callers Are Untrusted
+
+Item text, repository files, workspace settings and anything reaching the
+local server are treated as attacker-controlled. Concretely:
+
+- `MarkdownString`s built from item or repository text MUST NOT set
+  `isTrusted = true`; when command links are needed they MUST use
+  `isTrusted: { enabledCommands: [...] }` listing only the commands required.
+- Webviews MUST use a Content-Security-Policy starting from
+  `default-src 'none'`, with scripts allowed only by nonce;
+  `localResourceRoots` MUST be limited to the folders the webview actually
+  loads from; every message from a webview MUST be validated at runtime before
+  use; a file path in such a message MUST resolve inside the workspace or be
+  rejected.
+- A setting that selects an executable, a network endpoint or credentials MUST
+  use `machine` or `application` scope, so a cloned repository cannot set it.
+- Credentials MUST be stored only in `context.secrets`, never in settings,
+  files or logs.
+- `package.json` MUST declare `capabilities.untrustedWorkspaces`, and the
+  extension MUST check `vscode.workspace.isTrusted` before spawning a process
+  or running `pip`.
+- The local server MUST bind to `127.0.0.1` only, MUST reject any request
+  carrying an `Origin` header, and MUST require a per-session token generated
+  by the extension at start-up.
+
+Rationale: opening a repository must not let its content run commands, read
+files outside the workspace, redirect signed uploads, or reach the server from
+a browser page. Known violations at ratification: hover Markdown is trusted
+(`src/hoverProvider.ts:42,62`); `doorstop.objectStorage.endpoint` has
+`resource` scope.
+
+### X. Activation Never Blocks, and Nothing Outlives the Extension
+
+- `activate()` MUST register every command, view and provider before doing
+  anything else, and MUST NOT await the server, the network or a user prompt;
+  those run afterwards and report their state through the UI.
+- Every `Disposable` MUST be added to `context.subscriptions`, and
+  `deactivate()` MUST return the server's shutdown promise.
+- Child processes MUST exit when the extension host exits, including when it
+  is killed.
+- Two VS Code windows MUST be able to run the extension at the same time
+  without port collisions (e.g. the server picks a free port and reports it).
+- Providers MUST pass their `CancellationToken` on to the work they start and
+  stop when it is cancelled.
+
+Rationale: a command that is missing because activation is still waiting is
+indistinguishable from a broken extension, and an orphaned server holds the
+port for the next window. Known violations at ratification: an ignored
+"Install" toast leaves every command unregistered; the server port is fixed
+at 7867.
+
+### XI. Fast on Large Projects
+
+- Every plan MUST state how many server requests each user action makes. One
+  user action MUST make O(1) requests, not one per item.
+- Hover, completion and go-to-definition MUST NOT fetch the whole tree per
+  call; they MUST use a cache that is dropped when the tree changes.
+- Work triggered on every keystroke MUST be debounced.
+- Server file scans MUST skip `node_modules`, and blocking Doorstop calls MUST
+  NOT run on the server's event loop.
+- One committed large fixture is the reference project size for these rules
+  and for performance claims in specs.
+
+Rationale: per-item requests and per-call tree fetches are invisible on a
+demo project and unusable on a real one. Known violation at ratification:
+saving the document view sends one request per changed item.
+
+### XII. Native, Accessible UX Following the VS Code UX Guidelines
+
+- Native UI (tree views, quick picks, notifications, editors) MUST be used
+  before a webview; a webview needs a stated reason in the plan.
+- Every contributed command MUST have `"category": "Doorstop"` and MUST either
+  be reachable from the Command Palette or be hidden there on purpose via
+  `menus.commandPalette` with a `when` clause.
+- Webview colours MUST come only from `--vscode-*` CSS variables.
+- Webviews MUST be fully usable by keyboard, MUST carry ARIA labels on
+  interactive elements, and MUST be checked in a high-contrast theme.
+- Production code MUST log through one `LogOutputChannel`, not `console.*`.
+- Localization via `vscode.l10n` MAY be adopted; it is not required until the
+  project decides to ship translations.
+
+Rationale: native UI and theme variables inherit accessibility, theming and
+keyboard support for free; a single log channel is where users and
+maintainers look when something fails. Localization is a cost on every string
+and only pays off once translations exist.
 
 ## Additional Constraints
 
 - Stack: the extension is TypeScript on the VS Code Extension API, bundled
   with esbuild; the backend is Python (FastAPI + the `doorstop` package), run
   as a local server per `server/`.
-- Diagram files (`*.doorstop.json`) MUST store workspace-relative requirement
-  paths (for portability across machines/checkouts), open through a VS Code
-  custom editor, and participate in standard Save / Save As / Revert / backup
-  flows rather than a bespoke persistence mechanism.
-- Graph rendering and interaction (layout, hit-testing, dragging, zoom) is
-  delegated to `vis-network`; per Principle IV, do not hand-roll graph
-  interaction primitives it already provides.
+- Product design decisions (diagram file format, graph library, container
+  structure) live in `doc/architecture.md`, not in this constitution.
 
 ## Development Workflow
 
@@ -468,14 +365,22 @@ requirement does.
   pylint, and those touching the areas listed in Principle V MUST pass the
   `server/tests` pytest suite.
 - Every feature branch MUST leave CI green. The CI workflow
-  (`.github/workflows/ci.yml`) runs the linters, the server pytest suite, the extension
-  build/package, and the extension integration tests on every pull request.
-  A change MUST NOT be merged while any of those jobs is failing, and CI jobs
-  MUST NOT be disabled or narrowed to make a change pass.
+  (`.github/workflows/ci.yml`) runs the linters, the FR-coverage check, the
+  server pytest suite, the extension build/package, and the extension
+  integration tests on every pull request. A change MUST NOT be merged while
+  any of those jobs is failing, and CI jobs MUST NOT be disabled or narrowed
+  to make a change pass.
 - A feature is not complete until its Principle VI test exists and passes in
-  CI, and every `FR-NNN` ID in its `spec.md` appears in at least one test's
-  Principle VIII trace comment. Deferring those tests to a follow-up change
-  does not satisfy this.
+  CI, every `FR-NNN` in its `spec.md` is traced per Principle VIII, `README.md`
+  reflects the feature, and the `CHANGELOG.md` "Unreleased" section has an
+  entry for it. Deferring any of these to a follow-up change does not satisfy
+  this.
+- Spec status MUST move `Draft` → `Implemented` → `Superseded` or `Abandoned`.
+  A spec is set to `Implemented` in the change that completes it.
+- A change to a functional requirement of an earlier spec MUST, in the same
+  change, add `Superseded by <NNN> FR-<x>` to that earlier FR.
+- Quickstart tasks that need a human MUST be marked `[manual]` in `tasks.md`;
+  they do not block `Implemented`.
 - Prefer the smallest change that satisfies Principles I–IV; new abstraction
   layers or dependencies must be justified against those principles, not
   added speculatively.
@@ -488,12 +393,13 @@ affected principle(s) or section(s), increment `CONSTITUTION_VERSION` per
 semantic versioning (MAJOR: a principle is removed or redefined in a
 backward-incompatible way; MINOR: a principle or section is added or
 materially expanded; PATCH: wording/clarification with no behavioral change),
-and refresh the Sync Impact Report at the top of this file.
+and replace the Sync Impact Report at the top of this file, adding one row to
+its history table.
 
-Every change touching requirement data handling, the server API, or diagram
-persistence SHOULD be checked against the principles above before merge.
+Every `plan.md` MUST contain a Constitution Check table with one row per
+principle, each marked PASS, N/A (with reason) or a justified deviation.
 Unjustified complexity, or a deliberate deviation from a principle, MUST be
-called out explicitly (e.g. in the PR/commit description) rather than left
-implicit.
+called out explicitly in that table and in the PR/commit description rather
+than left implicit.
 
-**Version**: 1.7.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-10-18
+**Version**: 2.0.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-11-01

@@ -1,7 +1,7 @@
-import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 
+import { inDoorstopDocument } from './itemFile';
 import { getMetadataLineRange } from './reviewLensProvider';
 import { registerCommand } from './timing';
 
@@ -13,17 +13,7 @@ const SETTING = 'foldYamlHeaderOnOpen';
  */
 // ponytail: any .md under a document folder counts, also non-item notes; ask the server's item list when it is up if that matters
 function isDoorstopItem(fsPath: string): boolean {
-  if (path.extname(fsPath).toLowerCase() !== '.md') {
-    return false;
-  }
-  for (let dir = path.dirname(fsPath); ; dir = path.dirname(dir)) {
-    if (fs.existsSync(path.join(dir, '.doorstop.yml'))) {
-      return true;
-    }
-    if (path.dirname(dir) === dir) {
-      return false;
-    }
-  }
+  return path.extname(fsPath).toLowerCase() === '.md' && inDoorstopDocument(fsPath);
 }
 
 /**

@@ -16,6 +16,11 @@
 - Q: What should a newly created filter notebook contain? → A: One text cell with a short explanation and an operator cheat-sheet, followed by one runnable example filter cell. (Refined by FR-002/US1-6: one simple and one complex example filter cell.)
 - Q: Where should the user choose which properties appear as columns in a cell's result table? → A: Inside the cell, Bases-style: a cell may be a mapping with `filters:` (the filter) and `order:` (list of attribute names shown as columns); a cell holding only a filter keeps the default columns.
 
+### Session 2026-10-31
+
+- Q: When typing in a filter cell, which suggestions should the autocomplete offer? → A: Structure keys and attribute names (standard + custom), values (document prefixes, UIDs, existing custom-attribute values), plus operators/methods and "has child/parent where" snippets.
+- Q: How quickly should autocomplete suggestions appear after you type or trigger them in a filter cell? → A: Within 200 ms on a 1,000-item project; suggestion data is cached and refreshed when items change, not fetched per keystroke.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Run a filter cell and get a table of matching items (Priority: P1)
@@ -197,6 +202,37 @@ header in that order with each item's values.
 
 ---
 
+### User Story 7 - Autocomplete while writing a filter (Priority: P2)
+
+As a user writing a filter cell, I want suggestions as I type for keys,
+attribute names, operators and values, so I can build a filter quickly without
+looking up attribute names, document prefixes or UIDs.
+
+**Why this priority**: Speeds up the core loop of Story 1; the feature works
+without it, but writing filters by hand is slow and error-prone.
+
+**Independent Test**: In a project with a custom attribute `status`, type
+`status == "` in a filter cell; confirm the existing values of `status` are
+suggested.
+
+**Acceptance Scenarios**:
+
+1. **Given** an empty line in a filter cell, **When** the user triggers
+   suggestions, **Then** the structure keys (`filters:`, `order:`, `and:`,
+   `or:`, `not:`) are offered where they are valid.
+2. **Given** the user starts a condition or an `order:` entry, **When**
+   suggestions appear, **Then** they include every standard attribute name
+   and every custom attribute name found in the project.
+3. **Given** the user has typed an attribute name, **When** suggestions
+   appear, **Then** they include the operators and methods of FR-008 and the
+   "has child where" / "has parent where" conditions as fill-in snippets.
+4. **Given** the user is typing the value of `document`, `uid` or a custom
+   attribute, **When** suggestions appear, **Then** they list the document
+   prefixes, the item UIDs, or the values that attribute already has in the
+   project, respectively.
+
+---
+
 ### Edge Cases
 
 - **Syntax error in a cell**: the run fails with an error output naming the
@@ -284,6 +320,15 @@ header in that order with each item's values.
   an empty cell, a list value comma-separated, text cut to its first 80
   characters. Any other shape of `order:` MUST produce an error output.
 
+- **FR-016**: Filter cells MUST offer autocomplete suggestions while typing:
+  structure keys (`filters:`, `order:`, `and` / `or` / `not`), standard and
+  custom attribute names, the operators and methods of FR-008, "has child
+  where" / "has parent where" as fill-in snippets, and values: document
+  prefixes, item UIDs, and the values each custom attribute already has in the
+  project. Suggestions MUST come from the Doorstop server's item data (same
+  source as FR-003), held in memory and refreshed when items change; typing
+  MUST NOT trigger a server request per keystroke.
+
 ### Key Entities
 
 - **Filter notebook**: A file in the workspace holding an ordered list of
@@ -320,6 +365,8 @@ header in that order with each item's values.
 - **SC-006**: Invalid filters and an unavailable server always produce an
   explanatory error in the cell; neither ever results in a crash or a silent
   empty table.
+- **SC-007**: On a project with 1,000 items, autocomplete suggestions in a
+  filter cell appear within 200 ms of typing or triggering them.
 
 ## Assumptions
 

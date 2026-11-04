@@ -46,3 +46,9 @@ documents (e.g. `REQ` and a child `TST` whose items link to `REQ`), and one
    output, no table.
 7. **Save / reopen** — Save as `checks.doorstop-filter`, close, reopen → the
    same cells, no stale outputs; running them shows current data (Story 5).
+8. **Autocomplete** — In a project with about 1,000 items and a custom
+   attribute `status`, type `status == "` in a filter cell → the existing
+   `status` values are listed within 200 ms (the `filter.completion` timing
+   shows the time). Also check: an empty line offers `filters:`, `and:`, …;
+   `status ` offers the operators; `document == "` offers the document
+   prefixes (Story 7, SC-007).

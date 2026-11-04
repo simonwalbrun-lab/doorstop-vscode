@@ -76,9 +76,17 @@ Doorstop's own validation, inline at the affected field.
 
 - **CodeLens:** derive a downstream requirement in one click
 - **IntelliSense:** autocomplete links, recent items first
+- **Quick entry:** field values from team value lists, the current date and time, or values other items already use; also in document views, and filter notebooks respect the lists
 - **Hover:** preview any linked item
 
 <img src="media/promotion/05_autocomplete.gif" alt="Autocompletion of links" width=600>
+
+### Test Reports: Checkboxes and Attachments
+
+- **Checkboxes:** click inside `[ ]` of a task in an item's text to tick it; click again to untick. Undo works; save as usual. Also in document views
+- **Attachments:** paste files copied in the file manager, a screenshot, or drag files in while holding **Shift** (without Shift VS Code opens the file). Each file lands in the document's `assets` folder, which `doorstop publish` includes, and a link is inserted at the cursor
+- **Object storage:** set `doorstop.attachments.storage` to `objectStorage` to upload files above `doorstop.attachments.objectStorage.thresholdMB` to MinIO, Garage or another S3-compatible store. Run *Doorstop: Set Object Storage Credentials* once; keys stay in VS Code's secret storage. Set `doorstop.attachments.objectStorage.endpoint` (and `.region`) in your User settings: a workspace cannot choose where your credentials are sent. Links are `{endpoint}/{bucket}/{key}`, so the bucket must be readable by everyone who reads the reports, or set `doorstop.attachments.objectStorage.publicUrl` to the address readers use
+- **Garage:** endpoint is the S3 API port (default `http://localhost:3900`), `region` must equal Garage's `s3_region` (commonly `garage`), and `publicUrl` is the bucket's website endpoint, e.g. `http://reports.web.garage.localhost:3902`, after `garage bucket website --allow reports`
 
 ### Filter Notebooks
 
@@ -90,7 +98,9 @@ Query items with YAML filters, like Obsidian Bases. Run a cell, get a table.
 - Operators: `==` `!=` `<` `<=` `>` `>=`, `.contains()`, `.startsWith()`, `.isEmpty()`, `.isNotEmpty()`
 - Works on built-in and custom attributes; levels as strings
 - `order: [status, owner]` picks the table columns
+- Autocomplete for keys, attribute names, operators, document prefixes, UIDs and existing custom values
 - **Open as document** edits the matched items
+- **Batch edit**: add `edit:` next to `filters:` (`set`, `add`, `remove`, `appendEntry`, `removeEntry`, `generateChildren`) with text values in double quotes like in filters (`set: {testrun: "TR-1"}`), tick rows, press **Apply to selected**; you confirm the counts first
 - *Doorstop: New Filter Notebook* starts with a cheat sheet
 
 ### Publish
@@ -112,12 +122,19 @@ Query items with YAML filters, like Obsidian Bases. Run a cell, get a table.
 | `doorstop.documentView.fields` | none | Header fields editable in document views |
 | `doorstop.problemReporting` | Automatic | `Automatic`, `On demand` or `Off` |
 | `doorstop.foldYamlHeaderOnOpen` | off | Fold the YAML header of Markdown items on open |
+| `doorstop.quickEntry.valueLists` | none | Values offered for a field, e.g. `{"status": ["Draft", "Approved"]}`; best in `.vscode/settings.json` |
+| `doorstop.quickEntry.dateTimeFields` | none | Fields offered the current date and time (`YYYY-MM-DDThh:mm`) |
+| `doorstop.quickEntry.suggestUsedValues` | on | Offer values used in other items for fields without a value list |
+| `doorstop.attachments.storage` | `assets` | `assets` or `objectStorage` for pasted/dropped files |
+| `doorstop.attachments.objectStorage.thresholdMB` | `10` | Larger files go to object storage; `0` = all |
+| `doorstop.attachments.objectStorage.endpoint` / `.bucket` / `.prefix` / `.region` | none / none / none / `us-east-1` | Where uploads go; `endpoint` and `region` are User settings only, workspace values are ignored |
+| `doorstop.attachments.objectStorage.publicUrl` | none | Address links point to, e.g. Garage's website endpoint |
 | `doorstop.timing.enabled` | off | Timing log, for extension developers |
 
 ## Requirements
 
-- VS Code ≥ 1.75 with the Python extension
-- Python ≥ 3.9 with `doorstop-vscode-server` (installed on request)
+- VS Code ≥ 1.97 with the Python extension
+- Python ≥ 3.9 with `doorstop-vscode-server` ≥ 0.4.0 (installed on request)
 - Node.js ≥ 18 - only for PDF publishing
 
 ## Links

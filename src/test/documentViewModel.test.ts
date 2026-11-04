@@ -10,6 +10,7 @@ import {
   documentScope,
   filterScope,
   insertionPointAfterBlock,
+  itemBodyAt,
   itemSeparator,
   normaliseFieldList,
   parse,
@@ -397,5 +398,24 @@ suite('Document View scopes and fields model (030)', () => {
       protectedNames: ['level', 'Links']
     });
     assert.deepStrictEqual(normaliseFieldList(undefined), { fields: [], protectedNames: [] });
+  });
+});
+
+suite('Document View item bodies (035)', () => {
+  // Spec 035 FR-004, FR-009
+  test('itemBodyAt names the item for body lines only', () => {
+    const fielded = doc([item({ uid: 'SYS-0001', level: '1.0', text: '- [ ] step', fields: { status: 'draft' } })]);
+    const lines = render(fielded, ['status']).text.split('\n');
+    const blocks = parse(lines.join('\n'));
+    const at = (text: string) => itemBodyAt(blocks, lines.indexOf(text));
+    assert.deepStrictEqual(at('- [ ] step'), { uid: 'SYS-0001' });
+    assert.strictEqual(at('<!-- SYS-0001 · 1.0 · item separator. keep this line -->'), undefined);
+    assert.strictEqual(at('# SYS-0001'), undefined);
+    assert.strictEqual(at('```doorstop-fields'), undefined);
+    assert.strictEqual(at('status: draft'), undefined);
+    assert.strictEqual(itemBodyAt(blocks, 0), undefined, 'document marker');
+
+    const plain = render(THREE_ITEMS).text.split('\n');
+    assert.deepStrictEqual(itemBodyAt(parse(plain.join('\n')), plain.indexOf('Second paragraph.')), { uid: 'SYS-0006' });
   });
 });
