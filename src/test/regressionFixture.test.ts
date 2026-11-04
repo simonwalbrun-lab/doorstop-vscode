@@ -1509,11 +1509,15 @@ suite('Regression Fixture Integration Suite', () => {
     };
 
     async function replaceInView(document: vscode.TextDocument, from: string, to: string): Promise<void> {
-      const offset = document.getText().indexOf(from);
-      assert.ok(offset >= 0, `"${from}" present in the view`);
-      const edit = new vscode.WorkspaceEdit();
-      edit.replace(document.uri, new vscode.Range(document.positionAt(offset), document.positionAt(offset + from.length)), to);
-      assert.ok(await vscode.workspace.applyEdit(edit), 'edit applied');
+      // A clean view may be refreshed at any moment (disk watcher, state reused from
+      // the previous test); VS Code then rejects the edit as stale, so re-read and retry.
+      await waitFor(async () => {
+        const offset = document.getText().indexOf(from);
+        assert.ok(offset >= 0, `"${from}" present in the view`);
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(document.uri, new vscode.Range(document.positionAt(offset), document.positionAt(offset + from.length)), to);
+        return vscode.workspace.applyEdit(edit);
+      }, 'edit applied');
     }
 
     /** Top-level YAML sections of an item file, keyed by attribute - for "only this key changed" checks. */
