@@ -107,7 +107,8 @@ export function droppedTextToUid(droppedText: string): string {
     try { localPath = decodeURIComponent(cleanText); } catch { /* keep the raw text */ }
   }
   const isPath = fs.existsSync(localPath) || localPath.includes('/') || localPath.includes('\\');
-  return isPath ? path.basename(path.normalize(localPath)).replace(/\.(yml|md)$/, '') : cleanText;
+  // win32 splits on both '/' and '\', so a Windows path also resolves on a POSIX host.
+  return isPath ? path.win32.basename(path.normalize(localPath)).replace(/\.(yml|md)$/, '') : cleanText;
 }
 
 export class DoorstopDiagramPanel {

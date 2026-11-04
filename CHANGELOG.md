@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-04
+
 ### Added
 
 - Autocomplete in filter notebook cells: keys, attribute names, operators and methods, document prefixes, UIDs and the values custom attributes already have
@@ -16,11 +18,24 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Requires VS Code 1.97 or newer
+- **Breaking:** requires `doorstop-vscode-server` 0.4.0 or newer. Run `pip install --upgrade doorstop-vscode-server` in the active Python environment, then *Doorstop: Restart Extension*
 - **Breaking:** `doorstop.attachments.objectStorage.endpoint` and `.region` are User (machine) settings; values in workspace or folder settings are ignored, so move them to User settings. A repository can no longer send uploads, signed with your credentials, to a server it chooses
+- Each VS Code window starts its own server on a free port, and the server exits with its window
+- The diagram canvas ships its vis-network library and works offline; nothing is loaded from unpkg.com
+- Links in hovers can only open files; other command links in item content do nothing
+- The server rejects requests with a foreign `Host` header
 
 ### Fixed
 
 - The tree view reloads after a file is saved in the editor; expanded documents stay open
+- Commands and views are available while the server starts or the install prompt is open
+- No "fetch failed" message while the server is still starting
+- The problems check waits for the tree to load, so the two no longer slow each other down at startup
+- New items typed in a row in a document view are created in the typed order
+- *Add to Diagram* uses the active diagram when several are open
+- Diagram messages are in English
+- Dropping a path containing `%` onto a diagram works
+- The server's change checks skip `node_modules` and `__pycache__`
 
 ## [0.4.0] - 2026-10-18
 

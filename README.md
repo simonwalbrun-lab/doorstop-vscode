@@ -134,7 +134,7 @@ Query items with YAML filters, like Obsidian Bases. Run a cell, get a table.
 ## Requirements
 
 - VS Code ≥ 1.97 with the Python extension
-- Python ≥ 3.9 with `doorstop-vscode-server` (installed on request)
+- Python ≥ 3.9 with `doorstop-vscode-server` ≥ 0.4.0 (installed on request)
 - Node.js ≥ 18 - only for PDF publishing
 
 ## Links
